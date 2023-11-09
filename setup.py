@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="idc-index-vamsi",
+    name="idc_index_vamsi",
     version="0.0.1",
     author="Vamsi Thiriveedhi",
     author_email="vamsikrishna1414@gmail.com",
@@ -14,5 +14,5 @@ setup(
         "Operating System :: OS Independent",
     ],
     install_requires=["click", "pytz"],
-    entry_points={"console_scripts": ["idc-index-vamsi = src.main:main"]},
+    entry_points={"console_scripts": ["idc_index_vamsi = src.main:main"]},
 )
