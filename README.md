@@ -1,2 +1,2 @@
-# idc_index
-Python wrapper for IDC Index
+# pythoncustompackages
+This Repo shows how to create and use the Python custom packages using GitHub actions
