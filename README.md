@@ -1,6 +1,6 @@
 # IDC Client
 
-The IDC Client is a Python library designed to query basic metadata and download data hosted on the NCI Integrated Data Commons (IDC).
+The IDC Client is a Python library designed to query basic metadata and download data hosted on the NCI Imaging Data Commons (IDC).
 
 ## Installation
 
