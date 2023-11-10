@@ -6,7 +6,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name='idc_index',
-    version='0.0.4',
+    version='0.0.5',
     packages=find_packages(),
     include_package_data=True,  
     install_requires=['pandas'],

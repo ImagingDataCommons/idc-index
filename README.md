@@ -63,9 +63,11 @@ For the s5cmd tool used for efficient image retrieval, visit the s5cmd GitHub Re
 
 Here's an example demonstrating how to use the IDC Client:
 
-from idc_client import IDCClient
 
 ### Initialize the IDC Client
+```
+from idc_index.index import IDCClient
+```
 ```
 idc_client = IDCClient()
 ```
