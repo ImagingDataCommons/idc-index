@@ -1,4 +1,4 @@
-name: Publish Python distributions to PyPI and TestPyPI
+name: Publish IDC Index Python distribution to PyPI 
 
 on:
   workflow_dispatch:
@@ -10,10 +10,10 @@ jobs:
         steps:
             - uses: actions/checkout@main
 
-            - name: Initialize Python 3.9
-              uses: actions/setup-python@v1
+            - name: Initialize Python 3.11
+              uses: actions/setup-python@v4
               with:
-                python-version: 3.9
+                python-version: 3.11
 
             - name: Install dependencies
               run: |
@@ -28,7 +28,7 @@ jobs:
                 flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
           
             - name: Build binary wheel and a source tarball
-              run: python setup.py sdist
+              run: python setup.py sdist bdist_wheel
 
             - name: Publish distribution to PyPI
               uses: pypa/gh-action-pypi-publish@master
