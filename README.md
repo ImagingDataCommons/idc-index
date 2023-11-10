@@ -55,7 +55,7 @@ The library provides the following key functionalities along with their availabl
 
 ## Resources
 
-To learn more about the IDC, visit Imaging Data Commons at: https://imagingdatacommons.github.io/IDC-User-Documentation/
+To learn more about the IDC, visit Imaging Data Commons at: https://github.com/ImagingDataCommons
 
 For the s5cmd tool used for efficient image retrieval, visit the s5cmd GitHub Repository: https://github.com/peak/s5cmd
 
