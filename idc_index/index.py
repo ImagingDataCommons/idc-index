@@ -11,7 +11,7 @@ class IDCClient:
     def __init__(self):
         current_dir = os.path.dirname(os.path.abspath(__file__))
         file_path = os.path.join(current_dir, 'idc_data.csv.zip')
-        self.index = pd.read_csv(file_path, dtype={14: str, 15: str,16: str})
+        self.index = pd.read_csv(file_path, dtype=str, encoding='utf-8')
         self.index = self.index.astype(str).replace('nan', '')
         self.s5cmdPath = None 
         self.s5cmdDownload()
