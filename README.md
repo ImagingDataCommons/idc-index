@@ -6,7 +6,7 @@ The IDC Client is a Python library designed to query basic metadata and download
 
 Install the IDC Client using pip:
 ```
-pip install idc-client
+pip install idc-index
 ```
 ## Description
 
