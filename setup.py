@@ -6,10 +6,10 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name='idc_index',
-    version='0.0.9',
+    version='0.1.0',
     packages=find_packages(),
     include_package_data=True,  
-    install_requires=['pandas', 'requests', 'logging'],
+    install_requires=['pandas', 'requests'],
     # Metadata
     author='Vamsi Thiriveedhi',
     author_email='vthiriveedhi@mgb.org',
