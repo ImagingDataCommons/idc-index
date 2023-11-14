@@ -200,16 +200,16 @@ class IDCClient:
         if outputFormat == "list":
             response = series_df['SeriesInstanceUID'].unique().tolist()
         else:
-            patient_series_df = patient_series_df.rename(columns={'collection_id': 'Collection', 'instanceCount': 'instance_count'})
-            patient_series_df['ImageCount']=1
-            patient_series_df = patient_series_df[['StudyInstanceUID', 'SeriesInstanceUID', 'Modality', 'SeriesDate', 'Collection', 'BodyPartExamined', 'SeriesDescription', 'Manufacturer', 'ManufacturerModelName', 'series_size_MB','SeriesNumber', 'instance_count', 'ImageCount']]
+            series_df = series_df.rename(columns={'collection_id': 'Collection', 'instanceCount': 'instance_count'})
+            series_df['ImageCount']=1
+            series_df = series_df[['StudyInstanceUID', 'SeriesInstanceUID', 'Modality', 'SeriesDate', 'Collection', 'BodyPartExamined', 'SeriesDescription', 'Manufacturer', 'ManufacturerModelName', 'series_size_MB','SeriesNumber', 'instance_count', 'ImageCount']]
 
-            patient_series_df = patient_series_df.drop_duplicates().sort_values(by=['Modality','SeriesDate','SeriesDescription','BodyPartExamined', 'SeriesNumber'])
+            series_df = series_df.drop_duplicates().sort_values(by=['Modality','SeriesDate','SeriesDescription','BodyPartExamined', 'SeriesNumber'])
             # Convert DataFrame to a list of dictionaries for the API-like response
             if outputFormat == "dict":
-                response = patient_series_df.to_dict(orient="records")
+                response = series_df.to_dict(orient="records")
             else:
-                response = patient_series_df
+                response = series_df
         logging.debug("Get series response: %s", str(response))
 
         return response
