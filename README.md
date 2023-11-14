@@ -83,7 +83,7 @@ idc_client.get_idc_version()
 idc_client.get_collections()
 ```
 ```
-idc_client.get_patients(collection='nsclc_radiomics',outputFormat="list")
+idc_client.get_patients(collection_id='nsclc_radiomics',outputFormat="list")
 ```
 ```
 idc_client.get_dicom_studies(patientId='D1-0975', outputFormat="dict")
@@ -93,5 +93,5 @@ idc_client.get_dicom_series(studyInstanceUID='1.3.6.1.4.1.32722.99.99.1914110964
 ```
 ### Download data
 ```
-idc_client.download_dicom_series(seriesInstanceUid='1.3.6.1.4.1.32722.99.99.459644025247509819689655120845267405', downloadDir='/content/test')
+idc_client.download_dicom_series(seriesInstanceUID='1.3.6.1.4.1.32722.99.99.459644025247509819689655120845267405', downloadDir='/content/test')
 ```
