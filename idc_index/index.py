@@ -138,6 +138,8 @@ class IDCClient:
             # Convert DataFrame to a list of dictionaries for the API-like response
             if outputFormat == "dict":
                 response = patient_df.to_dict(orient="records")
+            else:
+                response = patient_df
 
         logging.debug("Get patient response: %s", str(response))
 
@@ -151,7 +153,7 @@ class IDCClient:
             raise TypeError("patientId must be a string or list of strings")
         
         if not outputFormat in ["dict","df","list"]:
-            raise ValueError("outputFormat must be either 'dict' or 'df'")
+            raise ValueError("outputFormat must be either 'dict' or 'df' or 'list'")
 
         studies_df = self._filter_by_patient_id(self.index, patientId) 
 
@@ -179,17 +181,19 @@ class IDCClient:
 
             if outputFormat == "dict":
                 response = studies_df.to_dict(orient="records")
-
+            else:
+                response = studies_df
+                
         logging.debug("Get patient study response: %s", str(response))
 
         return response
 
-    def get_dicom_series(self, studyInstanceUID=None,outputFormat="json"):
+    def get_dicom_series(self, studyInstanceUID=None,outputFormat="dict"):
         if not isinstance(studyInstanceUID, str) and not isinstance(studyInstanceUID, list):
             raise TypeError("studyInstanceUID must be a string or list of strings")
         
         if not outputFormat in ["dict","df","list"]:
-            raise ValueError("outputFormat must be either 'dict' or 'df'")
+            raise ValueError("outputFormat must be either 'dict' or 'df' or 'list'")
 
         series_df = self._filter_by_dicom_study_uid(self.index, studyInstanceUID) 
        
@@ -204,7 +208,8 @@ class IDCClient:
             # Convert DataFrame to a list of dictionaries for the API-like response
             if outputFormat == "dict":
                 response = patient_series_df.to_dict(orient="records")
-
+            else:
+                response = patient_series_df
         logging.debug("Get series response: %s", str(response))
 
         return response
@@ -274,7 +279,7 @@ class IDCClient:
         manifest_file = os.path.join(downloadDir, 'download_manifest.s5cmd')
         for index, row in result_df.iterrows():
             with open(manifest_file, 'a') as f:
-                f.write("cp "+row['series_aws_location'] + " "+downloadDir+"\n")
+                f.write("cp --show-progress "+row['series_aws_location'] + " "+downloadDir+"\n")
         self.download_from_manifest(manifest_file, downloadDir)
 
     """Download the files corresponding to the manifest file from IDC. The manifest file should be a text file with each line containing the s5cmd command to download the file. The URLs in the file must correspond to those in the AWS buckets!
@@ -288,10 +293,10 @@ class IDCClient:
     Raises:
     """
     def download_from_manifest(self, manifest_file, downloadDir):
-        cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', 'https://s3.amazonaws.com', 'run', '--show-progress',
+        cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', 'https://s3.amazonaws.com', 'run',
             manifest_file, downloadDir]
         process = subprocess.run(cmd, capture_output=True, text=True)
-        print(process.stderr)
+        logging.info(process.stderr)
         if process.returncode == 0:
             logging.debug(f"Successfully downloaded files to {downloadDir}")
         else:
