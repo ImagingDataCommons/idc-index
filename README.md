@@ -83,7 +83,7 @@ idc_client.get_idc_version()
 idc_client.get_collections()
 ```
 ```
-idc_client.get_patients(collection='nsclc_radiomics',outputFormat="list")
+idc_client.get_patients(collection_id='nsclc_radiomics',outputFormat="list")
 ```
 ```
 idc_client.get_dicom_studies(patientId='D1-0975', outputFormat="dict")
