@@ -19,7 +19,7 @@ class PostInstallCommand(install):
     """Post-installation for installation mode."""
     def run(self):
         install.run(self)
-        # The location where you want to save the files (installation directory of the package)
+        # Downloading s5cmd and csv index in the same location as the python modules
         save_location = os.path.join(self.install_lib, 'idc_index')
 
         # Create the directory if it doesn't exist
@@ -79,8 +79,7 @@ setup(
         'install': PostInstallCommand,
     },
     # Metadata
-    author='Vamsi Thiriveedhi',
-    author_email='vthiriveedhi@mgb.org',
+    author='ImagingDataCommons',
     description='Package to query and download data from an index of ImagingDataCommons',
     long_description=long_description,
     long_description_content_type="text/markdown",
