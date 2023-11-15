@@ -49,11 +49,11 @@ The library provides the following key functionalities along with their availabl
   - get_idc_version() : Get the release version of IDC data 
 - Data Retrieval:
   - get_collections(): Retrieve a list of unique collection IDs.
-  - get_series_size(seriesInstanceUid): Obtain the size of a series in MB by providing the SeriesInstanceUID.
+  - get_series_size(seriesInstanceUID): Obtain the size of a series in MB by providing the SeriesInstanceUID.
   - get_patients(collection_id=None, outputFormat="list" or ("dict" or "df")): Retrieve information about patients within a collection.
   - get_dicom_studies(patientId=None, outputFormat="list" or ("dict" or "df")): Retrieve studies for a patient_id.
-  - get_dicom_series(studyInstanceUid=None, outputFormat="list" or ("dict" or "df")): Retrieve series within a study.
-  - download_dicom_series(seriesInstanceUid, downloadDir, dry_run=False, quiet=True ): Download images associated with a SeriesInstanceUID to a specified directory.
+  - get_dicom_series(studyInstanceUID=None, outputFormat="list" or ("dict" or "df")): Retrieve series within a study.
+  - download_dicom_series(seriesInstanceUID, downloadDir, dry_run=False, quiet=True ): Download images associated with a SeriesInstanceUID to a specified directory.
   - download_from_selection(downloadDir=None, dry_run=True, collection_id=None, patientId=None, studyInstanceUID=None): Download images associated with specific filter(s) to a specified directory.
 ## Resources
 
