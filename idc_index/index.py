@@ -11,70 +11,23 @@ import zipfile
 class IDCClient:
     def __init__(self):
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        file_path = os.path.join(current_dir, 'idc_data.csv.zip')
+        file_path = os.path.join(current_dir, 'idc_index.csv.zip')
         self.index = pd.read_csv(file_path, dtype=str, encoding='utf-8')
         self.index = self.index.astype(str).replace('nan', '')
         self.index['series_size_MB'] = self.index['series_size_MB'].astype(float)
         self.s5cmdPath = None 
-        self._setup_s5cmd()
+        system = platform.system()
+
+        if system == "Windows":
+             self.s5cmdPath = os.path.join(current_dir, 's5cmd.exe')
+        elif system == "Darwin":
+             self.s5cmdPath = os.path.join(current_dir, 's5cmd')
+        else:
+             self.s5cmdPath = os.path.join(current_dir, 's5cmd')
 
         # Print after successful reading of index
         logging.debug("Successfully read the index.")
 
-
-    def _setup_s5cmd(self):
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        s5cmdTargetDirectory = current_dir  # Save s5cmd in the directory with the IDC data file
-
-        # List of mirror sites to attempt downloading s5cmd pre-built binaries from
-        s5cmd_version = "2.2.2"
-        system = platform.system()
-
-        urls = []
-
-        if system == "Windows":
-            urls.append(f'https://github.com/peak/s5cmd/releases/download/v{s5cmd_version}/s5cmd_{s5cmd_version}_Windows-64bit.zip')
-            self.s5cmdPath = os.path.join(s5cmdTargetDirectory, 's5cmd.exe')
-        elif system == "Darwin":
-            urls.append(f'https://github.com/peak/s5cmd/releases/download/v{s5cmd_version}/s5cmd_{s5cmd_version}_macOS-64bit.tar.gz')
-            self.s5cmdPath = os.path.join(s5cmdTargetDirectory, 's5cmd')
-        else:
-            urls.append(f'https://github.com/peak/s5cmd/releases/download/v{s5cmd_version}/s5cmd_{s5cmd_version}_Linux-64bit.tar.gz')
-            self.s5cmdPath = os.path.join(s5cmdTargetDirectory, 's5cmd')
-
-        # Check if the file already exists
-        if os.path.exists(self.s5cmdPath):
-            logging.debug('s5cmd already exists. So not downloading again')
-            return True
-
-        # Download code based on the system detected
-        for url in urls:
-            try:
-                logging.debug('Downloading s5cmd from', url)
-                response = urllib.request.urlopen(url)
-
-                # Downloading s5cmd to the current directory
-                filepath = os.path.join(current_dir, os.path.basename(url))
-                with open(filepath, 'wb') as f:
-                    f.write(response.read())
-
-                # Extract the s5cmd package
-                if filepath.endswith('.zip'):
-                    with zipfile.ZipFile(filepath, 'r') as zip_ref:
-                        zip_ref.extractall(s5cmdTargetDirectory)
-                else:
-                    with tarfile.open(filepath, 'r:gz') as tar_ref:
-                        tar_ref.extractall(s5cmdTargetDirectory)
-                
-                logging.debug(f's5cmd successfully downloaded and extracted, and is located at {self.s5cmdPath}')
-                os.remove(filepath)
-                return True  # Indicate successful download
-
-            except Exception as e:
-                logging.error('Failed to download s5cmd:', e)
-                # Attempt the next URL
-
-        return False  # Indicate failure to download
 
     def _filter_by_collection_id(self, df, collection_id):
         if isinstance(collection_id, str):
