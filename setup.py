@@ -83,7 +83,7 @@ setup(
     description='Package to query and download data from an index of ImagingDataCommons',
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url='https://github.com/vkt1414/idc_index',
+    url='https://github.com/ImagingDataCommons/idc-index',
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
