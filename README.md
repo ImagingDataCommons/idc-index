@@ -55,11 +55,6 @@ The library provides the following key functionalities along with their availabl
   - get_dicom_series(studyInstanceUID=None, outputFormat="list" or ("dict" or "df")): Retrieve series within a study.
   - download_dicom_series(seriesInstanceUID, downloadDir, dry_run=False, quiet=True ): Download images associated with a SeriesInstanceUID to a specified directory.
   - download_from_selection(downloadDir=None, dry_run=True, collection_id=None, patientId=None, studyInstanceUID=None): Download images associated with specific filter(s) to a specified directory.
-## Resources
-
-To learn more about the IDC, visit Imaging Data Commons at: https://github.com/ImagingDataCommons
-
-For the s5cmd tool used for efficient image retrieval, visit the s5cmd GitHub Repository: https://github.com/peak/s5cmd
 
 ## Example
 
@@ -95,3 +90,9 @@ idc_client.get_dicom_series(studyInstanceUID='1.3.6.1.4.1.32722.99.99.1914110964
 ```
 idc_client.download_dicom_series(seriesInstanceUID='1.3.6.1.4.1.32722.99.99.459644025247509819689655120845267405', downloadDir='/content/test')
 ```
+
+## Resources
+
+To learn more about the IDC, visit Imaging Data Commons at: https://github.com/ImagingDataCommons
+
+For the s5cmd tool used for efficient image retrieval, visit the s5cmd GitHub Repository: https://github.com/peak/s5cmd
