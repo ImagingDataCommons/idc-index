@@ -71,7 +71,7 @@ class PostInstallCommand(install):
                 logging.error('Failed to download s5cmd:', e)
 setup(
     name='idc_index',
-    version='0.2.1',
+    version='0.2.2',
     packages=find_packages(),
     include_package_data=True,
     install_requires=['pandas', 'requests'],
