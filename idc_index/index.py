@@ -15,6 +15,11 @@ class IDCClient:
         self.index = pd.read_csv(file_path, dtype=str, encoding='utf-8')
         self.index = self.index.astype(str).replace('nan', '')
         self.index['series_size_MB'] = self.index['series_size_MB'].astype(float)
+        self.collection_summary = self.index.groupby('collection_id').agg({
+            'Modality': pd.Series.unique,
+            'series_size_MB': 'sum'
+        })
+        
         self.s5cmdPath = None 
         system = platform.system()
 
@@ -24,7 +29,7 @@ class IDCClient:
              self.s5cmdPath = os.path.join(current_dir, 's5cmd')
         else:
              self.s5cmdPath = os.path.join(current_dir, 's5cmd')
-
+            
         # Print after successful reading of index
         logging.debug("Successfully read the index.")
 
