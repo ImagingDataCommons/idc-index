@@ -180,7 +180,7 @@ class IDCClient:
             series_url, downloadDir]
 
         if not dry_run:
-            process = subprocess.run(cmd, capture_output=True, text=True)
+            process = subprocess.run(cmd, capture_output=(not quiet), text=(not quiet))
             if not quiet:
                 print(process.stderr)
             if process.returncode == 0:
