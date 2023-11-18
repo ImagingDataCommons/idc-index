@@ -203,7 +203,7 @@ class IDCClient:
     Raises:
         TypeError: If any of the parameters are not of the expected type
     """
-    def download_from_selection(self, downloadDir=None, dry_run=True, collection_id=None, patientId=None, studyInstanceUID=None, SeriesInstanceUID=None):
+    def download_from_selection(self, downloadDir=None, dry_run=True, collection_id=None, patientId=None, studyInstanceUID=None, seriesInstanceUID=None):
         if collection_id is not None:
             if not isinstance(collection_id, str) and not isinstance(collection_id, list):
                 raise TypeError("collection_id must be a string or list of strings")
