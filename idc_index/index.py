@@ -24,11 +24,11 @@ class IDCClient:
         system = platform.system()
 
         if system == "Windows":
-             self.s5cmdPath = os.path.join(current_dir, 's5cmd.exe')
+            self.s5cmdPath = os.path.join(current_dir, 's5cmd.exe')
         elif system == "Darwin":
-             self.s5cmdPath = os.path.join(current_dir, 's5cmd')
+            self.s5cmdPath = os.path.join(current_dir, 's5cmd')
         else:
-             self.s5cmdPath = os.path.join(current_dir, 's5cmd')
+            self.s5cmdPath = os.path.join(current_dir, 's5cmd')
             
         # Print after successful reading of index
         logging.debug("Successfully read the index.")
@@ -195,6 +195,7 @@ class IDCClient:
         collection_id: string or list of strings containing the values of collection_id to filter by
         patientId: string or list of strings containing the values of PatientID to filter by
         studyInstanceUID: string or list of strings containing the values of DICOM StudyInstanceUID to filter by
+        seriesInstanceUID: string or list of strings containing the values of DICOM SeriesInstanceUID to filter by
         downloadDir: string containing the path to the directory to download the files to
 
     Returns:
@@ -202,7 +203,7 @@ class IDCClient:
     Raises:
         TypeError: If any of the parameters are not of the expected type
     """
-    def download_from_selection(self, downloadDir=None, dry_run=True, collection_id=None, patientId=None, studyInstanceUID=None):
+    def download_from_selection(self, downloadDir=None, dry_run=True, collection_id=None, patientId=None, studyInstanceUID=None, seriesInstanceUID=None):
         if collection_id is not None:
             if not isinstance(collection_id, str) and not isinstance(collection_id, list):
                 raise TypeError("collection_id must be a string or list of strings")
@@ -211,6 +212,9 @@ class IDCClient:
                 raise TypeError("collection_id must be a string or list of strings")
         if studyInstanceUID is not None:
             if not isinstance(studyInstanceUID, str) and not isinstance(studyInstanceUID, list):
+                raise TypeError("collection_id must be a string or list of strings")
+        if seriesInstanceUID is not None:
+            if not isinstance(seriesInstanceUID, str) and not isinstance(seriesInstanceUID, list):
                 raise TypeError("collection_id must be a string or list of strings")
 
         if collection_id is not None:
@@ -224,9 +228,12 @@ class IDCClient:
         if studyInstanceUID is not None:
             result_df = self._filter_by_dicom_study_uid(result_df, studyInstanceUID)
 
+        if seriesInstanceUID is not None:
+            result_df = self._filter_by_dicom_series_uid(result_df, seriesInstanceUID)
+
         total_size = result_df['series_size_MB'].sum()
-        logging.info("Total size of files to download: ", float(total_size)/1024, "GB")
-        logging.info("Total free space on disk: ", os.statvfs(downloadDir).f_bsize * os.statvfs(downloadDir).f_bavail / 1024 / 1024 / 1024, "GB")
+        logging.info("Total size of files to download: ", float(total_size)/1000, "GB")
+        logging.info("Total free space on disk: ", os.statvfs(downloadDir).f_bsize * os.statvfs(downloadDir).f_bavail / (1000*1000*1000), "GB")
 
         if dry_run:
             logging.info("Dry run. Not downloading files. Rerun with dry_run=False to download the files.")

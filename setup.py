@@ -27,7 +27,7 @@ class PostInstallCommand(install):
 
         # Download the index file
         try:
-            urllib.request.urlretrieve('https://github.com/ImagingDataCommons/SlicerIDCBrowser/releases/download/latest/idc_index.csv.zip', os.path.join(save_location, 'idc_index.csv.zip'))
+            urllib.request.urlretrieve('https://github.com/ImagingDataCommons/idc-index/releases/download/latest/idc_index.csv.zip', os.path.join(save_location, 'idc_index.csv.zip'))
             print(f"Downloaded index")
         except Exception as err:
             print(f"Something went wrong while downloading the index file: {err}")
@@ -71,7 +71,7 @@ class PostInstallCommand(install):
                 logging.error('Failed to download s5cmd:', e)
 setup(
     name='idc_index',
-    version='0.2.3',
+    version='0.2.4',
     packages=find_packages(),
     include_package_data=True,
     install_requires=['pandas', 'requests'],
