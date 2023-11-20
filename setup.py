@@ -9,11 +9,11 @@ import urllib.request
 import tarfile
 import zipfile
 
+package_version = "0.2.5"
+
 # Read long description from README
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
-
-
 
 class PostInstallCommand(install):
     """Post-installation for installation mode."""
@@ -27,7 +27,7 @@ class PostInstallCommand(install):
 
         # Download the index file
         try:
-            urllib.request.urlretrieve('https://github.com/ImagingDataCommons/idc-index/releases/download/0.2.5/idc_index.csv.zip', os.path.join(save_location, 'idc_index.csv.zip'))
+            urllib.request.urlretrieve('https://github.com/ImagingDataCommons/idc-index/releases/download/'+package_version+'/idc_index.csv.zip', os.path.join(save_location, 'idc_index.csv.zip'))
             print(f"Downloaded index")
         except Exception as err:
             print(f"Something went wrong while downloading the index file: {err}")
@@ -71,7 +71,7 @@ class PostInstallCommand(install):
                 logging.error('Failed to download s5cmd:', e)
 setup(
     name='idc_index',
-    version='0.2.5',
+    version=package_version,
     packages=find_packages(),
     include_package_data=True,
     install_requires=['pandas', 'requests'],
