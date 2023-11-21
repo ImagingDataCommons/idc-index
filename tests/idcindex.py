@@ -46,5 +46,10 @@ class TestIDCClient(unittest.TestCase):
           self.client.download_from_selection(studyInstanceUID="1.3.6.1.4.1.14519.5.2.1.3320.3273.234458321320456015460025860862", downloadDir=temp_dir)
 
           self.assertIsNotNone(os.listdir(temp_dir))
+
+    def test_sql_queries(self):
+        df = self.client.sql_query("SELECT DISTINCT(collection_id) FROM index")
+
+        self.assertIsNotNone(df)
 if __name__ == '__main__':
     unittest.main()

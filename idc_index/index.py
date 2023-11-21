@@ -6,13 +6,17 @@ import urllib.request
 import subprocess
 import tarfile
 import zipfile
+import duckdb
 
 
 class IDCClient:
     def __init__(self):
         current_dir = os.path.dirname(os.path.abspath(__file__))
         file_path = os.path.join(current_dir, 'idc_index.csv.zip')
-        self.index = pd.read_csv(file_path, dtype=str, encoding='utf-8')
+        if not os.path.exists(file_path):
+            self.index=pd.read_csv('https://github.com/ImagingDataCommons/idc-index/releases/download/latest/idc_index.csv.zip', dtype=str, encoding='utf-8')
+        else:
+            self.index = pd.read_csv(file_path, dtype=str, encoding='utf-8')
         self.index = self.index.astype(str).replace('nan', '')
         self.index['series_size_MB'] = self.index['series_size_MB'].astype(float)
         self.collection_summary = self.index.groupby('collection_id').agg({
@@ -29,9 +33,18 @@ class IDCClient:
             self.s5cmdPath = os.path.join(current_dir, 's5cmd')
         else:
             self.s5cmdPath = os.path.join(current_dir, 's5cmd')
-            
+
+        if not os.path.exists(self.s5cmdPath):
+            # try to check if there is a s5cmd executable in the path
+            try:
+                subprocess.run(['s5cmd', '--help'], capture_output=False, text=False)
+                self.s5cmdPath = 's5cmd'
+            except:
+                logging.fatal("s5cmd executable not found. Please install s5cmd from https://github.com/peak/s5cmd#installation")
+                raise ValueError
+
         # Print after successful reading of index
-        logging.debug("Successfully read the index.")
+        logging.debug("Successfully read the index and located s5cmd.")
 
 
     def _filter_by_collection_id(self, df, collection_id):
@@ -266,3 +279,18 @@ class IDCClient:
             logging.debug(f"Successfully downloaded files to {downloadDir}")
         else:
             logging.error("Failed to download files.")
+
+    """Execute SQL query against the table in the index using duckdb.
+
+    Args:
+        sql_query: string containing the SQL query to execute
+
+    Returns:
+        pandas dataframe containing the results of the query
+
+    Raises:
+        any exception that duckdb.query() raises
+    """
+    def sql_query(self, sql_query):
+        index = self.index
+        return duckdb.query(sql_query).to_df()

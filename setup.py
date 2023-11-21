@@ -74,7 +74,7 @@ setup(
     version=package_version,
     packages=find_packages(),
     include_package_data=True,
-    install_requires=['pandas', 'requests'],
+    install_requires=['pandas', 'requests', 'duckdb'],
     cmdclass={
         'install': PostInstallCommand,
     },
