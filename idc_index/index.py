@@ -283,7 +283,7 @@ class IDCClient:
     """Execute SQL query against the table in the index using duckdb.
 
     Args:
-        sql_query: string containing the SQL query to execute
+        sql_query: string containing the SQL query to execute. The table name to use in the FROM clause is 'index' (without quotes).
 
     Returns:
         pandas dataframe containing the results of the query
