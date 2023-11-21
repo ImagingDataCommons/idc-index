@@ -173,7 +173,7 @@ class IDCClient:
         return response
 
     def download_dicom_series(self, seriesInstanceUID, downloadDir, dry_run=False, quiet=True):
-        series_url = self.index[self.index['SeriesInstanceUID'] == seriesInstanceUID]['series_aws_location'].iloc[0]
+        series_url = self.index[self.index['SeriesInstanceUID'] == seriesInstanceUID]['series_aws_url'].iloc[0]
         logging.debug('AWS Bucket Location: '+series_url)
 
         cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', 'https://s3.amazonaws.com', 'cp', '--show-progress',
@@ -244,7 +244,7 @@ class IDCClient:
         manifest_file = os.path.join(downloadDir, 'download_manifest.s5cmd')
         for index, row in result_df.iterrows():
             with open(manifest_file, 'a') as f:
-                f.write("cp --show-progress "+row['series_aws_location'] + " "+downloadDir+"\n")
+                f.write("cp --show-progress "+row['series_aws_url'] + " "+downloadDir+"\n")
         self.download_from_manifest(manifest_file, downloadDir)
 
     """Download the files corresponding to the manifest file from IDC. The manifest file should be a text file with each line containing the s5cmd command to download the file. The URLs in the file must correspond to those in the AWS buckets!
