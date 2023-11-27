@@ -32,8 +32,10 @@ jobs:
                 # exit-zero treats all errors as warnings.
                 flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
           
-            - name: Build binary wheel and a source tarball
+            - name: Build a source tarball
               run: python setup.py sdist 
 
             - name: Publish distribution to PyPI
               uses: pypa/gh-action-pypi-publish@release/v1
+
+
