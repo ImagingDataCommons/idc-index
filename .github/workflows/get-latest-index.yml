@@ -52,6 +52,14 @@ jobs:
         manager.set_multiline_output("latest_idc_release_version", int(latest_idc_release_version))
       env: 
         GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }} 
+    
+    - name: Update latest tag's source code
+      if: ${{ steps.initialize_idc_manager_class.outputs.current_index_version  != steps.initialize_idc_manager_class.outputs.latest_idc_release_version }}
+      uses: richardsimko/update-tag@v1
+      with:
+        tag_name: latest
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Create latest Release
       id: create_release
