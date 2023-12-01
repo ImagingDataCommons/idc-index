@@ -80,8 +80,8 @@ jobs:
         mv s5cmd /usr/local/bin/s5cmd
       shell: bash       
 
-    - name: If queries are modified by a pull request, change latest_index_url to use locally available csv
-      if: steps.pr_proposed_changes.outputs.queries == 'true' && (github.event_name == 'pull_request' || github.ref != 'refs/heads/main')
+    - name: If queries are modified, change latest_index_url to use locally available csv
+      if: steps.pr_proposed_changes.outputs.queries == 'true'
       run: |
         import os
         from pathlib import Path
