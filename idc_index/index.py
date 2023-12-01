@@ -8,13 +8,14 @@ import tarfile
 import zipfile
 import duckdb
 
+latest_index_url= 'https://github.com/vkt1414/idc-index/releases/download/latest/idc_index.csv.zip'
 
 class IDCClient:
     def __init__(self):
         current_dir = os.path.dirname(os.path.abspath(__file__))
         file_path = os.path.join(current_dir, 'idc_index.csv.zip')
         if not os.path.exists(file_path):
-            self.index=pd.read_csv('https://github.com/ImagingDataCommons/idc-index/releases/download/latest/idc_index.csv.zip', dtype=str, encoding='utf-8')
+            self.index=pd.read_csv(latest_index_url, dtype=str, encoding='utf-8')
         else:
             self.index = pd.read_csv(file_path, dtype=str, encoding='utf-8')
         self.index = self.index.astype(str).replace('nan', '')
@@ -190,7 +191,7 @@ class IDCClient:
         logging.debug('AWS Bucket Location: '+series_url)
 
         cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', 'https://s3.amazonaws.com', 'cp', '--show-progress',
-            series_url, downloadDir]
+            series_url+'*', downloadDir]
 
         if not dry_run:
             process = subprocess.run(cmd, capture_output=(not quiet), text=(not quiet))
@@ -252,13 +253,14 @@ class IDCClient:
             logging.info("Dry run. Not downloading files. Rerun with dry_run=False to download the files.")
             return
         
-        # Download the files
-        # make temporary file to store the list of files to download
-        manifest_file = os.path.join(downloadDir, 'download_manifest.s5cmd')
-        for index, row in result_df.iterrows():
-            with open(manifest_file, 'a') as f:
-                f.write("cp --show-progress "+row['series_aws_url'] + " "+downloadDir+"\n")
-        self.download_from_manifest(manifest_file, downloadDir)
+        else:
+            # Download the files
+            # make temporary file to store the list of files to download
+            manifest_file = os.path.join(downloadDir, 'download_manifest.s5cmd')
+            for index, row in result_df.iterrows():
+                with open(manifest_file, 'a') as f:
+                    f.write("cp --show-progress "+row['series_aws_url'] + " "+downloadDir+"\n")
+            self.download_from_manifest(manifest_file, downloadDir)
 
     """Download the files corresponding to the manifest file from IDC. The manifest file should be a text file with each line containing the s5cmd command to download the file. The URLs in the file must correspond to those in the AWS buckets!
 
@@ -272,7 +274,7 @@ class IDCClient:
     """
     def download_from_manifest(self, manifest_file, downloadDir):
         cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', 'https://s3.amazonaws.com', 'run',
-            manifest_file, downloadDir]
+            manifest_file]
         process = subprocess.run(cmd, capture_output=True, text=True)
         logging.info(process.stderr)
         if process.returncode == 0:

@@ -1,0 +1,83 @@
+name: idc-index release manager
+on:
+  workflow_dispatch: 
+  schedule:
+    - cron: 0 12 */1 * *
+
+jobs:
+  update_idc_index:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.11
+
+    - name: Install dependencies
+      run: pip install requests==2.31.0 pandas==2.1.1 google-cloud-bigquery==3.12.0 pyarrow==13.0.0 db-dtypes==1.1.1 PyGithub==2.1.1
+    
+    - name: Authorize Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: ${{ secrets.SERVICE_ACCOUNT_KEY }}
+        create_credentials_file: true
+        export_environment_variables: true 
+        
+    - name: Run script to get the latest idc index
+      id: initialize_idc_manager_class
+      shell: python
+      run: |
+        import sys
+        import os
+        sys.path.append(".github")
+
+        from get_latest_index import IDCIndexManager
+
+        project_id = os.environ['GCP_PROJECT_ID']
+        manager = IDCIndexManager(project_id)
+
+        current_index_version = manager.extract_index_version("idc_index/index.py")
+        latest_idc_release_version = manager.get_latest_idc_release_version("bigquery-public-data.idc_current.dicom_all_view")
+
+        if current_index_version < latest_idc_release_version:
+            manager.update_index_version("idc_index/index.py", latest_idc_release_version)
+            manager.update_sql_queries_folder("queries/", current_index_version, latest_idc_release_version)
+            manager.run_queries_folder("queries/")
+
+        manager.set_multiline_output("current_index_version", int(current_index_version))
+        manager.set_multiline_output("latest_idc_release_version", int(latest_idc_release_version))
+      env: 
+        GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }} 
+
+    - name: Create latest Release
+      id: create_release
+      if: ${{ steps.initialize_idc_manager_class.outputs.current_index_version  != steps.initialize_idc_manager_class.outputs.latest_idc_release_version }}
+      uses: ncipollo/release-action@v1
+      with:
+        tag: latest
+        prerelease: true
+        makeLatest: true
+        allowUpdates: true
+        body: 'Latest idc-index'
+        artifacts: "*.zip"
+
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v5
+      with:
+        title: Update to v${{ steps.initialize_idc_manager_class.outputs.latest_idc_release_version }}
+        body:  Update sql queries and/or index.py to v${{ steps.initialize_idc_manager_class.outputs.latest_idc_release_version }}
+        base:  main
+        branch: update-sql-queries-and-or-index
+        add-paths: |
+          queries/*.sql
+          idc_index/index.py
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+        
+
+      

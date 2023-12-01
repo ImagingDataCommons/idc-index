@@ -71,7 +71,7 @@ class PostInstallCommand(install):
                 logging.error('Failed to download s5cmd:', e)
 setup(
     name='idc_index',
-    version=package_version,
+    version=os.environ['set_pypi_idc_index_version'],
     packages=find_packages(),
     include_package_data=True,
     install_requires=['pandas', 'requests', 'duckdb'],
