@@ -1,0 +1,141 @@
+name: commit-pr-idc-index-release-manager
+on:
+  workflow_dispatch:
+  push: 
+  pull_request:    
+
+jobs:
+  update_idc_index:
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/idc-index
+    permissions:
+      id-token: write
+      contents: write
+      pull-requests: read 
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.11
+
+    - name: Install dependencies
+      run: |
+        pip install requests==2.31.0 pandas==2.1.1 google-cloud-bigquery==3.12.0 \
+        pyarrow==13.0.0 db-dtypes==1.1.1 PyGithub==2.1.1 flake8==6.1.0 \
+        duckdb==0.9.2
+      shell: bash
+
+    - name: Authorize Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: ${{ secrets.SERVICE_ACCOUNT_KEY }}
+        create_credentials_file: true
+        export_environment_variables: true    
+
+    - name: Check if queries folder changed in the latest commit  or pull request 
+      uses: dorny/paths-filter@v2
+      id: pr_proposed_changes
+      with:       
+        filters: |
+          queries:
+            - 'queries/**'
+
+    - name: If queries are modified, run them with bigquery
+      id: initialize_idc_manager_class
+      if: steps.pr_proposed_changes.outputs.queries == 'true' 
+      shell: python
+      run: |
+        import sys
+        import os
+        sys.path.append(".github")
+
+        from get_latest_index import IDCIndexManager
+
+        project_id = os.environ['GCP_PROJECT_ID']
+        manager = IDCIndexManager(project_id)
+
+        manager.run_queries_folder("queries/")
+      env: 
+        GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }} 
+    
+    - name: If queries are not modified download latest index from github
+      if: steps.pr_proposed_changes.outputs.queries == 'false' || startsWith(github.ref, 'refs/tags/v')
+      run:
+        wget -q https://github.com/ImagingDataCommons/idc-index/releases/download/latest/idc_index.csv.zip
+      shell: bash
+
+    - name: Setup testing
+      run: |
+        wget -q "https://github.com/peak/s5cmd/releases/download/v2.2.2/s5cmd_2.2.2_Linux-64bit.tar.gz"
+        tar -xvzf "s5cmd_2.2.2_Linux-64bit.tar.gz" s5cmd
+        rm "s5cmd_2.2.2_Linux-64bit.tar.gz"
+        mv s5cmd /usr/local/bin/s5cmd
+      shell: bash       
+
+    - name: If queries are modified by a pull request, change latest_index_url to use locally available csv
+      if: steps.pr_proposed_changes.outputs.queries == 'true' && (github.event_name == 'pull_request' || github.ref != 'refs/heads/main')
+      run: |
+        import os
+        from pathlib import Path
+        home_dir = str(Path.home())
+        with open('idc_index/index.py', 'r') as file:
+            filedata = file.read()
+            filedata = filedata.replace('https://github.com/ImagingDataCommons/idc-index/releases/download/latest/idc_index.csv.zip', os.path.join(home_dir, 'work/idc-index/idc-index/idc_index.csv.zip'))    
+        with open('idc_index/index.py', 'w') as file:
+          file.write(filedata)
+      shell: python
+   
+    - name: Test package
+      run: |
+        python -m unittest -vv tests/idcindex.py
+      shell: bash
+
+    - name: Create Tagged Release
+      id: create_tagged_release
+      if: (startsWith(github.ref, 'refs/tags/v') && github.event_name != 'pull_request')      
+      uses: ncipollo/release-action@v1
+      with:
+        prerelease: false
+        body: 'Versioned idc-index'
+        artifacts: "*.zip"
+
+    - name: Create latest Release
+      if: (github.event_name != 'pull_request') && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+      uses: crowbarmaster/GH-Automatic-Releases@latest
+      with:
+        repo_token: "${{ secrets.GITHUB_TOKEN }}"
+        automatic_release_tag: "latest"
+        #generate_notes: false
+        body: "Latest idc-index"
+        prerelease: true
+        title: "Latest idc-index"
+        files: |
+            *.zip
+
+    - name: Get version
+      uses: mtkennerly/dunamai-action@v1
+      if: (startsWith(github.ref, 'refs/tags/v') && github.event_name != 'pull_request')
+      with:
+        env-var: set_pypi_idc_index_version
+        args: --style semver
+
+    - name: Echo soon to be released pypi version
+      if: (startsWith(github.ref, 'refs/tags/v') && github.event_name != 'pull_request')
+      run: |
+        echo $set_pypi_idc_index_version
+
+    - name: Build a source tarball
+      if: (startsWith(github.ref, 'refs/tags/v') && github.event_name != 'pull_request')
+      run: python setup.py sdist 
+
+    - name: Publish distribution to PyPI
+      if: (startsWith(github.ref, 'refs/tags/v') && github.event_name != 'pull_request' )
+      uses: pypa/gh-action-pypi-publish@release/v1    

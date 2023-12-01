@@ -8,13 +8,14 @@ import tarfile
 import zipfile
 import duckdb
 
+latest_index_url= 'https://github.com/vkt1414/idc-index/releases/download/latest/idc_index.csv.zip'
 
 class IDCClient:
     def __init__(self):
         current_dir = os.path.dirname(os.path.abspath(__file__))
         file_path = os.path.join(current_dir, 'idc_index.csv.zip')
         if not os.path.exists(file_path):
-            self.index=pd.read_csv('https://github.com/ImagingDataCommons/idc-index/releases/download/latest/idc_index.csv.zip', dtype=str, encoding='utf-8')
+            self.index=pd.read_csv(latest_index_url, dtype=str, encoding='utf-8')
         else:
             self.index = pd.read_csv(file_path, dtype=str, encoding='utf-8')
         self.index = self.index.astype(str).replace('nan', '')
