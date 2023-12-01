@@ -62,7 +62,7 @@ class IDCIndexManager:
 
     def create_csv_zip_from_df(self, df, csv_file_name):
         print(f"Creating CSV zip file {csv_file_name}...")
-        df.to_csv(csv_file_name, compression="gzip", escapechar="\\")
+        df.to_csv(csv_file_name, compression={'method': 'zip'}, escapechar="\\")
 
     def run_queries_folder(self, dir):
         print(f"Running queries from {dir}...")
