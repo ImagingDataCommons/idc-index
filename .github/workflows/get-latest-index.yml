@@ -62,16 +62,17 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Create latest Release
-      id: create_release
-      if: ${{ steps.initialize_idc_manager_class.outputs.current_index_version  != steps.initialize_idc_manager_class.outputs.latest_idc_release_version }}
-      uses: ncipollo/release-action@v1
+      if:  ${{ steps.initialize_idc_manager_class.outputs.current_index_version  != steps.initialize_idc_manager_class.outputs.latest_idc_release_version }}
+      uses: crowbarmaster/GH-Automatic-Releases@latest
       with:
-        tag: latest
+        repo_token: "${{ secrets.GITHUB_TOKEN }}"
+        automatic_release_tag: "latest"
+        #generate_notes: false
+        body: "Latest idc-index"
         prerelease: true
-        makeLatest: true
-        allowUpdates: true
-        body: 'Latest idc-index'
-        artifacts: "*.zip"
+        title: "Latest idc-index"
+        files: |
+            *.zip
 
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v5
