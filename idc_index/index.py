@@ -251,7 +251,7 @@ class IDCClient:
             result_df = self._filter_by_dicom_series_uid(result_df, seriesInstanceUID)
 
         total_size = result_df['series_size_MB'].sum()
-        logger.info("Total size of files to download: ", float(total_size)/1000, "GB")
+        logger.info("Total size of files to download: ", str(float(total_size)/1000), "GB")
         logger.info("Total free space on disk: ", os.statvfs(downloadDir).f_bsize * os.statvfs(downloadDir).f_bavail / (1000*1000*1000), "GB")
 
         if dry_run:
