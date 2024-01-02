@@ -277,6 +277,11 @@ class IDCClient:
     Raises:
     """
     def download_from_manifest(self, manifestFile, downloadDir, quiet=True):
+        if not os.path.exists(downloadDir):
+            raise ValueError("Download directory does not exist.")
+        if not os.path.exists(manifestFile):
+            raise ValueError("Manifest does not exist.")
+
         # open manifest_file and read the first line that does not start from '#'
         with open(manifestFile, 'r') as f:
             for line in f:
@@ -307,7 +312,7 @@ class IDCClient:
 
         cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', endpoint_to_use, 'run', os.path.abspath(manifestFile)]
         logger.debug("Running command: "+' '.join(cmd)+" in "+downloadDir)
-        process = subprocess.Popen(cmd, cwd = downloadDir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        process = subprocess.Popen(cmd, cwd = os.path.abspath(downloadDir), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         out, err = process.communicate()
         logger.info(out)
         logger.info(err)
