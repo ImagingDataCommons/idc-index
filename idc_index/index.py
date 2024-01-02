@@ -2,15 +2,21 @@ import os
 import logging
 import pandas as pd
 import platform
-import urllib.request
 import subprocess
-import tarfile
-import zipfile
 import duckdb
+import re
+import tempfile
 
+logger = logging.getLogger(__name__)
 
 class IDCClient:
     def __init__(self):
+
+        self.idc_version = "v16"
+
+        self.aws_endpoint_url = "https://s3.amazonaws.com"
+        self.gcp_endpoint_url = "https://storage.googleapis.com"
+
         current_dir = os.path.dirname(os.path.abspath(__file__))
         file_path = os.path.join(current_dir, 'idc_index.csv.zip')
         if not os.path.exists(file_path):
@@ -40,11 +46,11 @@ class IDCClient:
                 subprocess.run(['s5cmd', '--help'], capture_output=False, text=False)
                 self.s5cmdPath = 's5cmd'
             except:
-                logging.fatal("s5cmd executable not found. Please install s5cmd from https://github.com/peak/s5cmd#installation")
+                logger.fatal("s5cmd executable not found. Please install s5cmd from https://github.com/peak/s5cmd#installation")
                 raise ValueError
 
         # Print after successful reading of index
-        logging.debug("Successfully read the index and located s5cmd.")
+        logger.debug("Successfully read the index and located s5cmd.")
 
 
     def _filter_by_collection_id(self, df, collection_id):
@@ -76,7 +82,7 @@ class IDCClient:
         return result_df
 
     def get_idc_version(self):
-        return "v16";
+        return self.idc_version;
     
     def get_collections(self):
         unique_collections = self.index['collection_id'].unique()
@@ -112,7 +118,7 @@ class IDCClient:
             else:
                 response = patient_df
 
-        logging.debug("Get patient response: %s", str(response))
+        logger.debug("Get patient response: %s", str(response))
 
         return response
 
@@ -155,7 +161,7 @@ class IDCClient:
             else:
                 response = studies_df
                 
-        logging.debug("Get patient study response: %s", str(response))
+        logger.debug("Get patient study response: %s", str(response))
 
         return response
 
@@ -181,13 +187,13 @@ class IDCClient:
                 response = series_df.to_dict(orient="records")
             else:
                 response = series_df
-        logging.debug("Get series response: %s", str(response))
+        logger.debug("Get series response: %s", str(response))
 
         return response
 
     def download_dicom_series(self, seriesInstanceUID, downloadDir, dry_run=False, quiet=True):
         series_url = self.index[self.index['SeriesInstanceUID'] == seriesInstanceUID]['series_aws_url'].iloc[0]
-        logging.debug('AWS Bucket Location: '+series_url)
+        logger.debug('AWS Bucket Location: '+series_url)
 
         cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', 'https://s3.amazonaws.com', 'cp', '--show-progress',
             series_url, downloadDir]
@@ -197,9 +203,9 @@ class IDCClient:
             if not quiet:
                 print(process.stderr)
             if process.returncode == 0:
-                logging.debug(f"Successfully downloaded files to {downloadDir}")
+                logger.debug(f"Successfully downloaded files to {downloadDir}")
             else:
-                logging.error("Failed to download files.")
+                logger.error("Failed to download files.")
 
     """Download the files corresponding to the selection. The filtering will be applied in sequence (but does it matter?) by first selecting the collection(s), followed by
     patient(s), study(studies) and series. If no filtering is applied, all the files will be downloaded.
@@ -216,7 +222,7 @@ class IDCClient:
     Raises:
         TypeError: If any of the parameters are not of the expected type
     """
-    def download_from_selection(self, downloadDir=None, dry_run=True, collection_id=None, patientId=None, studyInstanceUID=None, seriesInstanceUID=None):
+    def download_from_selection(self, downloadDir, dry_run=True, collection_id=None, patientId=None, studyInstanceUID=None, seriesInstanceUID=None):
         if collection_id is not None:
             if not isinstance(collection_id, str) and not isinstance(collection_id, list):
                 raise TypeError("collection_id must be a string or list of strings")
@@ -245,11 +251,11 @@ class IDCClient:
             result_df = self._filter_by_dicom_series_uid(result_df, seriesInstanceUID)
 
         total_size = result_df['series_size_MB'].sum()
-        logging.info("Total size of files to download: ", float(total_size)/1000, "GB")
-        logging.info("Total free space on disk: ", os.statvfs(downloadDir).f_bsize * os.statvfs(downloadDir).f_bavail / (1000*1000*1000), "GB")
+        logger.info("Total size of files to download: ", float(total_size)/1000, "GB")
+        logger.info("Total free space on disk: ", os.statvfs(downloadDir).f_bsize * os.statvfs(downloadDir).f_bavail / (1000*1000*1000), "GB")
 
         if dry_run:
-            logging.info("Dry run. Not downloading files. Rerun with dry_run=False to download the files.")
+            logger.info("Dry run. Not downloading files. Rerun with dry_run=False to download the files.")
             return
         
         # Download the files
@@ -270,15 +276,59 @@ class IDCClient:
 
     Raises:
     """
-    def download_from_manifest(self, manifest_file, downloadDir):
-        cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', 'https://s3.amazonaws.com', 'run',
-            manifest_file, downloadDir]
+    def download_from_manifest(self, manifestFile, downloadDir, quiet=True):
+        # open manifest_file and read the first line that does not start from '#'
+        with open(manifestFile, 'r') as f:
+            for line in f:
+                if not line.startswith('#'):
+                    break
+        pattern = r"(s3:\/\/.*)\/\*"
+        match = re.search(pattern, line)
+        logger.info('logger error')
+        if match is None:
+            logger.error("Could not find the bucket URL in the first line of the manifest file.")
+            return
+        folder_url = match.group(1)
+     
+        cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', self.aws_endpoint_url, 'ls', folder_url]
         process = subprocess.run(cmd, capture_output=True, text=True)
-        logging.info(process.stderr)
-        if process.returncode == 0:
-            logging.debug(f"Successfully downloaded files to {downloadDir}")
+        # check if output starts with ERROR
+        if process.stderr.startswith('ERROR'):
+            logger.debug("Folder not available in AWS. Checking in Google Cloud Storage.")
+
+            cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', self.gcp_endpoint_url, 'ls', folder_url]
+            process = subprocess.run(cmd, capture_output=True, text=True)
+            if process.stdout.startswith('ERROR'):
+                logger.debug("Folder not available in GCP. Manifest appears to be invalid.")
+                raise ValueError
+            else:
+                endpoint_to_use = self.gcp_endpoint_url
         else:
-            logging.error("Failed to download files.")
+            endpoint_to_use = self.aws_endpoint_url
+
+        # create an updated manifest to include the specified destination directory
+        with tempfile.NamedTemporaryFile(mode='w', delete=False) as temp_manifest_file:
+            with open(manifestFile, 'r') as f:
+                for line in f:
+                    if not line.startswith('#'):
+                        pattern = r"s3:\/\/.*\*"
+                        match = re.search(pattern, line)
+                        if folder_url is None:
+                            logger.error("Could not find the bucket URL in the first line of the manifest file.")
+                            return
+                        folder_url = match.group(0)
+                        temp_manifest_file.write(' cp '+folder_url+' '+downloadDir+'\n')
+
+            cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', endpoint_to_use, 'run', temp_manifest_file.name]
+            logger.debug("Running command: %s", ' '.join(cmd))
+            process = subprocess.run(cmd, capture_output=True, text=True)
+            logger.info(process.stderr)
+            logger.info(process.stdout)
+            if process.returncode == 0:
+                logger.debug(f"Successfully downloaded files to {downloadDir}")
+                logger.debug("Downloaded files: "+'\n'.join(os.listdir(downloadDir)))
+            else:
+                logger.error("Failed to download files.")
 
     """Execute SQL query against the table in the index using duckdb.
 

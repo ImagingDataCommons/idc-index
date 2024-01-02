@@ -2,10 +2,21 @@ import unittest
 import os
 from idc_index import index
 import tempfile
+import logging
+
+# Run tests using the following command from the root of the repository:
+# python -m unittest -vv tests/idcindex.py
+
+index.latest_index_url = 'https://github.com/ImagingDataCommons/idc-index/releases/download/latest/idc_index.csv.zip'
+
+logging.basicConfig(level=logging.INFO)
 
 class TestIDCClient(unittest.TestCase):
     def setUp(self):
         self.client = index.IDCClient()
+
+        logger = logging.getLogger('idc_index')
+        logger.setLevel(logging.DEBUG)
 
     def test_get_collections(self):
         collections = self.client.get_collections()
@@ -39,17 +50,30 @@ class TestIDCClient(unittest.TestCase):
     def test_download_dicom_series(self):
         with tempfile.TemporaryDirectory() as temp_dir:
           self.client.download_dicom_series(seriesInstanceUID="1.2.840.113704.1.111.3972.1187368426.50", downloadDir=temp_dir)
-          self.assertIsNotNone(os.listdir(temp_dir))
+          self.assertNotEqual(len(os.listdir(temp_dir)),0)
 
     def test_download_from_selection(self):
         with tempfile.TemporaryDirectory() as temp_dir:
           self.client.download_from_selection(studyInstanceUID="1.3.6.1.4.1.14519.5.2.1.3320.3273.234458321320456015460025860862", downloadDir=temp_dir)
 
-          self.assertIsNotNone(os.listdir(temp_dir))
+          self.assertNotEqual(len(os.listdir(temp_dir)),0)
 
     def test_sql_queries(self):
         df = self.client.sql_query("SELECT DISTINCT(collection_id) FROM index")
 
         self.assertIsNotNone(df)
+
+    def test_download_from_aws_manifest(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+          self.client.download_from_manifest(manifestFile="./tests/study_manifest_aws.s5cmd", downloadDir=temp_dir)
+
+          self.assertIsNotNone(os.listdir(temp_dir))
+
+    def test_download_from_gcp_manifest(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+          self.client.download_from_manifest(manifestFile="./tests/study_manifest_gcs.s5cmd", downloadDir=temp_dir, quiet=True)
+
+          self.assertNotEqual(len(os.listdir(temp_dir)),0)
+
 if __name__ == '__main__':
     unittest.main()
