@@ -196,7 +196,7 @@ class IDCClient:
         logger.debug('AWS Bucket Location: '+series_url)
 
         cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', 'https://s3.amazonaws.com', 'cp', '--show-progress',
-            series_url, downloadDir]
+            series_url]
 
         if not dry_run:
             process = subprocess.run(cmd, capture_output=(not quiet), text=(not quiet))
@@ -284,7 +284,6 @@ class IDCClient:
                     break
         pattern = r"(s3:\/\/.*)\/\*"
         match = re.search(pattern, line)
-        logger.info('logger error')
         if match is None:
             logger.error("Could not find the bucket URL in the first line of the manifest file.")
             return
@@ -306,29 +305,17 @@ class IDCClient:
         else:
             endpoint_to_use = self.aws_endpoint_url
 
-        # create an updated manifest to include the specified destination directory
-        with tempfile.NamedTemporaryFile(mode='w', delete=False) as temp_manifest_file:
-            with open(manifestFile, 'r') as f:
-                for line in f:
-                    if not line.startswith('#'):
-                        pattern = r"s3:\/\/.*\*"
-                        match = re.search(pattern, line)
-                        if folder_url is None:
-                            logger.error("Could not find the bucket URL in the first line of the manifest file.")
-                            return
-                        folder_url = match.group(0)
-                        temp_manifest_file.write(' cp '+folder_url+' '+downloadDir+'\n')
-
-            cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', endpoint_to_use, 'run', temp_manifest_file.name]
-            logger.debug("Running command: %s", ' '.join(cmd))
-            process = subprocess.run(cmd, capture_output=True, text=True)
-            logger.info(process.stderr)
-            logger.info(process.stdout)
-            if process.returncode == 0:
-                logger.debug(f"Successfully downloaded files to {downloadDir}")
-                logger.debug("Downloaded files: "+'\n'.join(os.listdir(downloadDir)))
-            else:
-                logger.error("Failed to download files.")
+        cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', endpoint_to_use, 'run', os.path.abspath(manifestFile)]
+        logger.debug("Running command: "+' '.join(cmd)+" in "+downloadDir)
+        process = subprocess.Popen(cmd, cwd = downloadDir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        out, err = process.communicate()
+        logger.info(out)
+        logger.info(err)
+        if process.returncode == 0:
+            logger.debug(f"Successfully downloaded files to {downloadDir}")
+            logger.debug("Downloaded files: "+'\n'.join(os.listdir(downloadDir)))
+        else:
+            logger.error("Failed to download files.")
 
     """Execute SQL query against the table in the index using duckdb.
 

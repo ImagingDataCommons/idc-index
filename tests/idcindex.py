@@ -67,13 +67,13 @@ class TestIDCClient(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
           self.client.download_from_manifest(manifestFile="./tests/study_manifest_aws.s5cmd", downloadDir=temp_dir)
 
-          self.assertIsNotNone(os.listdir(temp_dir))
+          self.assertEqual(len(os.listdir(temp_dir)), 15)
 
     def test_download_from_gcp_manifest(self):
         with tempfile.TemporaryDirectory() as temp_dir:
-          self.client.download_from_manifest(manifestFile="./tests/study_manifest_gcs.s5cmd", downloadDir=temp_dir, quiet=True)
+          self.client.download_from_manifest(manifestFile="./tests/study_manifest_gcs.s5cmd", downloadDir=temp_dir)
 
-          self.assertNotEqual(len(os.listdir(temp_dir)),0)
+          self.assertEqual(len(os.listdir(temp_dir)),15)
 
 if __name__ == '__main__':
     unittest.main()
