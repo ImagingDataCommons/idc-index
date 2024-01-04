@@ -298,14 +298,14 @@ class IDCClient:
         folder_url = match.group(1)
      
         cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', self.aws_endpoint_url, 'ls', folder_url]
-        process = subprocess.run(cmd, capture_output=(not quiet), text=(not quiet))
+        process = subprocess.run(cmd, capture_output=True, text=True)
         # check if output starts with ERROR
-        if process.stderr.startswith('ERROR'):
+        if process.stderr and process.stderr.startswith('ERROR'):
             logger.debug("Folder not available in AWS. Checking in Google Cloud Storage.")
 
             cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', self.gcp_endpoint_url, 'ls', folder_url]
             process = subprocess.run(cmd, capture_output=True, text=True)
-            if process.stdout.startswith('ERROR'):
+            if process.stderr and process.stdout.startswith('ERROR'):
                 logger.debug("Folder not available in GCP. Manifest appears to be invalid.")
                 raise ValueError
             else:
@@ -329,7 +329,7 @@ class IDCClient:
         cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', endpoint_to_use, 'run', temp_manifest_file.name]
 
         logger.debug("Running command: %s", ' '.join(cmd))
-        process = subprocess.run(cmd, capture_output=(not quiet), text=(not quiet)))
+        process = subprocess.run(cmd, capture_output=(not quiet), text=(not quiet))
         logger.debug(process.stderr)
         logger.debug(process.stdout)
         if process.returncode == 0:

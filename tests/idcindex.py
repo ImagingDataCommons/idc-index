@@ -39,22 +39,22 @@ class TestIDCClient(unittest.TestCase):
         self.assertIsNotNone(studies)
 
     def test_get_series(self):
-        series = self.client.get_dicom_series(studyInstanceUID="1.3.6.1.4.1.14519.5.2.1.3671.4754.288848219213026850354055725664", outputFormat="list")
+        series = self.client.get_dicom_series(studyInstanceUID="1.3.6.1.4.1.14519.5.2.1.6279.6001.175012972118199124641098335511", outputFormat="list")
 
         self.assertIsNotNone(series)
 
-        series = self.client.get_dicom_series(studyInstanceUID=["1.3.6.1.4.1.14519.5.2.1.3671.4754.288848219213026850354055725664","1.2.840.113704.1.111.2408.1187360342.8"], outputFormat="list")
+        series = self.client.get_dicom_series(studyInstanceUID=["1.3.6.1.4.1.14519.5.2.1.6279.6001.141365756818074696859567662357","1.3.6.1.4.1.14519.5.2.1.6279.6001.239368516910061467349404750170"], outputFormat="list")
 
         self.assertIsNotNone(series)
 
     def test_download_dicom_series(self):
         with tempfile.TemporaryDirectory() as temp_dir:
-          self.client.download_dicom_series(seriesInstanceUID="1.2.840.113704.1.111.3972.1187368426.50", downloadDir=temp_dir)
+          self.client.download_dicom_series(seriesInstanceUID="1.3.6.1.4.1.14519.5.2.1.6279.6001.141365756818074696859567662357", downloadDir=temp_dir)
           self.assertNotEqual(len(os.listdir(temp_dir)),0)
 
     def test_download_from_selection(self):
         with tempfile.TemporaryDirectory() as temp_dir:
-          self.client.download_from_selection(studyInstanceUID="1.3.6.1.4.1.14519.5.2.1.3320.3273.234458321320456015460025860862", downloadDir=temp_dir)
+          self.client.download_from_selection(studyInstanceUID="1.3.6.1.4.1.14519.5.2.1.6279.6001.175012972118199124641098335511", downloadDir=temp_dir)
 
           self.assertNotEqual(len(os.listdir(temp_dir)),0)
 
