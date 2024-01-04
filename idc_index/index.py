@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class IDCClient:
     def __init__(self):
 
-        self.idc_version = "v16"
+        self.idc_version = "v17"
 
         self.aws_endpoint_url = "https://s3.amazonaws.com"
         self.gcp_endpoint_url = "https://storage.googleapis.com"
@@ -196,7 +196,7 @@ class IDCClient:
         logger.debug('AWS Bucket Location: '+series_url)
 
         cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', 'https://s3.amazonaws.com', 'cp', '--show-progress',
-            series_url]
+            series_url, downloadDir]
 
         if not dry_run:
             process = subprocess.run(cmd, capture_output=(not quiet), text=(not quiet))
@@ -222,19 +222,19 @@ class IDCClient:
     Raises:
         TypeError: If any of the parameters are not of the expected type
     """
-    def download_from_selection(self, downloadDir, dry_run=True, collection_id=None, patientId=None, studyInstanceUID=None, seriesInstanceUID=None):
+    def download_from_selection(self, downloadDir, dry_run=False, collection_id=None, patientId=None, studyInstanceUID=None, seriesInstanceUID=None):
         if collection_id is not None:
             if not isinstance(collection_id, str) and not isinstance(collection_id, list):
                 raise TypeError("collection_id must be a string or list of strings")
         if patientId is not None:
             if not isinstance(patientId, str) and not isinstance(patientId, list):
-                raise TypeError("collection_id must be a string or list of strings")
+                raise TypeError("patientId must be a string or list of strings")
         if studyInstanceUID is not None:
             if not isinstance(studyInstanceUID, str) and not isinstance(studyInstanceUID, list):
-                raise TypeError("collection_id must be a string or list of strings")
+                raise TypeError("studyInstanceUID must be a string or list of strings")
         if seriesInstanceUID is not None:
             if not isinstance(seriesInstanceUID, str) and not isinstance(seriesInstanceUID, list):
-                raise TypeError("collection_id must be a string or list of strings")
+                raise TypeError("seriesInstanceUID must be a string or list of strings")
 
         if collection_id is not None:
             result_df = self._filter_by_collection_id(self.index, collection_id)
@@ -251,8 +251,8 @@ class IDCClient:
             result_df = self._filter_by_dicom_series_uid(result_df, seriesInstanceUID)
 
         total_size = result_df['series_size_MB'].sum()
-        logger.info("Total size of files to download: ", str(float(total_size)/1000), "GB")
-        logger.info("Total free space on disk: ", os.statvfs(downloadDir).f_bsize * os.statvfs(downloadDir).f_bavail / (1000*1000*1000), "GB")
+        logger.info("Total size of files to download: "+str(float(total_size)/1000)+"GB")
+        logger.info("Total free space on disk: "+str(os.statvfs(downloadDir).f_bsize * os.statvfs(downloadDir).f_bavail / (1000*1000*1000))+"GB")
 
         if dry_run:
             logger.info("Dry run. Not downloading files. Rerun with dry_run=False to download the files.")
@@ -277,6 +277,9 @@ class IDCClient:
     Raises:
     """
     def download_from_manifest(self, manifestFile, downloadDir, quiet=True):
+
+        downloadDir = os.path.abspath(downloadDir)
+
         if not os.path.exists(downloadDir):
             raise ValueError("Download directory does not exist.")
         if not os.path.exists(manifestFile):
@@ -295,7 +298,7 @@ class IDCClient:
         folder_url = match.group(1)
      
         cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', self.aws_endpoint_url, 'ls', folder_url]
-        process = subprocess.run(cmd, capture_output=True, text=True)
+        process = subprocess.run(cmd, capture_output=(not quiet), text=(not quiet))
         # check if output starts with ERROR
         if process.stderr.startswith('ERROR'):
             logger.debug("Folder not available in AWS. Checking in Google Cloud Storage.")
@@ -310,12 +313,25 @@ class IDCClient:
         else:
             endpoint_to_use = self.aws_endpoint_url
 
-        cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', endpoint_to_use, 'run', os.path.abspath(manifestFile)]
-        logger.debug("Running command: "+' '.join(cmd)+" in "+downloadDir)
-        process = subprocess.Popen(cmd, cwd = os.path.abspath(downloadDir), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        out, err = process.communicate()
-        logger.info(out)
-        logger.info(err)
+        # create an updated manifest to include the specified destination directory
+        with tempfile.NamedTemporaryFile(mode='w', delete=False) as temp_manifest_file:
+            with open(manifestFile, 'r') as f:
+                for line in f:
+                    if not line.startswith('#'):
+                        pattern = r"s3:\/\/.*\*"
+                        match = re.search(pattern, line)
+                        if folder_url is None:
+                            logger.error("Could not find the bucket URL in the first line of the manifest file.")
+                            return
+                        folder_url = match.group(0)
+                        temp_manifest_file.write(' cp '+folder_url+' '+downloadDir+'\n')
+
+        cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', endpoint_to_use, 'run', temp_manifest_file.name]
+
+        logger.debug("Running command: %s", ' '.join(cmd))
+        process = subprocess.run(cmd, capture_output=(not quiet), text=(not quiet)))
+        logger.debug(process.stderr)
+        logger.debug(process.stdout)
         if process.returncode == 0:
             logger.debug(f"Successfully downloaded files to {downloadDir}")
             logger.debug("Downloaded files: "+'\n'.join(os.listdir(downloadDir)))
