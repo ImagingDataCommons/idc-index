@@ -8,7 +8,7 @@
 
 There are no prerequisites - just install the package ...
 ```bash
-$ pip install idc-index==0.2.7
+$ pip install idc-index
 ```
 ... and run queries against the "mini" index of Imaging Data Commons data! 
 ```python
