@@ -9,18 +9,19 @@ import tempfile
 
 logger = logging.getLogger(__name__)
 
+idc_version = "v17"
+aws_endpoint_url = "https://s3.amazonaws.com"
+gcp_endpoint_url = "https://storage.googleapis.com"
+latest_idc_index_csv_url = 'https://github.com/ImagingDataCommons/idc-index/releases/download/latest/idc_index.csv.zip'
+
 class IDCClient:
     def __init__(self):
 
-        self.idc_version = "v17"
-
-        self.aws_endpoint_url = "https://s3.amazonaws.com"
-        self.gcp_endpoint_url = "https://storage.googleapis.com"
 
         current_dir = os.path.dirname(os.path.abspath(__file__))
         file_path = os.path.join(current_dir, 'idc_index.csv.zip')
         if not os.path.exists(file_path):
-            self.index=pd.read_csv('https://github.com/ImagingDataCommons/idc-index/releases/download/latest/idc_index.csv.zip', dtype=str, encoding='utf-8')
+            self.index=pd.read_csv(latest_idc_index_csv_url, dtype=str, encoding='utf-8')
         else:
             self.index = pd.read_csv(file_path, dtype=str, encoding='utf-8')
         self.index = self.index.astype(str).replace('nan', '')
@@ -82,7 +83,7 @@ class IDCClient:
         return result_df
 
     def get_idc_version(self):
-        return self.idc_version;
+        return idc_version;
     
     def get_collections(self):
         unique_collections = self.index['collection_id'].unique()
@@ -195,7 +196,7 @@ class IDCClient:
         series_url = self.index[self.index['SeriesInstanceUID'] == seriesInstanceUID]['series_aws_url'].iloc[0]
         logger.debug('AWS Bucket Location: '+series_url)
 
-        cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', 'https://s3.amazonaws.com', 'cp', '--show-progress',
+        cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', aws_endpoint_url, 'cp', '--show-progress',
             series_url, downloadDir]
 
         if not dry_run:
@@ -297,21 +298,21 @@ class IDCClient:
             return
         folder_url = match.group(1)
      
-        cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', self.aws_endpoint_url, 'ls', folder_url]
+        cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', aws_endpoint_url, 'ls', folder_url]
         process = subprocess.run(cmd, capture_output=True, text=True)
         # check if output starts with ERROR
         if process.stderr and process.stderr.startswith('ERROR'):
             logger.debug("Folder not available in AWS. Checking in Google Cloud Storage.")
 
-            cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', self.gcp_endpoint_url, 'ls', folder_url]
+            cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', gcp_endpoint_url, 'ls', folder_url]
             process = subprocess.run(cmd, capture_output=True, text=True)
             if process.stderr and process.stdout.startswith('ERROR'):
                 logger.debug("Folder not available in GCP. Manifest appears to be invalid.")
                 raise ValueError
             else:
-                endpoint_to_use = self.gcp_endpoint_url
+                endpoint_to_use = gcp_endpoint_url
         else:
-            endpoint_to_use = self.aws_endpoint_url
+            endpoint_to_use = aws_endpoint_url
 
         # create an updated manifest to include the specified destination directory
         with tempfile.NamedTemporaryFile(mode='w', delete=False) as temp_manifest_file:
