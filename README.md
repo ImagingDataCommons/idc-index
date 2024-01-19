@@ -10,7 +10,17 @@ There are no prerequisites - just install the package ...
 ```bash
 $ pip install idc-index
 ```
-... and run queries against the "mini" index of Imaging Data Commons data! 
+
+... and download files corresponding to any collection, DICOM PatientID/Study/Series as follows:
+
+```python
+from idc_index import index
+
+client = index.IDCClient()
+
+client.download_from_selection(collection_id = 'rider_pilot', downloadDir = '/some/dir')
+```
+... or run queries against the "mini" index of Imaging Data Commons data! 
 ```python
 from idc_index import index
 
