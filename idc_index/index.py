@@ -4,6 +4,7 @@ import pandas as pd
 import platform
 import subprocess
 import duckdb
+import urllib.request
 import re
 import tempfile
 
@@ -21,9 +22,10 @@ class IDCClient:
         current_dir = os.path.dirname(os.path.abspath(__file__))
         file_path = os.path.join(current_dir, 'idc_index.csv.zip')
         if not os.path.exists(file_path):
-            self.index=pd.read_csv(latest_idc_index_csv_url, dtype=str, encoding='utf-8')
-        else:
-            self.index = pd.read_csv(file_path, dtype=str, encoding='utf-8')
+            logger.warning("Index file not found. Downloading latest version of the index file. This will take a minute or so.")
+            urllib.request.urlretrieve('https://github.com/ImagingDataCommons/idc-index/releases/download/latest/idc_index.csv.zip', file_path)
+            logger.warning("Index file downloaded.")
+        self.index = pd.read_csv(file_path, dtype=str, encoding='utf-8')
         self.index = self.index.astype(str).replace('nan', '')
         self.index['series_size_MB'] = self.index['series_size_MB'].astype(float)
         self.collection_summary = self.index.groupby('collection_id').agg({

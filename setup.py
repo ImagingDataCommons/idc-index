@@ -9,7 +9,7 @@ import urllib.request
 import tarfile
 import zipfile
 
-package_version = "0.2.9"
+package_version = "0.2.10"
 
 # Read long description from README
 with open("README.md", "r", encoding="utf-8") as fh:
@@ -26,11 +26,8 @@ class PostInstallCommand(install):
         os.makedirs(save_location, exist_ok=True)
 
         # Download the index file
-        try:
-            urllib.request.urlretrieve('https://github.com/ImagingDataCommons/idc-index/releases/download/'+package_version+'/idc_index.csv.zip', os.path.join(save_location, 'idc_index.csv.zip'))
-            print(f"Downloaded index")
-        except Exception as err:
-            print(f"Something went wrong while downloading the index file: {err}")
+        urllib.request.urlretrieve('https://github.com/ImagingDataCommons/idc-index/releases/download/'+package_version+'/idc_index.csv.zip', os.path.join(save_location, 'idc_index.csv.zip'))
+        print(f"Downloaded index")
 
         s5cmd_version = "2.2.2"
         system = platform.system()
@@ -47,28 +44,26 @@ class PostInstallCommand(install):
             s5cmd_path = os.path.join(save_location, 's5cmd')
 
         for url in urls:
-            try:
-                print('Downloading s5cmd from', url)
-                response = urllib.request.urlopen(url)
+            print('Downloading s5cmd from', url)
+            response = urllib.request.urlopen(url)
 
-                # Downloading s5cmd to the current directory
-                filepath = os.path.join(save_location, os.path.basename(url))
-                with open(filepath, 'wb') as f:
-                    f.write(response.read())
+            # Downloading s5cmd to the current directory
+            filepath = os.path.join(save_location, os.path.basename(url))
+            with open(filepath, 'wb') as f:
+                f.write(response.read())
 
-                # Extract the s5cmd package
-                if filepath.endswith('.zip'):
-                    with zipfile.ZipFile(filepath, 'r') as zip_ref:
-                        zip_ref.extractall(save_location)
-                else:
-                    with tarfile.open(filepath, 'r:gz') as tar_ref:
-                        tar_ref.extractall(save_location)
+            # Extract the s5cmd package
+            if filepath.endswith('.zip'):
+                with zipfile.ZipFile(filepath, 'r') as zip_ref:
+                    zip_ref.extractall(save_location)
+            else:
+                with tarfile.open(filepath, 'r:gz') as tar_ref:
+                    tar_ref.extractall(save_location)
 
-                print(f's5cmd successfully downloaded and extracted, and is located at {s5cmd_path}')
-                os.remove(filepath)
-                break  # Indicate successful download and exit the loop
-            except Exception as e:
-                logging.error('Failed to download s5cmd:', e)
+            print(f's5cmd successfully downloaded and extracted, and is located at {s5cmd_path}')
+            os.remove(filepath)
+            break  # Indicate successful download and exit the loop
+
 setup(
     name='idc_index',
     version=package_version,
