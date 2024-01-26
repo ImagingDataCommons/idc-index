@@ -11,9 +11,10 @@ import tempfile
 logger = logging.getLogger(__name__)
 
 idc_version = "v17"
+release_version = "0.2.10"
 aws_endpoint_url = "https://s3.amazonaws.com"
 gcp_endpoint_url = "https://storage.googleapis.com"
-latest_idc_index_csv_url = 'https://github.com/ImagingDataCommons/idc-index/releases/download/latest/idc_index.csv.zip'
+latest_idc_index_csv_url = 'https://github.com/ImagingDataCommons/idc-index/releases/download/'+release_version+'/idc_index.csv.zip'
 
 class IDCClient:
     def __init__(self):
@@ -23,7 +24,7 @@ class IDCClient:
         file_path = os.path.join(current_dir, 'idc_index.csv.zip')
         if not os.path.exists(file_path):
             logger.warning("Index file not found. Downloading latest version of the index file. This will take a minute or so.")
-            urllib.request.urlretrieve('https://github.com/ImagingDataCommons/idc-index/releases/download/latest/idc_index.csv.zip', file_path)
+            urllib.request.urlretrieve(latest_idc_index_csv_url, file_path)
             logger.warning("Index file downloaded.")
         self.index = pd.read_csv(file_path, dtype=str, encoding='utf-8')
         self.index = self.index.astype(str).replace('nan', '')
