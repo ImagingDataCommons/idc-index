@@ -126,10 +126,11 @@ class IDCClient:
 
         return response
 
-    """returns one row per distinct value of StudyInstanceUID
-    """
     
     def get_dicom_studies(self, patientId, outputFormat="dict"):
+        """returns one row per distinct value of StudyInstanceUID
+        """
+
         if not isinstance(patientId, str) and not isinstance(patientId, list):
             raise TypeError("patientId must be a string or list of strings")
         
@@ -196,6 +197,18 @@ class IDCClient:
         return response
 
     def download_dicom_series(self, seriesInstanceUID, downloadDir, dry_run=False, quiet=True):
+        """
+        Download the files corresponding to the seriesInstanceUID to the specified directory.
+
+        Args:
+            seriesInstanceUID: string containing the value of DICOM SeriesInstanceUID to filter by
+            downloadDir: string containing the path to the directory to download the files to
+            dry_run: boolean indicating if the download should be a dry run (default: False)
+            quiet: boolean indicating if the output should be suppressed (default: True)
+        
+        Returns:
+
+        """
         series_url = self.index[self.index['SeriesInstanceUID'] == seriesInstanceUID]['series_aws_url'].iloc[0]
         logger.debug('AWS Bucket Location: '+series_url)
 
@@ -211,22 +224,150 @@ class IDCClient:
             else:
                 logger.error("Failed to download files.")
 
-    """Download the files corresponding to the selection. The filtering will be applied in sequence (but does it matter?) by first selecting the collection(s), followed by
-    patient(s), study(studies) and series. If no filtering is applied, all the files will be downloaded.
+    def get_series_file_URLs(self, seriesInstanceUID):
+        """
+        Get the URLs of the files corresponding to the DICOM instances in a given SeriesInstanceUID.
 
-    Args:
-        collection_id: string or list of strings containing the values of collection_id to filter by
-        patientId: string or list of strings containing the values of PatientID to filter by
-        studyInstanceUID: string or list of strings containing the values of DICOM StudyInstanceUID to filter by
-        seriesInstanceUID: string or list of strings containing the values of DICOM SeriesInstanceUID to filter by
-        downloadDir: string containing the path to the directory to download the files to
+        Args:
+            SeriesInstanceUID: string containing the value of DICOM SeriesInstanceUID to filter by
 
-    Returns:
+        Returns:
+            list of strings containing the AWS S3 URLs of the files corresponding to the SeriesInstanceUID
+        """
+        # Query to get the S3 URL
+        s3url_query = f'''
+        SELECT
+          series_aws_url
+        FROM
+          index
+        WHERE
+          SeriesInstanceUID='{seriesInstanceUID}'
+        '''
+        s3url_query_df = self.sql_query(s3url_query)
+        s3_url = s3url_query_df.series_aws_url[0]
 
-    Raises:
-        TypeError: If any of the parameters are not of the expected type
-    """
+        # Remove the last character from the S3 URL
+        s3_url = s3_url[:-1]
+
+        # Run the s5cmd ls command and capture its output
+        result = subprocess.run(['s5cmd', '--no-sign-request', 'ls', s3_url], stdout=subprocess.PIPE)
+        output = result.stdout.decode('utf-8')
+
+        # Parse the output to get the file names
+        lines = output.split('\n')
+        file_names = [s3_url+line.split()[-1] for line in lines if line]
+
+        return file_names
+
+    def get_viewer_URL(self, seriesInstanceUID, studyInstanceUID=None, viewer_selector=None):
+        """
+        Get the URL of the IDC viewer for the given series or study in IDC based on
+        the provided SeriesInstanceUID or StudyInstanceUID. If StudyInstanceUID is not provided,
+        it will be automatically deduced. If viewer_selector is not provided, default viewers
+        will be used (OHIF v2 for radiology modalities, and Slim for SM).
+
+        This function will validate the provided SeriesInstanceUID or StudyInstanceUID against IDC
+        index to ensure that the series or study is available in IDC.
+
+        Args:
+            SeriesInstanceUID: string containing the value of DICOM SeriesInstanceUID for a series
+            available in IDC
+
+            StudyInstanceUID: string containing the value of DICOM SeriesInstanceUID for a series
+            available in IDC
+
+            viewer_selector: string containing the name of the viewer to use. Must be one of the following:
+            ohif_v2, ohif_v2, or slim. If not provided, default viewers will be used. 
+
+        Returns:
+            string containing the IDC viewer URL for the given SeriesInstanceUID
+        """
+
+        if seriesInstanceUID is None and studyInstanceUID is None:
+            raise ValueError("Either SeriesInstanceUID or StudyInstanceUID, or both, must be provided.")
+
+        if seriesInstanceUID not in self.index['SeriesInstanceUID'].values:
+            raise ValueError("SeriesInstanceUID not found in IDC index.")
+        
+        if studyInstanceUID is not None and studyInstanceUID not in self.index['StudyInstanceUID'].values:
+            raise ValueError("StudyInstanceUID not found in IDC index.")
+        
+        if viewer_selector is not None and viewer_selector not in ['ohif_v2', 'ohif_v3', 'slim']:
+            raise ValueError("viewer_selector must be one of 'ohif_v2', 'ohif_v3' or 'slim'.")
+
+        modality = None
+
+        if studyInstanceUID is None:
+
+            query = f'''
+            SELECT
+                DISTINCT(StudyInstanceUID),
+                Modality
+            FROM
+                index
+            WHERE
+                SeriesInstanceUID='{seriesInstanceUID}'
+            '''
+            query_result = self.sql_query(query)
+            studyInstanceUID = query_result.StudyInstanceUID[0]
+            modality = query_result.Modality[0]
+
+        else:
+            query = f'''
+            SELECT
+                DISTINCT(Modality)
+            FROM
+                index
+            WHERE
+                StudyInstanceUID='{studyInstanceUID}'
+            '''
+            query_result = self.sql_query(query)
+            modality = query_result.Modality[0]
+
+        if viewer_selector is None:
+            if 'SM' in modality:
+                viewer_selector = 'slim'
+            else:
+                viewer_selector = 'ohif_v2'
+
+        if viewer_selector == "ohif_v2":
+            if seriesInstanceUID is None:
+                viewer_url = f'https://viewer.imaging.datacommons.cancer.gov/viewer/{studyInstanceUID}'
+            else:
+                viewer_url = f'https://viewer.imaging.datacommons.cancer.gov/viewer/{studyInstanceUID}?SeriesInstanceUID={seriesInstanceUID}'
+        elif viewer_selector == "ohif_v3":
+            if seriesInstanceUID is None:
+                viewer_url = f'https://viewer.imaging.datacommons.cancer.gov/v3/viewer/?StudyInstanceUIDs={studyInstanceUID}'
+            else:
+                viewer_url = f'https://viewer.imaging.datacommons.cancer.gov/v3/viewer/?StudyInstanceUIDs={studyInstanceUID}&SeriesInstanceUID={seriesInstanceUID}'
+        elif viewer_selector == "volview":
+            # TODO! Not implemented yet
+            pass
+        elif viewer_selector == "slim":
+            if seriesInstanceUID is None:
+                viewer_url = f'https://viewer.imaging.datacommons.cancer.gov/slim/studies/{studyInstanceUID}'
+            else:
+                viewer_url = f'https://viewer.imaging.datacommons.cancer.gov/slim/studies/{studyInstanceUID}/series/{seriesInstanceUID}'
+
+        return viewer_url
+
     def download_from_selection(self, downloadDir, dry_run=False, collection_id=None, patientId=None, studyInstanceUID=None, seriesInstanceUID=None):
+        """Download the files corresponding to the selection. The filtering will be applied in sequence (but does it matter?) by first selecting the collection(s), followed by
+        patient(s), study(studies) and series. If no filtering is applied, all the files will be downloaded.
+
+        Args:
+            collection_id: string or list of strings containing the values of collection_id to filter by
+            patientId: string or list of strings containing the values of PatientID to filter by
+            studyInstanceUID: string or list of strings containing the values of DICOM StudyInstanceUID to filter by
+            seriesInstanceUID: string or list of strings containing the values of DICOM SeriesInstanceUID to filter by
+            downloadDir: string containing the path to the directory to download the files to
+
+        Returns:
+
+        Raises:
+            TypeError: If any of the parameters are not of the expected type
+        """
+
         if collection_id is not None:
             if not isinstance(collection_id, str) and not isinstance(collection_id, list):
                 raise TypeError("collection_id must be a string or list of strings")
@@ -270,17 +411,17 @@ class IDCClient:
                 f.write("cp --show-progress "+row['series_aws_url'] + " "+downloadDir+"\n")
         self.download_from_manifest(manifest_file, downloadDir)
 
-    """Download the files corresponding to the manifest file from IDC. The manifest file should be a text file with each line containing the s5cmd command to download the file. The URLs in the file must correspond to those in the AWS buckets!
-
-    Args:
-        manifest_file: string containing the path to the manifest file
-        downloadDir: string containing the path to the directory to download the files to
-
-    Returns:
-
-    Raises:
-    """
     def download_from_manifest(self, manifestFile, downloadDir, quiet=True):
+        """Download the files corresponding to the manifest file from IDC. The manifest file should be a text file with each line containing the s5cmd command to download the file. The URLs in the file must correspond to those in the AWS buckets!
+
+        Args:
+            manifest_file: string containing the path to the manifest file
+            downloadDir: string containing the path to the directory to download the files to
+
+        Returns:
+
+        Raises:
+        """
 
         downloadDir = os.path.abspath(downloadDir)
 
@@ -342,17 +483,18 @@ class IDCClient:
         else:
             logger.error("Failed to download files.")
 
-    """Execute SQL query against the table in the index using duckdb.
-
-    Args:
-        sql_query: string containing the SQL query to execute. The table name to use in the FROM clause is 'index' (without quotes).
-
-    Returns:
-        pandas dataframe containing the results of the query
-
-    Raises:
-        any exception that duckdb.query() raises
-    """
     def sql_query(self, sql_query):
+        """Execute SQL query against the table in the index using duckdb.
+
+        Args:
+            sql_query: string containing the SQL query to execute. The table name to use in the FROM clause is 'index' (without quotes).
+
+        Returns:
+            pandas dataframe containing the results of the query
+
+        Raises:
+            any exception that duckdb.query() raises
+        """
+
         index = self.index
         return duckdb.query(sql_query).to_df()
