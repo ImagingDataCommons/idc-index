@@ -89,14 +89,23 @@ class IDCClient:
         return idc_version;
     
     def get_collections(self):
+        """
+        Get the list of unique collection IDs in IDC.
+        """
         unique_collections = self.index['collection_id'].unique()
         return unique_collections.tolist()
     
     def get_series_size(self, seriesInstanceUID):
+        """
+        Get the size of the IDC DICOM series identified by seriesInstanceUID in MB.
+        """
         resp = self.index[['SeriesInstanceUID']==seriesInstanceUID]['series_size_MB'].iloc[0]
         return resp
 
     def get_patients(self, collection_id, outputFormat="dict"):
+        """
+        Get the list of unique patient IDs in IDC for the specified collection_id(s).
+        """
         if not isinstance(collection_id, str) and not isinstance(collection_id, list):
             raise TypeError("collection_id must be a string or list of strings")
 
@@ -127,8 +136,9 @@ class IDCClient:
         return response
 
     
-    def get_dicom_studies(self, patientId, outputFormat="dict"):
-        """returns one row per distinct value of StudyInstanceUID
+    def get_dicom_studies(self, patientId, outputFormat="dict"):        
+        """
+        Get the list of unique DICOM StudyInstanceUIDs in IDC for the specified patientId(s).
         """
 
         if not isinstance(patientId, str) and not isinstance(patientId, list):
@@ -171,6 +181,15 @@ class IDCClient:
         return response
 
     def get_dicom_series(self, studyInstanceUID=None,outputFormat="dict"):
+        """
+        Get the list of unique DICOM SeriesInstanceUIDs in IDC for the specified studyInstanceUID(s).
+
+        Args:
+            studyInstanceUID: string or list of strings containing the values of DICOM StudyInstanceUID to use as filter
+
+        Returns:
+            list of strings containing the unique DICOM SeriesInstanceUIDs in IDC for the specified studyInstanceUID(s)
+        """
         if not isinstance(studyInstanceUID, str) and not isinstance(studyInstanceUID, list):
             raise TypeError("studyInstanceUID must be a string or list of strings")
         
@@ -498,3 +517,5 @@ class IDCClient:
 
         index = self.index
         return duckdb.query(sql_query).to_df()
+
+
