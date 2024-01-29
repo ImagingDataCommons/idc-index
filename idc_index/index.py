@@ -250,7 +250,7 @@ class IDCClient:
         s3_url = s3_url[:-1]
 
         # Run the s5cmd ls command and capture its output
-        result = subprocess.run(['s5cmd', '--no-sign-request', 'ls', s3_url], stdout=subprocess.PIPE)
+        result = subprocess.run([self.s5cmdPath, '--no-sign-request', 'ls', s3_url], stdout=subprocess.PIPE)
         output = result.stdout.decode('utf-8')
 
         # Parse the output to get the file names
