@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import os
-import platform
 import re
 import subprocess
 import tempfile
@@ -11,10 +10,12 @@ import urllib.request
 import duckdb
 import pandas as pd
 
+from ._version import version_tuple
+
 logger = logging.getLogger(__name__)
 
 idc_version = "v17"
-release_version = "0.2.11"
+release_version = f"{version_tuple[0]}.{version_tuple[1]}.{version_tuple[2]}"
 aws_endpoint_url = "https://s3.amazonaws.com"
 gcp_endpoint_url = "https://storage.googleapis.com"
 latest_idc_index_csv_url = (
@@ -42,27 +43,18 @@ class IDCClient:
         )
 
         self.s5cmdPath = None
-        system = platform.system()
 
-        if system == "Windows":
-            self.s5cmdPath = os.path.join(current_dir, "s5cmd.exe")
-        elif system == "Darwin":
-            self.s5cmdPath = os.path.join(current_dir, "s5cmd")
-        else:
-            self.s5cmdPath = os.path.join(current_dir, "s5cmd")
-
-        if not os.path.exists(self.s5cmdPath):
-            # try to check if there is a s5cmd executable in the path
-            try:
-                subprocess.run(
-                    ["s5cmd", "--help"], capture_output=False, text=False, check=False
-                )
-                self.s5cmdPath = "s5cmd"
-            except:
-                logger.fatal(
-                    "s5cmd executable not found. Please install s5cmd from https://github.com/peak/s5cmd#installation"
-                )
-                raise ValueError
+        # try to check if there is a s5cmd executable in the path
+        try:
+            subprocess.run(
+                ["s5cmd", "--help"], capture_output=False, text=False, check=False
+            )
+            self.s5cmdPath = "s5cmd"
+        except:
+            logger.fatal(
+                "s5cmd executable not found. Please install s5cmd from https://github.com/peak/s5cmd#installation"
+            )
+            raise ValueError
 
         # Print after successful reading of index
         logger.debug("Successfully read the index and located s5cmd.")

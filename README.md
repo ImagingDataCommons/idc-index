@@ -1,3 +1,15 @@
+# idc-index
+
+[![Actions Status][actions-badge]][actions-link]
+[![Documentation Status][rtd-badge]][rtd-link]
+
+[![PyPI version][pypi-version]][pypi-link]
+[![PyPI platforms][pypi-platforms]][pypi-link]
+
+[![Discourse Forum][discourse-forum-badge]][discourse-forum-link]
+
+<!-- SPHINX-START -->
+
 ## About
 
 `idc-index` is a Python package that enables query of the basic metadata and
@@ -87,3 +99,16 @@ paper below.
 > _National Cancer Institute Imaging Data Commons: Toward Transparency,
 > Reproducibility, and Scalability in Imaging Artificial Intelligence_.
 > RadioGraphics (2023). https://doi.org/10.1148/rg.230180
+
+<!-- prettier-ignore-start -->
+[actions-badge]:            https://github.com/ImagingDataCommons/idc-index/workflows/CI/badge.svg
+[actions-link]:             https://github.com/ImagingDataCommons/idc-index/actions
+[discourse-forum-badge]: https://img.shields.io/discourse/https/discourse.canceridc.dev/status.svg
+[discourse-forum-link]:  https://discourse.canceridc.dev/
+[pypi-link]:                https://pypi.org/project/idc-index/
+[pypi-platforms]:           https://img.shields.io/pypi/pyversions/idc-index
+[pypi-version]:             https://img.shields.io/pypi/v/idc-index
+[rtd-badge]:                https://readthedocs.org/projects/idc-index/badge/?version=latest
+[rtd-link]:                 https://idc-index.readthedocs.io/en/latest/?badge=latest
+
+<!-- prettier-ignore-end -->
