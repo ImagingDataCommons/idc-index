@@ -9,7 +9,7 @@ import urllib.request
 import tarfile
 import zipfile
 
-package_version = "0.2.10"
+package_version = "0.2.11"
 
 # Read long description from README
 with open("README.md", "r", encoding="utf-8") as fh:
