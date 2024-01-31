@@ -1,0 +1,25 @@
+site_name: idc-index docs
+
+site_description: Python interface for Imaging Data Commons
+site_url: https://github.com/ImagingDataCommons/idc-index
+
+theme:
+  name: "material"
+
+repo_name: ImagingDataCommons/idc-index
+repo_url: https://github.com/ImagingDataCommons/idc-index
+edit_uri: ""
+
+plugins:
+  - mkdocstrings
+
+mkdocstrings:
+  default_handler: python
+  handlers:
+    python:
+      paths: [idc_index]
+
+nav:
+  - Introduction: 'index.md'
+  - API: 'api.md'
+
