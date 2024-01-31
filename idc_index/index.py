@@ -11,7 +11,7 @@ import tempfile
 logger = logging.getLogger(__name__)
 
 idc_version = "v17"
-release_version = "0.2.10"
+release_version = "0.2.11"
 aws_endpoint_url = "https://s3.amazonaws.com"
 gcp_endpoint_url = "https://storage.googleapis.com"
 latest_idc_index_csv_url = 'https://github.com/ImagingDataCommons/idc-index/releases/download/'+release_version+'/idc_index.csv.zip'
