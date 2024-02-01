@@ -197,4 +197,15 @@ messages_control.disable = [
   "line-too-long",
   "missing-module-docstring",
   "wrong-import-position",
+  # Exceptions below are specific to idc-index
+  "invalid-name",
+  "missing-class-docstring",
+  "missing-function-docstring",
+  "logging-fstring-interpolation",
+  "logging-not-lazy",
+  "no-else-raise",
+  "raise-missing-from",
+  "undefined-loop-variable",
+  "unspecified-encoding",
+  "unused-variable",
 ]
