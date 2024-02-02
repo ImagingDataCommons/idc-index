@@ -542,7 +542,7 @@ class IDCClient:
         Raises:
         """
 
-        downloadDir = os.path.abspath(downloadDir)
+        downloadDir = os.path.abspath(downloadDir).replace("\\", "/")
 
         if not os.path.exists(downloadDir):
             raise ValueError("Download directory does not exist.")
