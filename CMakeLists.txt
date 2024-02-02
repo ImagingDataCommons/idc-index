@@ -69,10 +69,13 @@ set(s5cmd_package "idc_index/s5cmd")
 message(STATUS "Copying ${executable_name} to ${s5cmd_package}")
 file(COPY ${extract_dir}/${executable_name} DESTINATION ${PROJECT_SOURCE_DIR}/${s5cmd_package})
 
-message(STATUS "Changing ${executable_name} permissions to be executable")
-file(CHMOD ${PROJECT_SOURCE_DIR}/${s5cmd_package}/${executable_name}
-  PERMISSIONS
-    OWNER_READ OWNER_WRITE OWNER_EXECUTE
-    GROUP_READ GROUP_EXECUTE
-    WORLD_READ WORLD_EXECUTE
+set(_permissions PERMISSIONS
+  OWNER_READ OWNER_WRITE OWNER_EXECUTE
+  GROUP_READ GROUP_EXECUTE
+  WORLD_READ WORLD_EXECUTE
   )
+
+message(STATUS "Changing ${executable_name} permissions to be executable")
+file(CHMOD ${PROJECT_SOURCE_DIR}/${s5cmd_package}/${executable_name} ${_permissions})
+
+install(PROGRAMS ${extract_dir}/${executable_name} DESTINATION "${s5cmd_package}" ${_permissions})
