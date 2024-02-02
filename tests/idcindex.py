@@ -7,8 +7,6 @@ import logging
 # Run tests using the following command from the root of the repository:
 # python -m unittest -vv tests/idcindex.py
 
-index.latest_index_url = 'https://github.com/ImagingDataCommons/idc-index/releases/download/latest/idc_index.csv.zip'
-
 logging.basicConfig(level=logging.INFO)
 
 class TestIDCClient(unittest.TestCase):
