@@ -32,7 +32,8 @@ classifiers = [
 ]
 dynamic = ["version"]
 dependencies = [
-  "duckdb",
+  'duckdb;python_version<"3.12"',
+  'duckdb==0.9.3.dev3597;python_version=="3.12"',
   "pandas<2.2",
   "psutil",
 ]
