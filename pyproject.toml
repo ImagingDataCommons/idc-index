@@ -70,6 +70,7 @@ wheel.expand-macos-universal-tags = true
 
 
 [tool.setuptools_scm]
+version_scheme = "no-guess-dev"
 write_to = "idc_index/_version.py"
 
 
