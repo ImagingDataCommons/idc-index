@@ -71,4 +71,8 @@ file(COPY ${extract_dir}/${executable_name} DESTINATION ${PROJECT_SOURCE_DIR}/${
 
 message(STATUS "Changing ${executable_name} permissions to be executable")
 file(CHMOD ${PROJECT_SOURCE_DIR}/${s5cmd_package}/${executable_name}
-  PERMISSIONS OWNER_EXECUTE GROUP_EXECUTE WORLD_EXECUTE)
+  PERMISSIONS
+    OWNER_READ OWNER_WRITE OWNER_EXECUTE
+    GROUP_READ GROUP_EXECUTE
+    WORLD_READ WORLD_EXECUTE
+  )
