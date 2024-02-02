@@ -9,6 +9,7 @@ import urllib.request
 
 import duckdb
 import pandas as pd
+import psutil
 
 from ._version import version_tuple
 
@@ -505,11 +506,7 @@ class IDCClient:
         )
         logger.info(
             "Total free space on disk: "
-            + str(
-                os.statvfs(downloadDir).f_bsize
-                * os.statvfs(downloadDir).f_bavail
-                / (1000 * 1000 * 1000)
-            )
+            + str(psutil.disk_usage(downloadDir).free / (1024 * 1024 * 1024))
             + "GB"
         )
 

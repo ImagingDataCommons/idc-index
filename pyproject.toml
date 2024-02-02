@@ -31,7 +31,11 @@ classifiers = [
   "Typing :: Typed",
 ]
 dynamic = ["version"]
-dependencies = ["duckdb", "pandas<2.2"]
+dependencies = [
+  "duckdb",
+  "pandas<2.2",
+  "psutil",
+]
 
 [project.optional-dependencies]
 test = [
