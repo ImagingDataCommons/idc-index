@@ -91,6 +91,8 @@ addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config"]
 xfail_strict = true
 filterwarnings = [
   "error",
+  # https://github.com/dateutil/dateutil/issues/1314
+  "ignore:datetime.datetime.utcfromtimestamp.. is deprecated.*:DeprecationWarning:dateutil",
 ]
 log_cli_level = "INFO"
 testpaths = [
