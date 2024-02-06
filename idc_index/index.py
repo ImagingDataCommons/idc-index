@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import urllib.request
@@ -28,14 +29,18 @@ latest_idc_index_csv_url = (
 
 class IDCClient:
     def __init__(self):
+        # If not found, download index file
         current_dir = os.path.dirname(os.path.abspath(__file__))
         file_path = os.path.join(current_dir, "idc_index.csv.zip")
         if not os.path.exists(file_path):
             logger.warning(
-                "Index file not found. Downloading latest version of the index file. This will take a minute or so."
+                f"Index file not found. Downloading version {release_version} of the index file. This will take a minute or so."
             )
             urllib.request.urlretrieve(latest_idc_index_csv_url, file_path)
-            logger.warning("Index file downloaded.")
+            logger.warning(f"Index file v{release_version} downloaded.")
+
+        # Read index file
+        logger.debug(f"Reading index file v{release_version}")
         self.index = pd.read_csv(file_path, dtype=str, encoding="utf-8")
         self.index = self.index.astype(str).replace("nan", "")
         self.index["series_size_MB"] = self.index["series_size_MB"].astype(float)
@@ -43,22 +48,16 @@ class IDCClient:
             {"Modality": pd.Series.unique, "series_size_MB": "sum"}
         )
 
-        self.s5cmdPath = None
-
-        # try to check if there is a s5cmd executable in the path
-        try:
-            subprocess.run(
-                ["s5cmd", "--help"], capture_output=False, text=False, check=False
-            )
-            self.s5cmdPath = "s5cmd"
-        except:
-            logger.fatal(
+        # Lookup s5cmd
+        self.s5cmdPath = shutil.which("s5cmd")
+        if self.s5cmdPath is None:
+            raise FileNotFoundError(
                 "s5cmd executable not found. Please install s5cmd from https://github.com/peak/s5cmd#installation"
             )
-            raise ValueError
+        logger.debug(f"Found s5cmd executable: {self.s5cmdPath}")
 
-        # Print after successful reading of index
-        logger.debug("Successfully read the index and located s5cmd.")
+        # ... and check it can be executed
+        subprocess.check_call([self.s5cmdPath, "--help"], stdout=subprocess.DEVNULL)
 
     def _filter_by_collection_id(self, df, collection_id):
         if isinstance(collection_id, str):
