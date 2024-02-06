@@ -5,12 +5,18 @@ import os
 import tempfile
 import unittest
 
+import pytest
 from idc_index import index
 
 # Run tests using the following command from the root of the repository:
 # python -m unittest -vv tests/idcindex.py
 
 logging.basicConfig(level=logging.INFO)
+
+
+@pytest.fixture(autouse=True)
+def _change_test_dir(request, monkeypatch):
+    monkeypatch.chdir(request.fspath.dirname)
 
 
 class TestIDCClient(unittest.TestCase):
@@ -92,7 +98,7 @@ class TestIDCClient(unittest.TestCase):
     def test_download_from_aws_manifest(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             self.client.download_from_manifest(
-                manifestFile="./tests/study_manifest_aws.s5cmd", downloadDir=temp_dir
+                manifestFile="./study_manifest_aws.s5cmd", downloadDir=temp_dir
             )
 
             self.assertEqual(len(os.listdir(temp_dir)), 15)
@@ -100,7 +106,7 @@ class TestIDCClient(unittest.TestCase):
     def test_download_from_gcp_manifest(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             self.client.download_from_manifest(
-                manifestFile="./tests/study_manifest_gcs.s5cmd", downloadDir=temp_dir
+                manifestFile="./study_manifest_gcs.s5cmd", downloadDir=temp_dir
             )
 
             self.assertEqual(len(os.listdir(temp_dir)), 15)
