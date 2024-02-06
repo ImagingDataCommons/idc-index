@@ -59,33 +59,34 @@ class IDCClient:
         # ... and check it can be executed
         subprocess.check_call([self.s5cmdPath, "--help"], stdout=subprocess.DEVNULL)
 
-    def _filter_by_collection_id(self, df, collection_id):
-        if isinstance(collection_id, str):
-            result_df = df[df["collection_id"].isin([collection_id])].copy()
-        else:
-            result_df = df[df["collection_id"].isin(collection_id)].copy()
-        return result_df
+    @staticmethod
+    def _filter_dataframe_by_id(key, dataframe, _id):
+        values = _id
+        if isinstance(_id, str):
+            values = [_id]
+        return dataframe[dataframe[key].isin(values)].copy()
 
-    def _filter_by_patient_id(self, df, patient_id):
-        if isinstance(patient_id, str):
-            result_df = df[df["PatientID"].isin([patient_id])].copy()
-        else:
-            result_df = df[df["PatientID"].isin(patient_id)].copy()
-        return result_df
+    @staticmethod
+    def _filter_by_collection_id(df_index, collection_id):
+        return IDCClient._filter_dataframe_by_id(
+            "collection_id", df_index, collection_id
+        )
 
-    def _filter_by_dicom_study_uid(self, df, dicom_study_uid):
-        if isinstance(dicom_study_uid, str):
-            result_df = df[df["StudyInstanceUID"].isin([dicom_study_uid])].copy()
-        else:
-            result_df = df[df["StudyInstanceUID"].isin(dicom_study_uid)].copy()
-        return result_df
+    @staticmethod
+    def _filter_by_patient_id(df_index, patient_id):
+        return IDCClient._filter_dataframe_by_id("PatientID", df_index, patient_id)
 
-    def _filter_by_dicom_series_uid(self, df, dicom_series_uid):
-        if isinstance(dicom_series_uid, str):
-            result_df = df[df["SeriesInstanceUID"].isin([dicom_series_uid])].copy()
-        else:
-            result_df = df[df["SeriesInstanceUID"].isin(dicom_series_uid)].copy()
-        return result_df
+    @staticmethod
+    def _filter_by_dicom_study_uid(df_index, dicom_study_uid):
+        return IDCClient._filter_dataframe_by_id(
+            "StudyInstanceUID", df_index, dicom_study_uid
+        )
+
+    @staticmethod
+    def _filter_by_dicom_series_uid(df_index, dicom_series_uid):
+        return IDCClient._filter_dataframe_by_id(
+            "SeriesInstanceUID", df_index, dicom_series_uid
+        )
 
     def get_idc_version(self):
         return idc_version
