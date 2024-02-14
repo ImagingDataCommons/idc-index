@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import tempfile
 import urllib.request
+from pathlib import Path
 
 import duckdb
 import pandas as pd
@@ -49,11 +50,24 @@ class IDCClient:
         )
 
         # Lookup s5cmd
-        self.s5cmdPath = shutil.which("s5cmd")
+        self.s5cmdPath = None
+
+        logger.debug("Checking if s5cmd is available in the package folder")
+        self.s5cmdPath = str(
+            next(Path(os.path.join(current_dir, "s5cmd")).glob("s5cmd*"), None)
+        )
+
+        if self.s5cmdPath is None:
+            logger.debug("Falling back to system s5cmd")
+            self.s5cmdPath = shutil.which("s5cmd")
+
         if self.s5cmdPath is None:
             raise FileNotFoundError(
                 "s5cmd executable not found. Please install s5cmd from https://github.com/peak/s5cmd#installation"
             )
+
+        self.s5cmdPath = str(self.s5cmdPath)
+
         logger.debug(f"Found s5cmd executable: {self.s5cmdPath}")
 
         # ... and check it can be executed
