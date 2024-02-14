@@ -50,16 +50,14 @@ class IDCClient:
         )
 
         # Lookup s5cmd
-        self.s5cmdPath = None
-
-        logger.debug("Checking if s5cmd is available in the package folder")
-        self.s5cmdPath = str(
-            next(Path(os.path.join(current_dir, "s5cmd")).glob("s5cmd*"), None)
-        )
+        self.s5cmdPath = shutil.which("s5cmd")
 
         if self.s5cmdPath is None:
-            logger.debug("Falling back to system s5cmd")
-            self.s5cmdPath = shutil.which("s5cmd")
+            # Workaround to support environment without a properly setup PATH
+            # See https://github.com/Slicer/Slicer/pull/7587
+            logger.debug("Falling back to looking up s5cmd along side the package")
+            s5cmd_package_dir = Path(current_dir) / "s5cmd"
+            self.s5cmdPath = shutil.which("s5cmd", path=s5cmd_package_dir)
 
         if self.s5cmdPath is None:
             raise FileNotFoundError(
