@@ -129,6 +129,7 @@ disallow_incomplete_defs = true
 
 [tool.ruff]
 src = ["idc_index"]
+exclude = [".md"]
 
 [tool.ruff.lint]
 extend-select = [
