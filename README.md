@@ -16,7 +16,10 @@
 download of DICOM files hosted by the
 [NCI Imaging Data Commons (IDC)](https://imaging.datacommons.cancer.gov).
 
-## 👷‍♂️🚧 **WARNING**: this package is in its early development stages. Its functionality and API will change. Stay tuned for the updates and documentation, and please share your feedback about it by opening issues in this repository, or by starting a discussion in [IDC User forum](https://discourse.canceridc.dev/).🚧
+👷 🚧 This package is in its early development stages. Its functionality and API
+will change. Stay tuned for the updates and documentation, and please share your
+feedback about it by opening issues in this repository, or by starting a
+discussion in [IDC User forum](https://discourse.canceridc.dev/).🚧
 
 ## Usage
 
@@ -33,6 +36,8 @@ PatientID/Study/Series as follows:
 from idc_index import index
 
 client = index.IDCClient()
+
+all_collection_ids = client.get_collections()
 
 client.download_from_selection(collection_id="rider_pilot", downloadDir="/some/dir")
 ```
