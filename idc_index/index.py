@@ -5,9 +5,14 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import urllib.request
-from pathlib import Path
+
+if sys.version_info < (3, 10):
+    from importlib_metadata import distribution
+else:
+    from importlib.metadata import distribution
 
 import duckdb
 import pandas as pd
@@ -56,8 +61,10 @@ class IDCClient:
             # Workaround to support environment without a properly setup PATH
             # See https://github.com/Slicer/Slicer/pull/7587
             logger.debug("Falling back to looking up s5cmd along side the package")
-            s5cmd_package_dir = Path(current_dir) / "s5cmd"
-            self.s5cmdPath = shutil.which("s5cmd", path=s5cmd_package_dir)
+            for script in distribution("s5cmd").files:
+                if str(script).startswith("s5cmd/bin/s5cmd"):
+                    self.s5cmdPath = script.locate().resolve(strict=True)
+                    break
 
         if self.s5cmdPath is None:
             raise FileNotFoundError(
