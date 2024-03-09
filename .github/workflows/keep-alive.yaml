@@ -3,6 +3,10 @@ name: keep-github-actions-alive
 on:
   schedule:
     - cron: "0 0 * * *"
+
+permissions:
+  actions: write
+
 jobs:
   keep-alive:
     runs-on: ubuntu-latest
@@ -13,3 +17,4 @@ jobs:
       - uses: gautamkrishnar/keepalive-workflow@v1
         with:
           time_elapsed: 50
+          use_api: true
