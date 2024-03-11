@@ -14,10 +14,9 @@ else:
     from importlib.metadata import distribution
 
 import duckdb
+import idc_index_data
 import pandas as pd
 import psutil
-
-from . import idc_index_data
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +26,7 @@ gcp_endpoint_url = "https://storage.googleapis.com"
 
 class IDCClient:
     def __init__(self):
-        index_data_dir = os.path.dirname(os.path.abspath(idc_index_data.__file__))
-        file_path = os.path.join(index_data_dir, "idc_index.csv.zip")
+        file_path = idc_index_data.IDC_INDEX_CSV_ARCHIVE_FILEPATH
 
         # Read index file
         logger.debug(f"Reading index file v{idc_index_data.__version__}")
