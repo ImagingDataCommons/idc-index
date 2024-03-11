@@ -59,7 +59,7 @@ docs = [
 [project.urls]
 Homepage = "https://github.com/ImagingDataCommons/idc-index"
 "Bug Tracker" = "https://github.com/ImagingDataCommons/idc-index/issues"
-Discussions = "https://github.com/ImagingDataCommons/idc-index/discussions"
+Discussions = "https://discourse.canceridc.dev/"
 Changelog = "https://github.com/ImagingDataCommons/idc-index/releases"
 
 
