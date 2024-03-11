@@ -10,6 +10,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: "keep-alive"
-      - uses: gautamkrishnar/keepalive-workflow@v1
+      - uses: gautamkrishnar/keepalive-workflow@v2
         with:
           time_elapsed: 50
