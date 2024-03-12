@@ -83,7 +83,8 @@ for the introduction into using `idc-index` for navigating IDC data.
   used to explore the content of IDC from the web browser
 - [s5cmd](https://github.com/peak/s5cmd) is a highly efficient, open source,
   multi-platform S3 client that we use for downloading IDC data, which is hosted
-  in public AWS and GCS buckets
+  in public AWS and GCS buckets. Distributed on PyPI as
+  [s5cmd](https://pypi.org/project/s5cmd/).
 - [SlicerIDCBrowser](https://github.com/ImagingDataCommons/SlicerIDCBrowser) 3D
   Slicer extension that relies on `idc-index` for search and download of IDC
   data

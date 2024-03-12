@@ -160,5 +160,4 @@ Thumbs.db
 *.swp
 
 # idc-index
-*/s5cmd/s5cmd*
 */idc_index.csv.zip

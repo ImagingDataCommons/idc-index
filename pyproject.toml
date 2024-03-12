@@ -1,6 +1,6 @@
 [build-system]
-requires = ["scikit-build-core"]
-build-backend = "scikit_build_core.build"
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
 
 
 [project]
@@ -33,12 +33,15 @@ classifiers = [
 dynamic = ["version"]
 dependencies = [
   'duckdb>=0.10.0',
+  "idc-index-data",
   "pandas<2.2",
   "psutil",
+  "s5cmd",
 ]
 
 [project.optional-dependencies]
 test = [
+  "importlib_metadata>=2.0; python_version<'3.10'",
   "pytest >=6",
   "pytest-cov >=3",
 ]
@@ -57,31 +60,17 @@ docs = [
 [project.urls]
 Homepage = "https://github.com/ImagingDataCommons/idc-index"
 "Bug Tracker" = "https://github.com/ImagingDataCommons/idc-index/issues"
-Discussions = "https://github.com/ImagingDataCommons/idc-index/discussions"
+Discussions = "https://discourse.canceridc.dev/"
 Changelog = "https://github.com/ImagingDataCommons/idc-index/releases"
 
-[project.scripts]
-s5cmd = "idc_index.s5cmd:s5cmd"
 
+[tool.hatch]
+version.source = "vcs"
+build.hooks.vcs.version-file = "idc_index/_version.py"
 
-[tool.scikit-build]
-minimum-version = "0.4"
-build-dir = "build/{wheel_tag}"
-metadata.version.provider = "scikit_build_core.metadata.setuptools_scm"
-sdist.include = ["idc_index/_version.py"]
-wheel.py-api = "py3"
-wheel.expand-macos-universal-tags = true
-
-
-[tool.setuptools_scm]
-version_scheme = "no-guess-dev"
-write_to = "idc_index/_version.py"
-
-
-[tool.cibuildwheel]
-test-command = "pytest {project}/tests"
-test-extras = ["test"]
-test-skip = ["*universal2:arm64"]
+[tool.hatch.envs.default]
+features = ["test"]
+scripts.test = "pytest {args}"
 
 
 [tool.pytest.ini_options]

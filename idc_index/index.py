@@ -5,43 +5,31 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
-import urllib.request
-from pathlib import Path
+
+if sys.version_info < (3, 10):
+    from importlib_metadata import distribution
+else:
+    from importlib.metadata import distribution
 
 import duckdb
+import idc_index_data
 import pandas as pd
 import psutil
 
-from ._version import version_tuple
-
 logger = logging.getLogger(__name__)
 
-idc_version = "v17"
-release_version = f"{version_tuple[0]}.{version_tuple[1]}.{version_tuple[2]}"
 aws_endpoint_url = "https://s3.amazonaws.com"
 gcp_endpoint_url = "https://storage.googleapis.com"
-latest_idc_index_csv_url = (
-    "https://github.com/ImagingDataCommons/idc-index/releases/download/"
-    + release_version
-    + "/idc_index.csv.zip"
-)
 
 
 class IDCClient:
     def __init__(self):
-        # If not found, download index file
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        file_path = os.path.join(current_dir, "idc_index.csv.zip")
-        if not os.path.exists(file_path):
-            logger.warning(
-                f"Index file not found. Downloading version {release_version} of the index file. This will take a minute or so."
-            )
-            urllib.request.urlretrieve(latest_idc_index_csv_url, file_path)
-            logger.warning(f"Index file v{release_version} downloaded.")
+        file_path = idc_index_data.IDC_INDEX_CSV_ARCHIVE_FILEPATH
 
         # Read index file
-        logger.debug(f"Reading index file v{release_version}")
+        logger.debug(f"Reading index file v{idc_index_data.__version__}")
         self.index = pd.read_csv(file_path, dtype=str, encoding="utf-8")
         self.index = self.index.astype(str).replace("nan", "")
         self.index["series_size_MB"] = self.index["series_size_MB"].astype(float)
@@ -56,8 +44,10 @@ class IDCClient:
             # Workaround to support environment without a properly setup PATH
             # See https://github.com/Slicer/Slicer/pull/7587
             logger.debug("Falling back to looking up s5cmd along side the package")
-            s5cmd_package_dir = Path(current_dir) / "s5cmd"
-            self.s5cmdPath = shutil.which("s5cmd", path=s5cmd_package_dir)
+            for script in distribution("s5cmd").files:
+                if str(script).startswith("s5cmd/bin/s5cmd"):
+                    self.s5cmdPath = script.locate().resolve(strict=True)
+                    break
 
         if self.s5cmdPath is None:
             raise FileNotFoundError(
@@ -101,7 +91,7 @@ class IDCClient:
         )
 
     def get_idc_version(self):
-        return idc_version
+        return f"v{idc_index_data.__version__}"
 
     def get_collections(self):
         unique_collections = self.index["collection_id"].unique()
