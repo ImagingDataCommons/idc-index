@@ -4,6 +4,7 @@ import logging
 import os
 import tempfile
 import unittest
+from itertools import product
 
 import pytest
 from idc_index import index
@@ -87,13 +88,41 @@ class TestIDCClient(unittest.TestCase):
             self.assertNotEqual(len(os.listdir(temp_dir)), 0)
 
     def test_download_from_selection(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            self.client.download_from_selection(
-                studyInstanceUID="1.3.6.1.4.1.14519.5.2.1.6279.6001.175012972118199124641098335511",
-                downloadDir=temp_dir,
-            )
+        # Define the values for each optional parameter
+        dry_run_values = [True, False]
+        quiet_values = [True, False]
+        show_progress_bar_values = [True, False]
+        use_s5cmd_sync_dry_run_values = [True, False]
 
-            self.assertNotEqual(len(os.listdir(temp_dir)), 0)
+        # Generate all combinations of optional parameters
+        combinations = product(
+            dry_run_values,
+            quiet_values,
+            show_progress_bar_values,
+            use_s5cmd_sync_dry_run_values,
+        )
+
+        # Test each combination
+        for (
+            dry_run,
+            quiet,
+            show_progress_bar,
+            use_s5cmd_sync_dry_run,
+        ) in combinations:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                self.client.download_from_selection(
+                    downloadDir=temp_dir,
+                    dry_run=dry_run,
+                    patientId=None,
+                    studyInstanceUID="1.3.6.1.4.1.14519.5.2.1.6279.6001.175012972118199124641098335511",
+                    seriesInstanceUID=None,
+                    quiet=quiet,
+                    show_progress_bar=show_progress_bar,
+                    use_s5cmd_sync_dry_run=use_s5cmd_sync_dry_run,
+                )
+
+                if not dry_run:
+                    self.assertNotEqual(len(os.listdir(temp_dir)), 0)
 
     def test_sql_queries(self):
         df = self.client.sql_query("SELECT DISTINCT(collection_id) FROM index")
@@ -101,20 +130,72 @@ class TestIDCClient(unittest.TestCase):
         self.assertIsNotNone(df)
 
     def test_download_from_aws_manifest(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            self.client.download_from_manifest(
-                manifestFile="./study_manifest_aws.s5cmd", downloadDir=temp_dir
-            )
+        # Define the values for each optional parameter
+        quiet_values = [True, False]
+        validate_manifest_values = [True, False]
+        show_progress_bar_values = [True, False]
+        use_s5cmd_sync_dry_run_values = [True, False]
 
-            self.assertEqual(len(os.listdir(temp_dir)), 15)
+        # Generate all combinations of optional parameters
+        combinations = product(
+            quiet_values,
+            validate_manifest_values,
+            show_progress_bar_values,
+            use_s5cmd_sync_dry_run_values,
+        )
+
+        # Test each combination
+        for (
+            quiet,
+            validate_manifest,
+            show_progress_bar,
+            use_s5cmd_sync_dry_run,
+        ) in combinations:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                self.client.download_from_manifest(
+                    manifestFile="./study_manifest_aws.s5cmd",
+                    downloadDir=temp_dir,
+                    quiet=quiet,
+                    validate_manifest=validate_manifest,
+                    show_progress_bar=show_progress_bar,
+                    use_s5cmd_sync_dry_run=use_s5cmd_sync_dry_run,
+                )
+
+                self.assertEqual(len(os.listdir(temp_dir)), 15)
 
     def test_download_from_gcp_manifest(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            self.client.download_from_manifest(
-                manifestFile="./study_manifest_gcs.s5cmd", downloadDir=temp_dir
-            )
+        # Define the values for each optional parameter
+        quiet_values = [True, False]
+        validate_manifest_values = [True, False]
+        show_progress_bar_values = [True, False]
+        use_s5cmd_sync_dry_run_values = [True, False]
 
-            self.assertEqual(len(os.listdir(temp_dir)), 15)
+        # Generate all combinations of optional parameters
+        combinations = product(
+            quiet_values,
+            validate_manifest_values,
+            show_progress_bar_values,
+            use_s5cmd_sync_dry_run_values,
+        )
+
+        # Test each combination
+        for (
+            quiet,
+            validate_manifest,
+            show_progress_bar,
+            use_s5cmd_sync_dry_run,
+        ) in combinations:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                self.client.download_from_manifest(
+                    manifestFile="./study_manifest_gcs.s5cmd",
+                    downloadDir=temp_dir,
+                    quiet=quiet,
+                    validate_manifest=validate_manifest,
+                    show_progress_bar=show_progress_bar,
+                    use_s5cmd_sync_dry_run=use_s5cmd_sync_dry_run,
+                )
+
+                self.assertEqual(len(os.listdir(temp_dir)), 15)
 
 
 if __name__ == "__main__":
