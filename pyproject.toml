@@ -39,6 +39,7 @@ dependencies = [
   "psutil",
   "pyarrow",
   "s5cmd",
+  "tqdm"
 ]
 
 [project.optional-dependencies]
