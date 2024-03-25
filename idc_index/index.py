@@ -326,6 +326,12 @@ class IDCClient:
         Track progress by continuously checking the downloaded file size and updating the progress bar.
         """
         total_size_bytes = size_MB * 10**6  # Convert MB to bytes
+
+        # Calculate the initial size of the directory
+        initial_size_bytes = sum(
+            f.stat().st_size for f in Path(downloadDir).iterdir() if f.is_file()
+        )
+
         pbar = tqdm(
             total=total_size_bytes,
             unit="B",
@@ -333,8 +339,11 @@ class IDCClient:
             desc="Downloading data",
         )
         while True:
-            downloaded_bytes = sum(
-                f.stat().st_size for f in Path(downloadDir).iterdir() if f.is_file()
+            downloaded_bytes = (
+                sum(
+                    f.stat().st_size for f in Path(downloadDir).iterdir() if f.is_file()
+                )
+                - initial_size_bytes
             )
             pbar.n = min(
                 downloaded_bytes, total_size_bytes
