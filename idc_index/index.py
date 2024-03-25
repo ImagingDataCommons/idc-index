@@ -13,7 +13,7 @@ if sys.version_info < (3, 10):
 else:
     from importlib.metadata import distribution
 
-import threading
+import multiprocessing
 import time
 from pathlib import Path
 
@@ -269,7 +269,7 @@ class IDCClient:
         return response
 
     def _track_download_progress(
-        self, size_MB: int, downloadDir: str, download_thread: threading.Thread
+        self, size_MB: int, downloadDir: str, download_thread: multiprocessing.Process
     ):
         """
         Track progress by continuously checking the downloaded file size and updating the progress bar.
@@ -353,21 +353,21 @@ class IDCClient:
         logger.debug("AWS Bucket Location: " + series_url)
 
         # Start downloading series files using subprocess
-        download_thread = threading.Thread(
+        download_process = multiprocessing.Thread(
             target=self._download_series_process, args=(series_url, downloadDir)
         )
-        download_thread.start()
+        download_process.start()
 
         # Track progress using tqdm
-        track_thread = threading.Thread(
+        track_process = multiprocessing.Thread(
             target=self._track_download_progress,
-            args=(series_size_MB, downloadDir, download_thread),
+            args=(series_size_MB, downloadDir, download_process),
         )
-        track_thread.start()
+        track_process.start()
 
         # Wait for the download thread to finish
-        download_thread.join()
-        track_thread.join()
+        download_process.join()
+        track_process.join()
 
         logger.debug(f"Successfully downloaded files to {downloadDir}")
 
@@ -711,22 +711,22 @@ class IDCClient:
                         )
 
         # Start downloading manifest files using subprocess
-        download_thread = threading.Thread(
+        download_process = multiprocessing.Process(
             target=self._download_manifest_process,
             args=(temp_manifest_file.name, downloadDir, endpoint_to_use, quiet),
         )
-        download_thread.start()
+        download_process.start()
 
         # Track progress using tqdm
-        track_thread = threading.Thread(
+        track_process = multiprocessing.Process(
             target=self._track_download_progress,
-            args=(total_size, downloadDir, download_thread),
+            args=(total_size, downloadDir, download_process),
         )
-        track_thread.start()
+        track_process.start()
 
         # Wait for the download thread to finish
-        download_thread.join()
-        track_thread.join()
+        download_process.join()
+        track_process.join()
 
     def download_from_selection(
         self,
