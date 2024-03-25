@@ -37,6 +37,7 @@ dependencies = [
   "pandas<2.2",
   "psutil",
   "s5cmd",
+  "tqdm"
 ]
 
 [project.optional-dependencies]
