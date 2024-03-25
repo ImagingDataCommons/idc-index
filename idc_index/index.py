@@ -320,7 +320,7 @@ class IDCClient:
         return response
 
     def _track_download_progress(
-        self, size_MB: int, downloadDir: str, download_thread: multiprocessing.Process
+        self, size_MB: int, downloadDir: str, download_process: multiprocessing.Process
     ):
         """
         Track progress by continuously checking the downloaded file size and updating the progress bar.
@@ -349,7 +349,7 @@ class IDCClient:
                 downloaded_bytes, total_size_bytes
             )  # Prevent the progress bar from exceeding 100%
             pbar.refresh()
-            if not download_thread.is_alive() or pbar.n >= total_size_bytes:
+            if not download_process.is_alive() or pbar.n >= total_size_bytes:
                 break
             time.sleep(0.5)
         pbar.close()
@@ -404,19 +404,19 @@ class IDCClient:
         logger.debug("AWS Bucket Location: " + series_url)
 
         # Start downloading series files using subprocess
-        download_process = multiprocessing.Thread(
+        download_process = multiprocessing.Process(
             target=self._download_series_process, args=(series_url, downloadDir)
         )
         download_process.start()
 
         # Track progress using tqdm
-        track_process = multiprocessing.Thread(
+        track_process = multiprocessing.Process(
             target=self._track_download_progress,
             args=(series_size_MB, downloadDir, download_process),
         )
         track_process.start()
 
-        # Wait for the download thread to finish
+        # Wait for the download process to finish
         download_process.join()
         track_process.join()
 
@@ -695,7 +695,7 @@ class IDCClient:
         self, manifestFile: str, downloadDir: str, endpoint_to_use: str, quiet: bool
     ) -> int:
         """
-        Download manifest files using subprocess on a thread.
+        Download manifest files using s5cmd.
         """
         # Create the command to download files
         cmd = [
@@ -730,7 +730,7 @@ class IDCClient:
         Download the manifest file. In a series of steps, the manifest file
         is first validated to ensure every line contains a valid urls. It then
         gets the total size to be downloaded and runs download process on one
-        thread and download progress on another thread.
+        process and download progress on another process.
 
         Args:
             manifestFile (str): The path to the manifest file.
@@ -778,7 +778,7 @@ class IDCClient:
         )
         track_process.start()
 
-        # Wait for the download thread to finish
+        # Wait for the download process to finish
         download_process.join()
         track_process.join()
 
