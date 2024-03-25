@@ -367,13 +367,12 @@ class IDCClient:
             download_dir,
         ]
 
-        process = subprocess.Popen(
+        with subprocess.Popen(
             cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True
-        )
+        ) as process:
+            process.communicate()  # Wait for the process to finish
 
-        process.communicate()  # Wait for the process to finish
-
-        return process.returncode
+            return process.returncode
 
     def download_dicom_series(self, seriesInstanceUID: str, downloadDir: str) -> None:
         """
@@ -660,14 +659,14 @@ class IDCClient:
                             raise ValueError(error_message)
                         else:
                             if aws_found:
-                                raise Exception(
+                                raise RuntimeError(
                                     "The manifest contains URLs from both AWS and GCP. Please use only one provider."
                                 )
                             endpoint_to_use = gcp_endpoint_url
                             gcp_found = True
                     else:
                         if gcp_found:
-                            raise Exception(
+                            raise RuntimeError(
                                 "The manifest contains URLs from both AWS and GCP. Please use only one provider."
                             )
                         endpoint_to_use = aws_endpoint_url
@@ -700,21 +699,20 @@ class IDCClient:
         ]
 
         # Run the command
-        process = subprocess.Popen(
+        with subprocess.Popen(
             cmd,
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE,
             universal_newlines=not quiet,
-        )
+        ) as process:
+            process.communicate()  # Wait for the process to finish
 
-        process.communicate()  # Wait for the process to finish
+            if process.returncode == 0:
+                logger.debug(f"Successfully downloaded manifest to {downloadDir}")
+            else:
+                logger.error("Failed to download manifest.")
 
-        if process.returncode == 0:
-            logger.debug(f"Successfully downloaded manifest to {downloadDir}")
-        else:
-            logger.error("Failed to download manifest.")
-
-        return process.returncode
+            return process.returncode
 
     def download_from_manifest(
         self, manifestFile: str, downloadDir: str, quiet: bool = True
