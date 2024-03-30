@@ -8,7 +8,6 @@ import subprocess
 import tempfile
 from importlib.metadata import distribution
 
-import threading
 import time
 from pathlib import Path
 
@@ -320,7 +319,7 @@ class IDCClient:
         return response
 
     def _track_download_progress(
-        self, size_MB: int, downloadDir: str, download_thread: threading.Thread
+        self, size_MB: int, downloadDir: str, process: subprocess.Popen
     ):
         """
         Track progress by continuously checking the downloaded file size and updating the progress bar.
@@ -338,6 +337,7 @@ class IDCClient:
             unit_scale=True,
             desc="Downloading data",
         )
+
         while True:
             downloaded_bytes = (
                 sum(
@@ -349,39 +349,22 @@ class IDCClient:
                 downloaded_bytes, total_size_bytes
             )  # Prevent the progress bar from exceeding 100%
             pbar.refresh()
-            if not download_thread.is_alive() or pbar.n >= total_size_bytes:
+
+            if process.poll() is not None:
                 break
+
             time.sleep(0.5)
+
+        # Wait for the process to finish
+        stdout, stderr = process.communicate()
         pbar.close()
 
-    def _download_series_process(self, series_url: str, download_dir: str) -> int:
-        """
-        Download series files using s5cmd sync command.
-        Sync make sures not to download files again if size and
-        modified time are unchanged.
+        # Check if download process completed successfully
+        if process.returncode != 0:
+            error_message = f"Download process failed: {stderr!s}"
+            raise RuntimeError(error_message)
 
-        #https://github.com/peak/s5cmd?tab=readme-ov-file#sync
-
-        Args:
-            series_url (str): AWS Series URL
-        """
-
-        cmd = [
-            self.s5cmdPath,
-            "--no-sign-request",
-            "--endpoint-url",
-            aws_endpoint_url,
-            "sync",
-            series_url,
-            download_dir,
-        ]
-
-        with subprocess.Popen(
-            cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True
-        ) as process:
-            process.communicate()  # Wait for the process to finish
-
-            return process.returncode
+        logger.debug("Successfully downloaded files to %s", str(downloadDir))
 
     def download_dicom_series(self, seriesInstanceUID: str, downloadDir: str) -> None:
         """
@@ -397,30 +380,27 @@ class IDCClient:
             )
             raise ValueError(error_message)
 
-        series_info = series_df.iloc[0]
-        series_url = series_info["series_aws_url"]
-        series_size_MB = series_info["series_size_MB"]
-
-        logger.debug("AWS Bucket Location: " + series_url)
-
-        # Start downloading series files using subprocess
-        download_thread = threading.Thread(
-            target=self._download_series_process, args=(series_url, downloadDir)
-        )
-        download_thread.start()
-
-        # Track progress using tqdm
-        track_thread = threading.Thread(
-            target=self._track_download_progress,
-            args=(series_size_MB, downloadDir, download_thread),
-        )
-        track_thread.start()
-
-        # Wait for the download process to finish
-        download_thread.join()
-        track_thread.join()
-
-        logger.debug(f"Successfully downloaded files to {downloadDir}")
+        # Start the download process
+        series_url = self.index[self.index["SeriesInstanceUID"] == seriesInstanceUID][
+            "series_aws_url"
+        ].iloc[0]
+        series_size_MB = self.index[
+            self.index["SeriesInstanceUID"] == seriesInstanceUID
+        ]["series_size_MB"].iloc[0]
+        cmd = [
+            self.s5cmdPath,
+            "--no-sign-request",
+            "--endpoint-url",
+            aws_endpoint_url,
+            "sync",
+            series_url,
+            downloadDir,
+        ]
+        with subprocess.Popen(
+            cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True
+        ) as process:
+            # Track progress using tqdm
+            self._track_download_progress(series_size_MB, downloadDir, process)
 
     def get_series_file_URLs(self, seriesInstanceUID):
         """
@@ -691,38 +671,6 @@ class IDCClient:
 
         return total_size, endpoint_to_use
 
-    def _download_manifest_process(
-        self, manifestFile: str, downloadDir: str, endpoint_to_use: str, quiet: bool
-    ) -> int:
-        """
-        Download manifest files using s5cmd.
-        """
-        # Create the command to download files
-        cmd = [
-            "s5cmd",
-            "--no-sign-request",
-            "--endpoint-url",
-            endpoint_to_use,
-            "run",
-            manifestFile,
-        ]
-
-        # Run the command
-        with subprocess.Popen(
-            cmd,
-            stderr=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            universal_newlines=not quiet,
-        ) as process:
-            process.communicate()  # Wait for the process to finish
-
-            if process.returncode == 0:
-                logger.debug(f"Successfully downloaded manifest to {downloadDir}")
-            else:
-                logger.error("Failed to download manifest.")
-
-            return process.returncode
-
     def download_from_manifest(
         self, manifestFile: str, downloadDir: str, quiet: bool = True
     ) -> None:
@@ -743,7 +691,7 @@ class IDCClient:
         total_size, endpoint_to_use = self._validate_manifest_and_get_download_size(
             manifestFile
         )
-
+        print("Total size:" + str(total_size))
         downloadDir = os.path.abspath(downloadDir).replace("\\", "/")
         if not os.path.exists(downloadDir):
             raise ValueError("Download directory does not exist.")
@@ -764,23 +712,26 @@ class IDCClient:
                             " sync " + folder_url + " " + downloadDir + "\n"
                         )
 
-        # Start downloading manifest files using subprocess
-        download_thread = threading.Thread(
-            target=self._download_manifest_process,
-            args=(temp_manifest_file.name, downloadDir, endpoint_to_use, quiet),
-        )
-        download_thread.start()
+        cmd = [
+            "s5cmd",
+            "--no-sign-request",
+            "--endpoint-url",
+            endpoint_to_use,
+            "run",
+            temp_manifest_file.name,
+        ]
+        if quiet:
+            stdout = subprocess.DEVNULL
+            stderr = subprocess.DEVNULL
+        else:
+            stderr = subprocess.PIPE
+            stdout = subprocess.PIPE
 
-        # Track progress using tqdm
-        track_thread = threading.Thread(
-            target=self._track_download_progress,
-            args=(total_size, downloadDir, download_thread),
-        )
-        track_thread.start()
-
-        # Wait for the download process to finish
-        download_thread.join()
-        track_thread.join()
+        with subprocess.Popen(
+            cmd, stderr=stderr, stdout=stdout, universal_newlines=True
+        ) as process:
+            # Track progress using tqdm
+            self._track_download_progress(total_size, downloadDir, process)
 
     def download_from_selection(
         self,
@@ -862,13 +813,15 @@ class IDCClient:
         for index, row in result_df.iterrows():
             with open(manifest_file, "a") as f:
                 f.write(
-                    "cp --show-progress "
+                    "sync --show-progress "
                     + row["series_aws_url"]
                     + " "
                     + downloadDir
                     + "\n"
                 )
         self.download_from_manifest(manifest_file, downloadDir)
+        # Delete the manifest file after download
+        os.remove(manifest_file)
 
     def sql_query(self, sql_query):
         """Execute SQL query against the table in the index using duckdb.
