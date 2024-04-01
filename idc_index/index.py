@@ -786,6 +786,10 @@ class IDCClient:
             TypeError: If any of the parameters are not of the expected type
         """
 
+        downloadDir = os.path.abspath(downloadDir).replace("\\", "/")
+        if not os.path.exists(downloadDir):
+            raise ValueError("Download directory does not exist.")
+
         if collection_id is not None:
             if not isinstance(collection_id, str) and not isinstance(
                 collection_id, list
