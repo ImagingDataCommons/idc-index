@@ -426,7 +426,7 @@ class IDCClient:
             available in IDC
 
             viewer_selector: string containing the name of the viewer to use. Must be one of the following:
-            ohif_v2, ohif_v3 or slim. If not provided, default viewers will be used.
+            ohif_v2, ohif_v2, or slim. If not provided, default viewers will be used.
 
         Returns:
             string containing the IDC viewer URL for the given SeriesInstanceUID
