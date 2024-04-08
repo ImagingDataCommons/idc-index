@@ -26,11 +26,11 @@ gcp_endpoint_url = "https://storage.googleapis.com"
 
 class IDCClient:
     def __init__(self):
-        file_path = idc_index_data.IDC_INDEX_CSV_ARCHIVE_FILEPATH
+        file_path = idc_index_data.IDC_INDEX_PARQUET_FILEPATH
 
         # Read index file
         logger.debug(f"Reading index file v{idc_index_data.__version__}")
-        self.index = pd.read_csv(file_path, dtype=str, encoding="utf-8")
+        self.index = pd.read_parquet(file_path)
         self.index = self.index.astype(str).replace("nan", "")
         self.index["series_size_MB"] = self.index["series_size_MB"].astype(float)
         self.collection_summary = self.index.groupby("collection_id").agg(
