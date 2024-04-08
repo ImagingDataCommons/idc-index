@@ -36,6 +36,7 @@ dependencies = [
   "idc-index-data",
   "pandas<2.2",
   "psutil",
+  "pyarrow",
   "s5cmd",
 ]
 
