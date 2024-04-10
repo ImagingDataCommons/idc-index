@@ -30,6 +30,11 @@ class TestIDCClient(unittest.TestCase):
         collections = self.client.get_collections()
         self.assertIsNotNone(collections)
 
+    def test_get_idc_version(self):
+        idc_version = self.client.get_idc_version()
+        self.assertIsNotNone(idc_version)
+        self.assertTrue(idc_version.startswith("v"))
+
     def test_get_patients(self):
         patients = self.client.get_patients(
             collection_id="tcga_gbm", outputFormat="list"
