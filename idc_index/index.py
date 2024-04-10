@@ -17,6 +17,7 @@ import duckdb
 import idc_index_data
 import pandas as pd
 import psutil
+from packaging.version import Version
 
 logger = logging.getLogger(__name__)
 
@@ -90,8 +91,10 @@ class IDCClient:
             "SeriesInstanceUID", df_index, dicom_series_uid
         )
 
-    def get_idc_version(self):
-        return f"v{idc_index_data.__version__}"
+    @staticmethod
+    def get_idc_version():
+        idc_version = Version(idc_index_data.__version__).major
+        return f"v{idc_version}"
 
     def get_collections(self):
         unique_collections = self.index["collection_id"].unique()

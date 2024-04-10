@@ -1,7 +1,7 @@
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
-build-backend = "hatchling.build"
+requires = ["hatchling","hatch-vcs"]
 
+build-backend = "hatchling.build"
 
 [project]
 name = "idc-index"
@@ -34,6 +34,7 @@ dynamic = ["version"]
 dependencies = [
   'duckdb>=0.10.0',
   "idc-index-data==17.0.2",
+  "packaging",
   "pandas<2.2",
   "psutil",
   "pyarrow",
