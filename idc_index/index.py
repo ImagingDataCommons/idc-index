@@ -67,7 +67,11 @@ class IDCClient:
         values = _id
         if isinstance(_id, str):
             values = [_id]
-        return dataframe[dataframe[key].isin(values)].copy()
+        filtered_df = dataframe[dataframe[key].isin(values)].copy()
+        if filtered_df.empty:
+            error_message = f"No data found for the {key} with the values {values}."
+            raise ValueError(error_message)
+        return filtered_df
 
     @staticmethod
     def _filter_by_collection_id(df_index, collection_id):
@@ -93,20 +97,49 @@ class IDCClient:
 
     @staticmethod
     def get_idc_version():
+        """
+        Returns the version of IDC data used in idc-index
+        """
         idc_version = Version(idc_index_data.__version__).major
         return f"v{idc_version}"
 
     def get_collections(self):
+        """
+        Returns the collections present in IDC
+        """
         unique_collections = self.index["collection_id"].unique()
         return unique_collections.tolist()
 
     def get_series_size(self, seriesInstanceUID):
+        """
+        Gets cumulative size (MB) of the DICOM instances in a given SeriesInstanceUID.
+        Args:
+            seriesInstanceUID (str): The DICOM SeriesInstanceUID.
+        Returns:
+            float: The cumulative size of the DICOM instances in the given SeriesInstanceUID rounded to two digits, in MB.
+        Raises:
+            ValueError: If the `seriesInstanceUID` does not exist.
+        """
+
         resp = self.index[["SeriesInstanceUID"] == seriesInstanceUID][
             "series_size_MB"
         ].iloc[0]
         return resp
 
     def get_patients(self, collection_id, outputFormat="dict"):
+        """
+        Gets the patients in a collection.
+        Args:
+            collection_id (str or a list of str): The collection id or list of collection ids. This should be in lower case separated by underscores.
+                                For example, 'pdmr_texture_analysis'. or ['pdmr_texture_analysis','nlst']
+            outputFormat (str, optional): The format in which to return the patient IDs. Available options are 'dict',
+                                        'df', and 'list'. Default is 'dict'.
+        Returns:
+            dict or pandas.DataFrame or list: Patient IDs in the requested output format. By default, it returns a dictionary.
+        Raises:
+            ValueError: If `outputFormat` is not one of 'dict', 'df', 'list'.
+        """
+
         if not isinstance(collection_id, str) and not isinstance(collection_id, list):
             raise TypeError("collection_id must be a string or list of strings")
 
@@ -143,7 +176,18 @@ class IDCClient:
         return response
 
     def get_dicom_studies(self, patientId, outputFormat="dict"):
-        """returns one row per distinct value of StudyInstanceUID"""
+        """
+        Returns Studies for a given patient or list of patients.
+        Args:
+            patientId (str or list of str): The patient Id or a list of patient Ids.
+            outputFormat (str, optional): The format in which to return the studies. Available options are 'dict',
+                                        'df', and 'list'. Default is 'dict'.
+        Returns:
+            dict or pandas.DataFrame or list: Studies in the requested output format. By default, it returns a dictionary.
+        Raises:
+            ValueError: If `outputFormat` is not one of 'dict', 'df', 'list'.
+            ValueError: If any of the `patientId` does not exist.
+        """
 
         if not isinstance(patientId, str) and not isinstance(patientId, list):
             raise TypeError("patientId must be a string or list of strings")
@@ -205,7 +249,20 @@ class IDCClient:
 
         return response
 
-    def get_dicom_series(self, studyInstanceUID=None, outputFormat="dict"):
+    def get_dicom_series(self, studyInstanceUID, outputFormat="dict"):
+        """
+        Returns Series for a given study or list of studies.
+        Args:
+            studyInstanceUID (str or list of str): The DICOM StudyInstanceUID or a list of StudyInstanceUIDs.
+            outputFormat (str, optional): The format in which to return the series. Available options are 'dict',
+                                        'df', and 'list'. Default is 'dict'.
+        Returns:
+            dict or pandas.DataFrame or list: Series in the requested output format. By default, it returns a dictionary.
+        Raises:
+            ValueError: If `outputFormat` is not one of 'dict', 'df', 'list'.
+            ValueError: If any of the `studyInstanceUID` does not exist.
+        """
+
         if not isinstance(studyInstanceUID, str) and not isinstance(
             studyInstanceUID, list
         ):
@@ -344,13 +401,13 @@ class IDCClient:
         return file_names
 
     def get_viewer_URL(
-        self, seriesInstanceUID, studyInstanceUID=None, viewer_selector=None
+        self, seriesInstanceUID=None, studyInstanceUID=None, viewer_selector=None
     ):
         """
         Get the URL of the IDC viewer for the given series or study in IDC based on
         the provided SeriesInstanceUID or StudyInstanceUID. If StudyInstanceUID is not provided,
         it will be automatically deduced. If viewer_selector is not provided, default viewers
-        will be used (OHIF v2 for radiology modalities, and Slim for SM).
+        will be used (OHIF v2 or v3 for radiology modalities, and Slim for SM).
 
         This function will validate the provided SeriesInstanceUID or StudyInstanceUID against IDC
         index to ensure that the series or study is available in IDC.
@@ -363,7 +420,7 @@ class IDCClient:
             available in IDC
 
             viewer_selector: string containing the name of the viewer to use. Must be one of the following:
-            ohif_v2, ohif_v2, or slim. If not provided, default viewers will be used.
+            ohif_v2, ohif_v3 or slim. If not provided, default viewers will be used.
 
         Returns:
             string containing the IDC viewer URL for the given SeriesInstanceUID
@@ -374,7 +431,10 @@ class IDCClient:
                 "Either SeriesInstanceUID or StudyInstanceUID, or both, must be provided."
             )
 
-        if seriesInstanceUID not in self.index["SeriesInstanceUID"].values:
+        if (
+            seriesInstanceUID is not None
+            and seriesInstanceUID not in self.index["SeriesInstanceUID"].values
+        ):
             raise ValueError("SeriesInstanceUID not found in IDC index.")
 
         if (
@@ -389,7 +449,7 @@ class IDCClient:
             "slim",
         ]:
             raise ValueError(
-                "viewer_selector must be one of 'ohif_v2', 'ohif_v3' or 'slim'."
+                "viewer_selector must be one of 'ohif_v2', 'ohif_v3',  or 'slim'."
             )
 
         modality = None
