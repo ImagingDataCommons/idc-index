@@ -42,7 +42,6 @@ dependencies = [
 
 [project.optional-dependencies]
 test = [
-  "importlib_metadata>=2.0; python_version<'3.10'",
   "pytest >=6",
   "pytest-cov >=3",
 ]
