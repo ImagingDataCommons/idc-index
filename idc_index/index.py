@@ -5,13 +5,8 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
-
-if sys.version_info < (3, 10):
-    from importlib_metadata import distribution
-else:
-    from importlib.metadata import distribution
+from importlib.metadata import distribution
 
 import duckdb
 import idc_index_data
