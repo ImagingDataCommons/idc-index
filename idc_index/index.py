@@ -6,9 +6,8 @@ import re
 import shutil
 import subprocess
 import tempfile
-from importlib.metadata import distribution
-
 import time
+from importlib.metadata import distribution
 from pathlib import Path
 
 import duckdb
@@ -318,55 +317,6 @@ class IDCClient:
 
         return response
 
-    @staticmethod
-    def _track_download_progress(
-        size_MB: int, downloadDir: str, process: subprocess.Popen
-    ):
-        """
-        Track progress by continuously checking the downloaded file size and updating the progress bar.
-        """
-        total_size_bytes = size_MB * 10**6  # Convert MB to bytes
-
-        # Calculate the initial size of the directory
-        initial_size_bytes = sum(
-            f.stat().st_size for f in Path(downloadDir).iterdir() if f.is_file()
-        )
-
-        pbar = tqdm(
-            total=total_size_bytes,
-            unit="B",
-            unit_scale=True,
-            desc="Downloading data",
-        )
-
-        while True:
-            downloaded_bytes = (
-                sum(
-                    f.stat().st_size for f in Path(downloadDir).iterdir() if f.is_file()
-                )
-                - initial_size_bytes
-            )
-            pbar.n = min(
-                downloaded_bytes, total_size_bytes
-            )  # Prevent the progress bar from exceeding 100%
-            pbar.refresh()
-
-            if process.poll() is not None:
-                break
-
-            time.sleep(0.5)
-
-        # Wait for the process to finish
-        stdout, stderr = process.communicate()
-        pbar.close()
-
-        # Check if download process completed successfully
-        if process.returncode != 0:
-            error_message = f"Download process failed: {stderr!s}"
-            raise RuntimeError(error_message)
-
-        logger.debug("Successfully downloaded files to %s", str(downloadDir))
-
     def get_series_file_URLs(self, seriesInstanceUID):
         """
         Get the URLs of the files corresponding to the DICOM instances in a given SeriesInstanceUID.
@@ -532,7 +482,7 @@ class IDCClient:
         index = self.index
         series_size_sql = f"""
             SELECT
-                series_size_MB
+                round(series_size_MB,2) series_size_MB
             FROM
                 index
             WHERE
@@ -639,7 +589,56 @@ class IDCClient:
         if not endpoint_to_use:
             raise ValueError("No valid URLs found in the manifest.")
 
-        return total_size, endpoint_to_use, temp_manifest_file
+        return total_size, endpoint_to_use, temp_manifest_file.name
+
+    @staticmethod
+    def _track_download_progress(
+        size_MB: int, downloadDir: str, process: subprocess.Popen
+    ):
+        """
+        Track progress by continuously checking the downloaded file size and updating the progress bar.
+        """
+        total_size_bytes = size_MB * 10**6  # Convert MB to bytes
+
+        # Calculate the initial size of the directory
+        initial_size_bytes = sum(
+            f.stat().st_size for f in Path(downloadDir).iterdir() if f.is_file()
+        )
+
+        pbar = tqdm(
+            total=total_size_bytes,
+            unit="B",
+            unit_scale=True,
+            desc="Downloading data",
+        )
+
+        while True:
+            downloaded_bytes = (
+                sum(
+                    f.stat().st_size for f in Path(downloadDir).iterdir() if f.is_file()
+                )
+                - initial_size_bytes
+            )
+            pbar.n = min(
+                downloaded_bytes, total_size_bytes
+            )  # Prevent the progress bar from exceeding 100%
+            pbar.refresh()
+
+            if process.poll() is not None:
+                break
+
+            time.sleep(0.5)
+
+        # Wait for the process to finish
+        stdout, stderr = process.communicate()
+        pbar.close()
+
+        # Check if download process completed successfully
+        if process.returncode != 0:
+            error_message = f"Download process failed: {stderr!s}"
+            raise RuntimeError(error_message)
+
+        logger.debug("Successfully downloaded files to %s", str(downloadDir))
 
     def _parse_s5cmd_sync_output_and_generate_synced_manifest(
         self, stdout, downloadDir
@@ -678,37 +677,33 @@ class IDCClient:
             with open(synced_manifest, "w") as f:
                 for folder_url in distinct_folders:
                     f.write(f"sync {folder_url}/* {downloadDir}\n")
-        return synced_manifest, sync_size
+        sync_size_rounded = round(sync_size, 2)
+        return synced_manifest, sync_size_rounded
 
-    def download_from_manifest(
-        self, manifestFile: str, downloadDir: str, quiet: bool = True
-    ) -> None:
+    def _s5cmd_run(
+        self, endpoint_to_use, manifest_file, total_size, downloadDir, quiet=False
+    ):
         """
-        Download the manifest file. In a series of steps, the manifest file
-        is first validated to ensure every line contains valid URLs. It then
-        gets the total size to be downloaded and runs the download process.
+        Executes the s5cmd command to sync files from a given endpoint to a local directory.
+
+        This function first performs a dry run of the s5cmd command to check which files need to be downloaded.
+        If there are files to be downloaded, it generates a new manifest file with the files to be synced and
+        runs the s5cmd command again to download the files. The progress of the download is tracked and printed
+        to the console.
 
         Args:
-            manifestFile (str): The path to the manifest file.
-            downloadDir (str): The directory to download the files to.
-            quiet (bool, optional): If True, suppresses the stderr
+            endpoint_to_use (str): The endpoint URL to download the files from.
+            manifest_file (str): The path to the manifest file listing the files to be downloaded.
+            total_size (float): The total size of the files to be downloaded in MB.
+            downloadDir (str): The local directory where the files will be downloaded.
+            quiet (bool, optional): If True, suppresses the stdout and stderr of the s5cmd command. Defaults to False.
 
         Raises:
-            ValueError: If the download directory does not exist.
-        """
-        if not os.path.exists(manifestFile):
-            raise ValueError("Manifest does not exist.")
+            subprocess.CalledProcessError: If the s5cmd command fails.
 
-        downloadDir = os.path.abspath(downloadDir).replace("\\", "/")
-        if not os.path.exists(downloadDir):
-            raise ValueError("Download directory does not exist.")
-        (
-            total_size,
-            endpoint_to_use,
-            temp_manifest_file,
-        ) = self._validate_update_manifest_and_get_download_size(
-            manifestFile, downloadDir
-        )
+        Returns:
+            None
+        """
 
         dry_run_cmd = [
             self.s5cmdPath,
@@ -717,16 +712,11 @@ class IDCClient:
             "--endpoint-url",
             endpoint_to_use,
             "run",
-            temp_manifest_file.name,
+            manifest_file,
         ]
-        stdout = subprocess.PIPE
-        if quiet:
-            stderr = subprocess.DEVNULL
-        else:
-            stderr = subprocess.PIPE
 
         process = subprocess.run(
-            dry_run_cmd, stdout=stdout, stderr=stderr, text=True, check=False
+            dry_run_cmd, stdout=subprocess.PIPE, text=True, check=False
         )
 
         if process.stdout:
@@ -745,14 +735,27 @@ class IDCClient:
                 "run",
                 synced_manifest,
             ]
+
+            if quiet:
+                stdout = subprocess.PIPE
+                stderr = subprocess.STDOUT
+            else:
+                stdout = None
+                stderr = None
+
             with subprocess.Popen(
-                cmd, stderr=stderr, stdout=stdout, universal_newlines=True
+                cmd, stdout=stdout, stderr=stderr, universal_newlines=True
             ) as process:
                 print("Total requested download size:", round(total_size, 2), " MB")
                 if sync_size < total_size:
                     existing_data_size = round(total_size - sync_size, 2)
                     print(
-                        f"Requested total download size is {total_size}, however {existing_data_size} MB is already present,\n so downloading only remaining {sync_size} MB"
+                        f"""Requested total download size is {total_size} MB,
+                        however {existing_data_size} MB is already present,
+                        so downloading only remaining {sync_size} MB
+                        Please note that disk sizes are calculated at series level, so
+                        if individual files are  missing, displayed progress bar may
+                        not be accurate."""
                     )
                     self._track_download_progress(sync_size, downloadDir, process)
                 else:
@@ -760,6 +763,47 @@ class IDCClient:
         else:
             # All requested DICOM files are already present
             print(f"All requested DICOM files are already present in {downloadDir}.")
+
+    def download_from_manifest(
+        self, manifestFile: str, downloadDir: str, quiet: bool = False
+    ) -> None:
+        """
+        Download the manifest file. In a series of steps, the manifest file
+        is first validated to ensure every line contains a valid urls. It then
+        gets the total size to be downloaded and runs download process on one
+        process and download progress on another process.
+
+        Args:
+            manifestFile (str): The path to the manifest file.
+            downloadDir (str): The directory to download the files to.
+            quiet (bool, optional): If True, suppresses the output of the subprocess. Defaults to True.
+
+        Raises:
+            ValueError: If the download directory does not exist.
+        """
+
+        downloadDir = os.path.abspath(downloadDir).replace("\\", "/")
+        if not os.path.exists(downloadDir):
+            raise ValueError("Download directory does not exist.")
+
+        # validate the manifest
+        (
+            total_size,
+            endpoint_to_use,
+            temp_manifest_file,
+        ) = self._validate_update_manifest_and_get_download_size(
+            manifestFile, downloadDir
+        )
+        total_size_rounded = round(total_size, 2)
+        print("Total size:" + str(total_size_rounded))
+
+        self._s5cmd_run(
+            endpoint_to_use=endpoint_to_use,
+            manifest_file=temp_manifest_file,
+            total_size=total_size_rounded,
+            downloadDir=downloadDir,
+            quiet=quiet,
+        )
 
     def download_from_selection(
         self,
@@ -769,6 +813,7 @@ class IDCClient:
         patientId=None,
         studyInstanceUID=None,
         seriesInstanceUID=None,
+        quiet=False,
     ):
         """Download the files corresponding to the selection. The filtering will be applied in sequence (but does it matter?) by first selecting the collection(s), followed by
         patient(s), study(studies) and series. If no filtering is applied, all the files will be downloaded.
@@ -779,6 +824,7 @@ class IDCClient:
             studyInstanceUID: string or list of strings containing the values of DICOM StudyInstanceUID to filter by
             seriesInstanceUID: string or list of strings containing the values of DICOM SeriesInstanceUID to filter by
             downloadDir: string containing the path to the directory to download the files to
+            quiet (bool, optional): If True, suppresses the output of the subprocess. Defaults to True.
 
         Returns:
 
@@ -844,24 +890,27 @@ class IDCClient:
         manifest_file = os.path.join(downloadDir, "download_manifest.s5cmd")
         for index, row in result_df.iterrows():
             with open(manifest_file, "a") as f:
-                f.write(
-                    "sync --show-progress "
-                    + row["series_aws_url"]
-                    + " "
-                    + downloadDir
-                    + "\n"
-                )
-        self.download_from_manifest(manifest_file, downloadDir)
-        # Delete the manifest file after download
+                f.write("sync " + row["series_aws_url"] + " " + downloadDir + "\n")
+        self._s5cmd_run(
+            endpoint_to_use=aws_endpoint_url,
+            manifest_file=manifest_file,
+            total_size=total_size,
+            downloadDir=downloadDir,
+            quiet=quiet,
+        )
+
         os.remove(manifest_file)
 
-    def download_dicom_series(self, seriesInstanceUID, downloadDir) -> None:
+    def download_dicom_series(
+        self, seriesInstanceUID, downloadDir, quiet=False
+    ) -> None:
         """
         Download the files corresponding to the seriesInstanceUID to the specified directory.
 
         Args:
             seriesInstanceUID: string or list of strings containing the values of DICOM SeriesInstanceUID to filter by
             downloadDir: string containing the path to the directory to download the files to
+            quiet (bool, optional): If True, suppresses the output of the subprocess. Defaults to True.
 
         Returns: None
 
@@ -870,16 +919,19 @@ class IDCClient:
 
         """
         self.download_from_selection(
-            seriesInstanceUID=seriesInstanceUID, downloadDir=downloadDir
+            seriesInstanceUID=seriesInstanceUID, downloadDir=downloadDir, quiet=quiet
         )
 
-    def download_dicom_studies(self, studyInstanceUID, downloadDir) -> None:
+    def download_dicom_studies(
+        self, studyInstanceUID, downloadDir, quiet=False
+    ) -> None:
         """
         Download the files corresponding to the studyInstanceUID to the specified directory.
 
         Args:
             studyInstanceUID: string or list of strings containing the values of DICOM studyInstanceUID to filter by
             downloadDir: string containing the path to the directory to download the files to
+            quiet (bool, optional): If True, suppresses the output of the subprocess. Defaults to True.
 
         Returns: None
 
@@ -888,16 +940,17 @@ class IDCClient:
 
         """
         self.download_from_selection(
-            studyInstanceUID=studyInstanceUID, downloadDir=downloadDir
+            studyInstanceUID=studyInstanceUID, downloadDir=downloadDir, quiet=quiet
         )
 
-    def download_dicom_patients(self, patientId, downloadDir) -> None:
+    def download_dicom_patients(self, patientId, downloadDir, quiet=False) -> None:
         """
         Download the files corresponding to the studyInstanceUID to the specified directory.
 
         Args:
             patientId: string or list of strings containing the values of DICOM patientId to filter by
             downloadDir: string containing the path to the directory to download the files to
+            quiet (bool, optional): If True, suppresses the output of the subprocess. Defaults to True.
 
         Returns: None
 
@@ -905,15 +958,18 @@ class IDCClient:
             TypeError: If patientId(s) passed is(are) not a string or list
 
         """
-        self.download_from_selection(patientId=patientId, downloadDir=downloadDir)
+        self.download_from_selection(
+            patientId=patientId, downloadDir=downloadDir, quiet=quiet
+        )
 
-    def download_collection(self, collection_id, downloadDir) -> None:
+    def download_collection(self, collection_id, downloadDir, quiet=False) -> None:
         """
         Download the files corresponding to the studyInstanceUID to the specified directory.
 
         Args:
             collection_id: string or list of strings containing the values of DICOM patientId to filter by
             downloadDir: string containing the path to the directory to download the files to
+            quiet (bool, optional): If True, suppresses the output of the subprocess. Defaults to True.
 
         Returns: None
 
@@ -922,7 +978,7 @@ class IDCClient:
 
         """
         self.download_from_selection(
-            collection_id=collection_id, downloadDir=downloadDir
+            collection_id=collection_id, downloadDir=downloadDir, quiet=quiet
         )
 
     def sql_query(self, sql_query):
