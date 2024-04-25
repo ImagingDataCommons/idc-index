@@ -1,3 +1,5 @@
+# pylint: disable=too-many-lines
+
 from __future__ import annotations
 
 import logging
@@ -463,42 +465,61 @@ class IDCClient:
 
         return viewer_url
 
-    def _get_series_size_from_crdc_series_uuid(
-        self, crdc_series_instance_uuid: str
-    ) -> float:
+    @staticmethod
+    def _extract_crdc_instance_uuid_from_manifest_s3_url(url):
         """
-        Retrieves the size of a series from the index based on the given CRDC series instance UUID.
-        As the index does only contains aws series urls, there is no direct way to
-        get series size from a gcs url. However this function levarages the
-        fact that both gcs and aws urls share the same folder name which is
-        crdc series instance uuid.
+        Extracts the CRDC instance UUID from an manifest S3 URL.
+
+        This function uses regular expressions to match and extract the UUID from the given URL.
+        The UUID is expected to be in the fourth segment of the URL path.
 
         Args:
-            crdc_series_instance_uuid (str): The UUID of the CRDC series instance.
+            url (str): The s5cmd cp command to extract the UUID.
 
         Returns:
-            float: The size of the series in MB.
+            str: The extracted UUID if found, otherwise None.
         """
-        index = self.index
-        series_size_sql = f"""
-            SELECT
-                round(series_size_MB,2) series_size_MB
-            FROM
-                index
-            WHERE
-                series_aws_url LIKE '%{crdc_series_instance_uuid}%'
+        match = re.match(r"cp (s3://[^/]+/[^/]+)/.*", url)
+        if match:
+            crdc_series_uuid_pattern = r"(?:.*?\/){3}([^\/?#]+)"
+            crdc_series_uuid = re.search(crdc_series_uuid_pattern, match.group(1))
+            return crdc_series_uuid.group(1) if crdc_series_uuid else None
+        return None
+
+    @staticmethod
+    def _extract_crdc_instance_uuid_from_series_aws_url(url):
         """
-        return duckdb.query(series_size_sql).to_df().series_size_MB.iloc[0]
+        Extracts the CRDC instance UUID from an AWS S3 URL.
+
+        This function uses regular expressions to match and extract the UUID from the given URL.
+
+        Args:
+            url (str): The AWS S3 URL from which to extract the UUID.
+
+        Returns:
+            str: The extracted UUID if found, otherwise None.
+        """
+        match = re.search(r"(?:.*?\/){3}([^\/?#]+)", url)
+        return match.group(1) if match else None
 
     def _validate_update_manifest_and_get_download_size(
         self, manifestFile, downloadDir
     ) -> tuple[float, str, Path]:
         """
-        Validates the manifest file by checking the URLs and their availability.
-        The function reads the manifest file line by line. For each line, it checks if
-        the URL is valid and accessible.
-        Uses the s5cmd to check the availability of the URLs in both AWS and GCP.
-        If the URL is not accessible in either AWS or GCP, it raises a ValueError.
+        Validates the manifest file by checking the URLs
+
+        This function reads the manifest file as a pandas dataframe
+        It then extracts s3 url and crdc_instance_uuid from the manifest copy commands
+
+        Next, crdc_instance_uuid is also extracted from aws_series_url in the index and
+        tries to verify if every series in the manifest is present in the index
+
+        If there is full match from extracted s3 url in the manifest and the aws_series_url in the index
+        then, aws end point is returned
+
+        If there is a crdc instance uuid match but no full match from extracted s3 url in the manifest
+        and the aws_series_url in the index then, gcp end point is returned
+
         In addition it also calculates the total size of all series in the manifest file.
         Lastly, updates the manifest from generic download directory to explicitly mentioned directory
         Args:
@@ -513,83 +534,75 @@ class IDCClient:
             Exception: If the manifest contains URLs from both AWS and GCP.
         """
 
-        endpoint_to_use = None
-        aws_found = False
-        gcp_found = False
-        total_size = 0
+        # Read the csv file
+        manifest_df = pd.read_csv(
+            manifestFile, comment="#", skip_blank_lines=True, header=None
+        )
 
+        # Rename the column
+        manifest_df.columns = ["manifest_cp_cmd"]
+
+        # Apply the function to the 'manifest_cp_cmd' column
+        manifest_df["manifest_crdc_instance_uuid"] = manifest_df[
+            "manifest_cp_cmd"
+        ].apply(self._extract_crdc_instance_uuid_from_manifest_s3_url)
+
+        # Remove 'cp ' at the beginning and ' .' at the end of the 'manifest_cp_cmd'
+        manifest_df["s3_url"] = (
+            manifest_df["manifest_cp_cmd"]
+            .str.replace(r"^cp ", "", regex=True)
+            .str.replace(r" \.$", "", regex=True)
+        )
+        index_df_copy = self.index
+        index_df_copy["index_crdc_instance_uuid"] = index_df_copy[
+            "series_aws_url"
+        ].apply(self._extract_crdc_instance_uuid_from_series_aws_url)
+        # Perform left join on client.index using crdc_instance_uuid
+        merged_df = manifest_df.merge(
+            index_df_copy,
+            left_on="manifest_crdc_instance_uuid",
+            right_on="index_crdc_instance_uuid",
+            how="left",
+        )
+
+        # Create 'crdc_instance_uuid_found' column
+        merged_df["crdc_instance_uuid_found"] = merged_df[
+            "index_crdc_instance_uuid"
+        ].notna()
+
+        # Check if crdc_instance_uuid is found in the index
+        if not all(merged_df["crdc_instance_uuid_found"]):
+            missing_manifest_cp_cmds = merged_df.loc[
+                ~merged_df["crdc_instance_uuid_found"], "manifest_cp_cmd"
+            ]
+            missing_manifest_cp_cmds_str = f"The following manifest copy commands do not have any associated series in the index: {missing_manifest_cp_cmds.tolist()}"
+            raise ValueError(missing_manifest_cp_cmds_str)
+
+        # Create 'endpoint' column
+        merged_df["endpoint"] = merged_df.apply(
+            lambda row: aws_endpoint_url
+            if row["crdc_instance_uuid_found"]
+            and row["s3_url"] == row["series_aws_url"]
+            else gcp_endpoint_url,
+            axis=1,
+        )
+
+        # Check if there are more than one endpoints
+        if len(merged_df["endpoint"].unique()) > 1:
+            raise ValueError(
+                "The manifest contains URLs from both AWS and GCP. Please use only one provider."
+            )
+
+        # Calculate total size
+        total_size = merged_df["series_size_MB"].sum()
+        total_size = round(total_size, 2)
+
+        # Write a temporary manifest file
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as temp_manifest_file:
-            with open(manifestFile) as f:
-                for line in f:
-                    if line and not line.startswith("#"):
-                        series_folder_pattern = r"(s3:\/\/.*)\/\*"
-                        match = re.search(series_folder_pattern, line)
-                        if match is None:
-                            raise ValueError("Invalid URL format in manifest file.")
-                        folder_url = match.group(1)
+            for s3_url in merged_df["s3_url"]:
+                temp_manifest_file.write(f"sync {s3_url} {downloadDir}\n")
 
-                        # Extract CRDC UUID from the line
-                        crdc_series_uuid_pattern = r"(?:.*?\/){3}([^\/?#]+)"
-                        match_uuid = re.search(crdc_series_uuid_pattern, line)
-                        if match_uuid is None:
-                            raise ValueError("Invalid URL format in manifest file.")
-                        crdc_series_uuid = match_uuid.group(1)
-
-                        # Check AWS endpoint
-                        cmd = [
-                            self.s5cmdPath,
-                            "--no-sign-request",
-                            "--endpoint-url",
-                            aws_endpoint_url,
-                            "ls",
-                            folder_url,
-                        ]
-                        process = subprocess.run(
-                            cmd, capture_output=True, text=True, check=False
-                        )
-                        if process.stderr and process.stderr.startswith("ERROR"):
-                            # Check GCP endpoint
-                            cmd = [
-                                self.s5cmdPath,
-                                "--no-sign-request",
-                                "--endpoint-url",
-                                gcp_endpoint_url,
-                                "ls",
-                                folder_url,
-                            ]
-                            process = subprocess.run(
-                                cmd, capture_output=True, text=True, check=False
-                            )
-                            if process.stderr and process.stderr.startswith("ERROR"):
-                                error_message = f"Manifest contains invalid or inaccessible URLs. Please check line '{line}'"
-                                raise ValueError(error_message)
-                            else:
-                                if aws_found:
-                                    raise RuntimeError(
-                                        "The manifest contains URLs from both AWS and GCP. Please use only one provider."
-                                    )
-                                endpoint_to_use = gcp_endpoint_url
-                                gcp_found = True
-                        else:
-                            if gcp_found:
-                                raise RuntimeError(
-                                    "The manifest contains URLs from both AWS and GCP. Please use only one provider."
-                                )
-                            endpoint_to_use = aws_endpoint_url
-                            aws_found = True
-
-                        temp_manifest_file.write(
-                            " sync " + folder_url + "/* " + downloadDir + "\n"
-                        )
-                        # Get the size of the series
-                        series_size = self._get_series_size_from_crdc_series_uuid(
-                            crdc_series_uuid
-                        )
-                        total_size += series_size
-        if not endpoint_to_use:
-            raise ValueError("No valid URLs found in the manifest.")
-
-        return total_size, endpoint_to_use, temp_manifest_file.name
+        return total_size, merged_df["endpoint"].iloc[0], Path(temp_manifest_file.name)
 
     @staticmethod
     def _track_download_progress(
@@ -654,31 +667,36 @@ class IDCClient:
             Path: The path to the generated synced manifest file.
             float: Download size in MB
         """
-        distinct_folders = set()
-        distinct_uuids = set()
-        sync_size = 0
-        for line in stdout.splitlines():
-            match = re.match(r"cp (s3://[^/]+/[^/]+)/.*", line)
-            if match:
-                distinct_folders.add(match.group(1))
-                crdc_series_uuid_pattern = r"(?:.*?\/){3}([^\/?#]+)"
-                match_uuid = re.search(crdc_series_uuid_pattern, line)
-                crdc_series_uuid = match_uuid.group(1)
-                if crdc_series_uuid not in distinct_uuids:
-                    distinct_uuids.add(crdc_series_uuid)
-                    series_size = self._get_series_size_from_crdc_series_uuid(
-                        crdc_series_uuid
-                    )
-                    sync_size += series_size
+        stdout_df = pd.DataFrame(stdout.splitlines(), columns=["s5cmd_output"])
 
-        # Generate synced manifest with distinct folders
-        with tempfile.NamedTemporaryFile(mode="w", delete=False) as temp:
-            synced_manifest = temp.name
-            with open(synced_manifest, "w") as f:
-                for folder_url in distinct_folders:
-                    f.write(f"sync {folder_url}/* {downloadDir}\n")
+        # Extract the s3 url and crdc_instance_uuid from the s5cmd output
+        stdout_df["s3_url"] = stdout_df["s5cmd_output"].str.extract(
+            r"cp (s3://[^/]+/[^/]+)/.*"
+        )
+        stdout_df["s3_url"] = stdout_df["s3_url"] + "/*"
+        stdout_df["sync_crdc_instance_uuid"] = stdout_df["s3_url"].str.extract(
+            r"(?:.*?\/){3}([^\/?#]+)"
+        )
+        stdout_df = stdout_df[["s3_url", "sync_crdc_instance_uuid"]].drop_duplicates()
+        index_df_copy = self.index
+        index_df_copy["index_crdc_instance_uuid"] = index_df_copy[
+            "series_aws_url"
+        ].apply(self._extract_crdc_instance_uuid_from_series_aws_url)
+
+        # Perform left join on client.index using crdc_instance_uuid
+        merged_df = stdout_df.merge(
+            index_df_copy,
+            left_on="sync_crdc_instance_uuid",
+            right_on="index_crdc_instance_uuid",
+            how="left",
+        )
+        sync_size = merged_df["series_size_MB"].sum()
         sync_size_rounded = round(sync_size, 2)
-        return synced_manifest, sync_size_rounded
+        # Write a temporary manifest file
+        with tempfile.NamedTemporaryFile(mode="w", delete=False) as synced_manifest:
+            for s3_url in merged_df["s3_url"]:
+                synced_manifest.write(f"sync {s3_url} {downloadDir}\n")
+        return Path(synced_manifest.name), sync_size_rounded
 
     def _s5cmd_run(
         self, endpoint_to_use, manifest_file, total_size, downloadDir, quiet=False
