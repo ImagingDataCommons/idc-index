@@ -534,6 +534,8 @@ class IDCClient:
             Exception: If the manifest contains URLs from both AWS and GCP.
         """
 
+        logger.debug("Validating manifest file " + manifestFile)
+
         # Read the csv file
         manifest_df = pd.read_csv(
             manifestFile, comment="#", skip_blank_lines=True, header=None
@@ -786,10 +788,11 @@ class IDCClient:
         self, manifestFile: str, downloadDir: str, quiet: bool = False
     ) -> None:
         """
-        Download the manifest file. In a series of steps, the manifest file
-        is first validated to ensure every line contains a valid urls. It then
-        gets the total size to be downloaded and runs download process on one
-        process and download progress on another process.
+        Download the files defined by the manifest. In a series of steps, the manifest file
+        is first validated to ensure every line contains a valid URL. It then
+        calculates the total size of the fies to be downloaded and runs download process
+        in a separate thread while tracking download progress based on the size of the files
+        downloaded.
 
         Args:
             manifestFile (str): The path to the manifest file.
