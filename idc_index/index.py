@@ -369,11 +369,11 @@ class IDCClient:
         # Query to get the S3 URL
         s3url_query = f"""
         SELECT
-          series_aws_url
+        series_aws_url
         FROM
-          index
+        index
         WHERE
-          SeriesInstanceUID='{seriesInstanceUID}'
+        SeriesInstanceUID='{seriesInstanceUID}'
         """
         s3url_query_df = self.sql_query(s3url_query)
         s3_url = s3url_query_df.series_aws_url[0]
@@ -391,7 +391,11 @@ class IDCClient:
 
         # Parse the output to get the file names
         lines = output.split("\n")
-        file_names = [s3_url + line.split()[-1] for line in lines if line]
+        file_names = [
+            s3_url + line.split()[-1]
+            for line in lines
+            if line and line.split()[-1].endswith(".dcm")
+        ]
 
         return file_names
 
