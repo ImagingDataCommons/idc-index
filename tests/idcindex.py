@@ -62,6 +62,27 @@ class TestIDCClient(unittest.TestCase):
         self.assertIsNotNone(studies)
 
     def test_get_series(self):
+        """
+        Query used for selecting the smallest series/studies:
+
+        SELECT
+            StudyInstanceUID,
+            ARRAY_AGG(DISTINCT(collection_id)) AS collection,
+            ARRAY_AGG(DISTINCT(series_aws_url)) AS aws_url,
+            ARRAY_AGG(DISTINCT(series_gcs_url)) AS gcs_url,
+            COUNT(DISTINCT(SOPInstanceUID)) AS num_instances,
+            SUM(instance_size) AS series_size
+        FROM
+            `bigquery-public-data.idc_current.dicom_all`
+        GROUP BY
+            StudyInstanceUID
+        HAVING
+            num_instances > 2
+        ORDER BY
+            series_size asc
+        LIMIT
+            10
+        """
         series = self.client.get_dicom_series(
             studyInstanceUID="1.3.6.1.4.1.14519.5.2.1.6279.6001.175012972118199124641098335511",
             outputFormat="list",
