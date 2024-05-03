@@ -904,7 +904,7 @@ NOT using s5cmd sync dry run as the destination folder IS empty or sync dry or p
                         if line.startswith("ERROR"):
                             runtime_errors.append(line)
 
-                Path.unlink(stderr_log_file.name)
+                Path(stderr_log_file.name).unlink()
 
                 if len(runtime_errors) > 0:
                     logger.error(
