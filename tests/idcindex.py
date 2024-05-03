@@ -113,14 +113,14 @@ class TestIDCClient(unittest.TestCase):
         dry_run_values = [True, False]
         quiet_values = [True, False]
         show_progress_bar_values = [True, False]
-        use_s5cmd_sync_dry_run_values = [True, False]
+        use_s5cmd_sync_values = [True, False]
 
         # Generate all combinations of optional parameters
         combinations = product(
             dry_run_values,
             quiet_values,
             show_progress_bar_values,
-            use_s5cmd_sync_dry_run_values,
+            use_s5cmd_sync_values,
         )
 
         # Test each combination
@@ -128,7 +128,7 @@ class TestIDCClient(unittest.TestCase):
             dry_run,
             quiet,
             show_progress_bar,
-            use_s5cmd_sync_dry_run,
+            use_s5cmd_sync,
         ) in combinations:
             with tempfile.TemporaryDirectory() as temp_dir:
                 self.client.download_from_selection(
@@ -139,7 +139,7 @@ class TestIDCClient(unittest.TestCase):
                     seriesInstanceUID=None,
                     quiet=quiet,
                     show_progress_bar=show_progress_bar,
-                    use_s5cmd_sync_dry_run=use_s5cmd_sync_dry_run,
+                    use_s5cmd_sync=use_s5cmd_sync,
                 )
 
                 if not dry_run:
@@ -155,14 +155,14 @@ class TestIDCClient(unittest.TestCase):
         quiet_values = [True, False]
         validate_manifest_values = [True, False]
         show_progress_bar_values = [True, False]
-        use_s5cmd_sync_dry_run_values = [True, False]
+        use_s5cmd_sync_values = [True, False]
 
         # Generate all combinations of optional parameters
         combinations = product(
             quiet_values,
             validate_manifest_values,
             show_progress_bar_values,
-            use_s5cmd_sync_dry_run_values,
+            use_s5cmd_sync_values,
         )
 
         # Test each combination
@@ -170,7 +170,7 @@ class TestIDCClient(unittest.TestCase):
             quiet,
             validate_manifest,
             show_progress_bar,
-            use_s5cmd_sync_dry_run,
+            use_s5cmd_sync,
         ) in combinations:
             with tempfile.TemporaryDirectory() as temp_dir:
                 self.client.download_from_manifest(
@@ -179,7 +179,7 @@ class TestIDCClient(unittest.TestCase):
                     quiet=quiet,
                     validate_manifest=validate_manifest,
                     show_progress_bar=show_progress_bar,
-                    use_s5cmd_sync_dry_run=use_s5cmd_sync_dry_run,
+                    use_s5cmd_sync=use_s5cmd_sync,
                 )
 
                 self.assertEqual(len(os.listdir(temp_dir)), 9)
@@ -189,14 +189,14 @@ class TestIDCClient(unittest.TestCase):
         quiet_values = [True, False]
         validate_manifest_values = [True, False]
         show_progress_bar_values = [True, False]
-        use_s5cmd_sync_dry_run_values = [True, False]
+        use_s5cmd_sync_values = [True, False]
 
         # Generate all combinations of optional parameters
         combinations = product(
             quiet_values,
             validate_manifest_values,
             show_progress_bar_values,
-            use_s5cmd_sync_dry_run_values,
+            use_s5cmd_sync_values,
         )
 
         # Test each combination
@@ -204,7 +204,7 @@ class TestIDCClient(unittest.TestCase):
             quiet,
             validate_manifest,
             show_progress_bar,
-            use_s5cmd_sync_dry_run,
+            use_s5cmd_sync,
         ) in combinations:
             with tempfile.TemporaryDirectory() as temp_dir:
                 self.client.download_from_manifest(
@@ -213,7 +213,7 @@ class TestIDCClient(unittest.TestCase):
                     quiet=quiet,
                     validate_manifest=validate_manifest,
                     show_progress_bar=show_progress_bar,
-                    use_s5cmd_sync_dry_run=use_s5cmd_sync_dry_run,
+                    use_s5cmd_sync=use_s5cmd_sync,
                 )
 
                 self.assertEqual(len(os.listdir(temp_dir)), 9)
@@ -223,14 +223,14 @@ class TestIDCClient(unittest.TestCase):
         quiet_values = [True, False]
         validate_manifest_values = [True, False]
         show_progress_bar_values = [True, False]
-        use_s5cmd_sync_dry_run_values = [True, False]
+        use_s5cmd_sync_values = [True, False]
 
         # Generate all combinations of optional parameters
         combinations = product(
             quiet_values,
             validate_manifest_values,
             show_progress_bar_values,
-            use_s5cmd_sync_dry_run_values,
+            use_s5cmd_sync_values,
         )
 
         # Test each combination
@@ -238,7 +238,7 @@ class TestIDCClient(unittest.TestCase):
             quiet,
             validate_manifest,
             show_progress_bar,
-            use_s5cmd_sync_dry_run,
+            use_s5cmd_sync,
         ) in combinations:
             with tempfile.TemporaryDirectory() as temp_dir:
                 self.client.download_from_manifest(
@@ -247,7 +247,7 @@ class TestIDCClient(unittest.TestCase):
                     quiet=quiet,
                     validate_manifest=validate_manifest,
                     show_progress_bar=show_progress_bar,
-                    use_s5cmd_sync_dry_run=use_s5cmd_sync_dry_run,
+                    use_s5cmd_sync=use_s5cmd_sync,
                 )
 
                 self.assertEqual(len(os.listdir(temp_dir)), 0)

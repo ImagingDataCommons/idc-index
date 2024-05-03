@@ -512,6 +512,8 @@ class IDCClient:
         # Next, extract crdc_instance_uuid from aws_series_url in the index and
         # try to verify if every series in the manifest is present in the index
 
+        # TODO: need to remove the assumption that manifest commands will have 'cp'
+        #  and need to parse S3 URL directly
         # ruff: noqa
         sql = """
             PRAGMA disable_progress_bar;
@@ -601,6 +603,9 @@ class IDCClient:
         elif merged_df["endpoint"].values[0] == "aws":
             endpoint_to_use = aws_endpoint_url
         else:
+            # TODO: here we assume that the endpoint is GCP; we could check at least the first URL to be sure,
+            # but we can take care of this in a more principled way by including GCP bucket directly
+            # in the future, see https://github.com/ImagingDataCommons/idc-index/pull/56#discussion_r1582157048
             endpoint_to_use = gcp_endpoint_url
 
         # Calculate total size
@@ -658,6 +663,11 @@ class IDCClient:
                 desc="Downloading data",
             )
 
+            # TODO: this is suboptimal, since we are checking every file, while we could just
+            # check the size of the files in the folders corresponding to the series being downloaded;
+            # this approach will also be problematic if user adds or deletes unrelated files from
+            # the download directory; we will address this in the future by preserving the folder structure
+            # at the destination, see https://github.com/ImagingDataCommons/idc-index/pull/56#discussion_r1582854525
             while True:
                 downloaded_bytes = (
                     sum(
@@ -706,6 +716,7 @@ class IDCClient:
         # create a copy of the index
         index_df_copy = self.index
 
+        # TODO: need to remove the assumption that manifest commands will have 'cp'
         # ruff: noqa
         sql = """
             PRAGMA disable_progress_bar;
@@ -755,7 +766,7 @@ class IDCClient:
         downloadDir,
         quiet,
         show_progress_bar,
-        use_s5cmd_sync_dry_run,
+        use_s5cmd_sync,
     ):
         """
         Executes the s5cmd command to sync files from a given endpoint to a local directory.
@@ -772,7 +783,7 @@ class IDCClient:
             downloadDir (str): The local directory where the files will be downloaded.
             quiet (bool, optional): If True, suppresses the stdout and stderr of the s5cmd command.
             show_progress_bar (bool, optional): If True, tracks the progress of download
-            use_s5cmd_sync_dry_run (bool, optional): If True, improves the accuracy of progress bar in unusual circumstances
+            use_s5cmd_sync (bool, optional): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
 
         Raises:
             subprocess.CalledProcessError: If the s5cmd command fails.
@@ -787,7 +798,7 @@ class IDCClient:
         logger.debug(f"downloadDir: {downloadDir}")
         logger.debug(f"quiet: {quiet}")
         logger.debug(f"show_progress_bar: {show_progress_bar}")
-        logger.debug(f"use_s5cmd_sync_dry_run: {use_s5cmd_sync_dry_run}")
+        logger.debug(f"use_s5cmd_sync: {use_s5cmd_sync}")
 
         if quiet:
             stdout = subprocess.DEVNULL
@@ -796,11 +807,7 @@ class IDCClient:
             stdout = None
             stderr = None
 
-        if (
-            show_progress_bar
-            and use_s5cmd_sync_dry_run
-            and len(os.listdir(downloadDir)) != 0
-        ):
+        if use_s5cmd_sync and len(os.listdir(downloadDir)) != 0:
             logger.debug(
                 "Requested progress bar along with s5cmd sync dry run.\
                         Using s5cmd sync dry run as the destination folder is not empty"
@@ -942,7 +949,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
         quiet: bool = True,
         validate_manifest: bool = True,
         show_progress_bar: bool = True,
-        use_s5cmd_sync_dry_run: bool = False,
+        use_s5cmd_sync: bool = False,
     ) -> None:
         """
         Download the manifest file. In a series of steps, the manifest file
@@ -956,7 +963,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
             quiet (bool, optional): If True, suppresses the output of the subprocess. Defaults to True.
             validate_manifest (bool, optional): If True, validates the manifest for any errors. Defaults to True.
             show_progress_bar (bool, optional): If True, tracks the progress of download
-            use_s5cmd_sync_dry_run (bool, optional): If True, improves the accuracy of progress bar in unusual circumstances
+            use_s5cmd_sync (bool, optional): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
 
         Raises:
             ValueError: If the download directory does not exist.
@@ -976,7 +983,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
             downloadDir,
             validate_manifest,
             show_progress_bar,
-            use_s5cmd_sync_dry_run,
+            use_s5cmd_sync,
         )
 
         total_size_rounded = round(total_size, 2)
@@ -989,7 +996,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
             downloadDir=downloadDir,
             quiet=quiet,
             show_progress_bar=show_progress_bar,
-            use_s5cmd_sync_dry_run=use_s5cmd_sync_dry_run,
+            use_s5cmd_sync=use_s5cmd_sync,
         )
 
     def download_from_selection(
@@ -1002,7 +1009,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
         seriesInstanceUID=None,
         quiet=True,
         show_progress_bar=True,
-        use_s5cmd_sync_dry_run=False,
+        use_s5cmd_sync=False,
     ):
         """Download the files corresponding to the selection. The filtering will be applied in sequence (but does it matter?) by first selecting the collection(s), followed by
         patient(s), study(studies) and series. If no filtering is applied, all the files will be downloaded.
@@ -1016,7 +1023,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
             seriesInstanceUID: string or list of strings containing the values of DICOM SeriesInstanceUID to filter by
             quiet (bool, optional): If True, suppresses the output of the subprocess. Defaults to True.
             show_progress_bar (bool, optional): If True, tracks the progress of download
-            use_s5cmd_sync_dry_run (bool, optional): If True, improves the accuracy of progress bar in unusual circumstances
+            use_s5cmd_sync (bool, optional): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
 
         Returns:
 
@@ -1067,7 +1074,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
         )
         logger.info(
             "Total free space on disk: "
-            + str(psutil.disk_usage(downloadDir).free / (1024 * 1024 * 1024))
+            + str(psutil.disk_usage(downloadDir).free / (1000 * 1000 * 1000))
             + "GB"
         )
 
@@ -1080,11 +1087,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
             # Download the files
             # make temporary file to store the list of files to download
             with tempfile.NamedTemporaryFile(mode="w", delete=False) as manifest_file:
-                if (
-                    show_progress_bar
-                    and use_s5cmd_sync_dry_run
-                    and len(os.listdir(downloadDir)) != 0
-                ):
+                if use_s5cmd_sync and len(os.listdir(downloadDir)) != 0:
                     result_df["s5cmd_cmd"] = (
                         "sync " + result_df["series_aws_url"] + " " + downloadDir
                     )
@@ -1103,7 +1106,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
                 downloadDir=downloadDir,
                 quiet=quiet,
                 show_progress_bar=show_progress_bar,
-                use_s5cmd_sync_dry_run=use_s5cmd_sync_dry_run,
+                use_s5cmd_sync=use_s5cmd_sync,
             )
 
     def download_dicom_series(
@@ -1113,7 +1116,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
         dry_run=False,
         quiet=True,
         show_progress_bar=True,
-        use_s5cmd_sync_dry_run=False,
+        use_s5cmd_sync=False,
     ) -> None:
         """
         Download the files corresponding to the seriesInstanceUID to the specified directory.
@@ -1124,7 +1127,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
             dry_run: calculates the size of the cohort but download does not start
             quiet (bool, optional): If True, suppresses the output of the subprocess. Defaults to True.
             show_progress_bar (bool, optional): If True, tracks the progress of download
-            use_s5cmd_sync_dry_run (bool, optional): If True, improves the accuracy of progress bar in unusual circumstances
+            use_s5cmd_sync (bool, optional): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
 
         Returns: None
 
@@ -1138,7 +1141,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
             dry_run=dry_run,
             quiet=quiet,
             show_progress_bar=show_progress_bar,
-            use_s5cmd_sync_dry_run=use_s5cmd_sync_dry_run,
+            use_s5cmd_sync=use_s5cmd_sync,
         )
 
     def download_dicom_studies(
@@ -1148,7 +1151,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
         dry_run=False,
         quiet=True,
         show_progress_bar=True,
-        use_s5cmd_sync_dry_run=False,
+        use_s5cmd_sync=False,
     ) -> None:
         """
         Download the files corresponding to the studyInstanceUID to the specified directory.
@@ -1159,7 +1162,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
             dry_run: calculates the size of the cohort but download does not start
             quiet (bool, optional): If True, suppresses the output of the subprocess. Defaults to True.
             show_progress_bar (bool, optional): If True, tracks the progress of download
-            use_s5cmd_sync_dry_run (bool, optional): If True, improves the accuracy of progress bar in unusual circumstances
+            use_s5cmd_sync (bool, optional): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
 
         Returns: None
 
@@ -1173,7 +1176,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
             dry_run=dry_run,
             quiet=quiet,
             show_progress_bar=show_progress_bar,
-            use_s5cmd_sync_dry_run=use_s5cmd_sync_dry_run,
+            use_s5cmd_sync=use_s5cmd_sync,
         )
 
     def download_dicom_patients(
@@ -1183,7 +1186,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
         dry_run=False,
         quiet=True,
         show_progress_bar=True,
-        use_s5cmd_sync_dry_run=False,
+        use_s5cmd_sync=False,
     ) -> None:
         """
         Download the files corresponding to the studyInstanceUID to the specified directory.
@@ -1194,7 +1197,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
             dry_run: calculates the size of the cohort but download does not start
             quiet (bool, optional): If True, suppresses the output of the subprocess. Defaults to True.
             show_progress_bar (bool, optional): If True, tracks the progress of download
-            use_s5cmd_sync_dry_run (bool, optional): If True, improves the accuracy of progress bar in unusual circumstances
+            use_s5cmd_sync (bool, optional): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
 
         Returns: None
 
@@ -1208,7 +1211,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
             dry_run=dry_run,
             quiet=quiet,
             show_progress_bar=show_progress_bar,
-            use_s5cmd_sync_dry_run=use_s5cmd_sync_dry_run,
+            use_s5cmd_sync=use_s5cmd_sync,
         )
 
     def download_collection(
@@ -1218,7 +1221,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
         dry_run=False,
         quiet=True,
         show_progress_bar=True,
-        use_s5cmd_sync_dry_run=False,
+        use_s5cmd_sync=False,
     ) -> None:
         """
         Download the files corresponding to the studyInstanceUID to the specified directory.
@@ -1229,7 +1232,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
             dry_run: calculates the size of the cohort but download does not start
             quiet (bool, optional): If True, suppresses the output of the subprocess. Defaults to True.
             show_progress_bar (bool, optional): If True, tracks the progress of download
-            use_s5cmd_sync_dry_run (bool, optional): If True, improves the accuracy of progress bar in unusual circumstances
+            use_s5cmd_sync (bool, optional): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
 
         Returns: None
 
@@ -1243,7 +1246,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
             dry_run=dry_run,
             quiet=quiet,
             show_progress_bar=show_progress_bar,
-            use_s5cmd_sync_dry_run=use_s5cmd_sync_dry_run,
+            use_s5cmd_sync=use_s5cmd_sync,
         )
 
     def sql_query(self, sql_query):
