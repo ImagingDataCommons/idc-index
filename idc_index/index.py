@@ -881,7 +881,8 @@ NOT using s5cmd sync dry run as the destination folder IS empty or sync dry or p
                 manifest_file,
             ]
 
-            stderr_log_file = tempfile.NamedTemporaryFile(delete=False)
+            # fedorov: did consider-using-with, and decided against it to keep the code more readable
+            stderr_log_file = tempfile.NamedTemporaryFile(delete=False)  # pylint: disable=consider-using-with
 
             with subprocess.Popen(
                 cmd,
