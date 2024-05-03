@@ -624,6 +624,8 @@ class IDCClient:
         logger.info(f"downloadDir: {downloadDir}")
         logger.info(f"show_progress_bar: {show_progress_bar}")
 
+        runtime_errors = []
+
         if show_progress_bar:
             total_size_bytes = size_MB * 10**6  # Convert MB to bytes
 
@@ -665,20 +667,12 @@ class IDCClient:
                 time.sleep(0.5)
 
             # Wait for the process to finish
-            stdout, stderr = process.communicate()
+            _, stderr = process.communicate()
             pbar.close()
 
         else:
             while process.poll() is None:
                 time.sleep(0.5)
-
-        # Check if download process completed successfully
-        if process.returncode != 0:
-            error_message = f"Download process failed: {stderr!s}"
-            logger.error(error_message)
-            raise RuntimeError(error_message)
-
-        logger.info("Successfully downloaded files to %s", str(downloadDir))
 
     def _parse_s5cmd_sync_output_and_generate_synced_manifest(
         self, stdout, downloadDir
@@ -886,12 +880,44 @@ NOT using s5cmd sync dry run as the destination folder IS empty or sync dry or p
                 "run",
                 manifest_file,
             ]
+
+            stderr_log_file = tempfile.NamedTemporaryFile(delete=False)
+
             with subprocess.Popen(
-                cmd, stdout=stdout, stderr=stderr, universal_newlines=True
+                cmd,
+                stdout=stdout,
+                stderr=stderr_log_file,
+                universal_newlines=True,
             ) as process:
                 self._track_download_progress(
                     total_size, downloadDir, process, show_progress_bar
                 )
+
+                stderr_log_file.close()
+
+                runtime_errors = []
+                with open(stderr_log_file.name) as stderr_log_file:
+                    for line in stderr_log_file.readlines():
+                        if not quiet:
+                            print(line, end="")
+                        if line.startswith("ERROR"):
+                            runtime_errors.append(line)
+
+                Path.unlink(stderr_log_file.name)
+
+                if len(runtime_errors) > 0:
+                    logger.error(
+                        "Download process failed with the following errors:\n"
+                        + "\n".join(runtime_errors)
+                    )
+
+                # Check if download process completed successfully
+                if process.returncode != 0:
+                    logger.error(
+                        f"Download process return non-zero exit code: {process.returncode}"
+                    )
+                else:
+                    logger.info("Successfully downloaded files to %s", str(downloadDir))
 
     @staticmethod
     def _format_size(size_MB):
