@@ -496,7 +496,7 @@ class IDCClient:
         """
         logger.debug("manifest validation is requested: " + str(validate_manifest))
 
-        print("Parsing the manifest. Please wait..")
+        logger.debug("Parsing the manifest. Please wait..")
         # Read the manifest as a csv file
         manifest_df = pd.read_csv(
             manifestFile, comment="#", skip_blank_lines=True, header=None
@@ -620,7 +620,7 @@ class IDCClient:
             else:
                 merged_df["s5cmd_cmd"] = "cp " + merged_df["s3_url"] + " " + downloadDir
             merged_df["s5cmd_cmd"].to_csv(temp_manifest_file, header=False, index=False)
-            print("Parsing the manifest is finished. Download will begin soon")
+            logger.info("Parsing the manifest is finished. Download will begin soon")
         return total_size, endpoint_to_use, Path(temp_manifest_file.name)
 
     @staticmethod
@@ -780,14 +780,14 @@ class IDCClient:
         Returns:
             None
         """
-        logger.info("running self._s5cmd_run. Inputs received:")
-        logger.info(f"endpoint_to_use: {endpoint_to_use}")
-        logger.info(f"manifest_file: {manifest_file}")
-        logger.info(f"total_size: {total_size}")
-        logger.info(f"downloadDir: {downloadDir}")
-        logger.info(f"quiet: {quiet}")
-        logger.info(f"show_progress_bar: {show_progress_bar}")
-        logger.info(f"use_s5cmd_sync_dry_run: {use_s5cmd_sync_dry_run}")
+        logger.debug("running self._s5cmd_run. Inputs received:")
+        logger.debug(f"endpoint_to_use: {endpoint_to_use}")
+        logger.debug(f"manifest_file: {manifest_file}")
+        logger.debug(f"total_size: {total_size}")
+        logger.debug(f"downloadDir: {downloadDir}")
+        logger.debug(f"quiet: {quiet}")
+        logger.debug(f"show_progress_bar: {show_progress_bar}")
+        logger.debug(f"use_s5cmd_sync_dry_run: {use_s5cmd_sync_dry_run}")
 
         if quiet:
             stdout = subprocess.DEVNULL
@@ -801,11 +801,9 @@ class IDCClient:
             and use_s5cmd_sync_dry_run
             and len(os.listdir(downloadDir)) != 0
         ):
-            logger.info(
-                """
-Requested progress bar along with s5cmd sync dry run.
-Using s5cmd sync dry run as the destination folder is not empty
-"""
+            logger.debug(
+                "Requested progress bar along with s5cmd sync dry run.\
+                        Using s5cmd sync dry run as the destination folder is not empty"
             )
             dry_run_cmd = [
                 self.s5cmdPath,
@@ -855,14 +853,13 @@ Destination folder is not empty and sync size is less than total size. Displayin
 """
                         )
                         existing_data_size = round(total_size - sync_size, 2)
-                        print(
-                            f"""
-Requested total download size is {total_size} MB, however at least {existing_data_size} MB is already present,
-so downloading only remaining upto {sync_size} MB
-
-Please note that disk sizes are calculated at series level, so if individual files are missing,
-displayed progress bar may not be accurate.
-"""
+                        logger.warning(
+                            f"Requested total download size is {total_size} MB, \
+                                    however at least {existing_data_size} MB is already present,\
+                                    so downloading only remaining upto {sync_size} MB\n\
+                                    Please note that disk sizes are calculated at series level, \
+                                    so if individual files are missing, displayed progress bar may\
+                                    not be accurate."
                         )
                         self._track_download_progress(
                             sync_size, downloadDir, process, show_progress_bar
@@ -873,19 +870,11 @@ displayed progress bar may not be accurate.
                         )
             else:
                 logger.info(
-                    """
-stoud from s5cmd sync dry run is empty, indicating all requested DICOM files are already present in destination folder
-"""
-                )
-                # All requested DICOM files are already present
-                print(
-                    f"All requested DICOM files are already present in {downloadDir}."
+                    "It appears that all requested DICOM files are already present in destination folder"
                 )
         else:
             logger.info(
-                """
-NOT using s5cmd sync dry run as the destination folder IS empty or sync dry or progress bar is not requested
-"""
+                "Not using s5cmd sync dry run as the destination folder is empty or sync dry or progress bar is not requested"
             )
             cmd = [
                 self.s5cmdPath,
@@ -915,7 +904,7 @@ NOT using s5cmd sync dry run as the destination folder IS empty or sync dry or p
                 with open(stderr_log_file.name) as stderr_log_file:
                     for line in stderr_log_file.readlines():
                         if not quiet:
-                            print(line, end="")
+                            logger.info(line)
                         if line.startswith("ERROR"):
                             runtime_errors.append(line)
 
@@ -991,7 +980,7 @@ NOT using s5cmd sync dry run as the destination folder IS empty or sync dry or p
         )
 
         total_size_rounded = round(total_size, 2)
-        print("Total size: " + self._format_size(total_size_rounded))
+        logger.info("Total size: " + self._format_size(total_size_rounded))
 
         self._s5cmd_run(
             endpoint_to_use=endpoint_to_use,
@@ -1087,7 +1076,7 @@ NOT using s5cmd sync dry run as the destination folder IS empty or sync dry or p
                 "Dry run. Not downloading files. Rerun with dry_run=False to download the files."
             )
         else:
-            print("Total size: " + self._format_size(total_size))
+            logger.info("Total size: " + self._format_size(total_size))
             # Download the files
             # make temporary file to store the list of files to download
             with tempfile.NamedTemporaryFile(mode="w", delete=False) as manifest_file:
@@ -1104,10 +1093,8 @@ NOT using s5cmd sync dry run as the destination folder IS empty or sync dry or p
                         "cp " + result_df["series_aws_url"] + " " + downloadDir
                     )
                 result_df["s5cmd_cmd"].to_csv(manifest_file, header=False, index=False)
-            logger.info(
-                """
-Temporary download manifest is generated and is passed to self._s5cmd_run
-"""
+            logger.debug(
+                "Temporary download manifest is generated and is passed to self._s5cmd_run"
             )
             self._s5cmd_run(
                 endpoint_to_use=aws_endpoint_url,
