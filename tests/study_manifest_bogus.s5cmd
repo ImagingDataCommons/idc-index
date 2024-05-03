@@ -1,0 +1,4 @@
+# the URLs below are invalid and are used for test purposes only!
+cp s3://invalid-idc-open-data/28621ba9-1aca-4aab-a2a1-f6d2c3e2ab19/* .
+cp s3://invalid-idc-open-data/f0b76401-c6d1-4b61-a5fd-3fa596e6cc41/* .
+cp s3://invalid-idc-open-data/4ea3bbe6-98da-4b92-abe6-2ee18927e3c9/* .
