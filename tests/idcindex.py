@@ -82,7 +82,7 @@ class TestIDCClient(unittest.TestCase):
     def test_download_dicom_series(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             self.client.download_dicom_series(
-                seriesInstanceUID="1.3.6.1.4.1.14519.5.2.1.6279.6001.141365756818074696859567662357",
+                seriesInstanceUID="1.3.6.1.4.1.14519.5.2.1.7695.1700.153974929648969296590126728101",
                 downloadDir=temp_dir,
             )
             self.assertNotEqual(len(os.listdir(temp_dir)), 0)
@@ -114,7 +114,7 @@ class TestIDCClient(unittest.TestCase):
                     downloadDir=temp_dir,
                     dry_run=dry_run,
                     patientId=None,
-                    studyInstanceUID="1.3.6.1.4.1.14519.5.2.1.6279.6001.175012972118199124641098335511",
+                    studyInstanceUID="1.3.6.1.4.1.14519.5.2.1.7695.1700.114861588187429958687900856462",
                     seriesInstanceUID=None,
                     quiet=quiet,
                     show_progress_bar=show_progress_bar,
@@ -161,7 +161,7 @@ class TestIDCClient(unittest.TestCase):
                     use_s5cmd_sync_dry_run=use_s5cmd_sync_dry_run,
                 )
 
-                self.assertEqual(len(os.listdir(temp_dir)), 15)
+                self.assertEqual(len(os.listdir(temp_dir)), 9)
 
     def test_download_from_gcp_manifest(self):
         # Define the values for each optional parameter
@@ -195,7 +195,41 @@ class TestIDCClient(unittest.TestCase):
                     use_s5cmd_sync_dry_run=use_s5cmd_sync_dry_run,
                 )
 
-                self.assertEqual(len(os.listdir(temp_dir)), 15)
+                self.assertEqual(len(os.listdir(temp_dir)), 9)
+
+    def test_download_from_bogus_manifest(self):
+        # Define the values for each optional parameter
+        quiet_values = [True, False]
+        validate_manifest_values = [True, False]
+        show_progress_bar_values = [True, False]
+        use_s5cmd_sync_dry_run_values = [True, False]
+
+        # Generate all combinations of optional parameters
+        combinations = product(
+            quiet_values,
+            validate_manifest_values,
+            show_progress_bar_values,
+            use_s5cmd_sync_dry_run_values,
+        )
+
+        # Test each combination
+        for (
+            quiet,
+            validate_manifest,
+            show_progress_bar,
+            use_s5cmd_sync_dry_run,
+        ) in combinations:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                self.client.download_from_manifest(
+                    manifestFile="./study_manifest_bogus.s5cmd",
+                    downloadDir=temp_dir,
+                    quiet=quiet,
+                    validate_manifest=validate_manifest,
+                    show_progress_bar=show_progress_bar,
+                    use_s5cmd_sync_dry_run=use_s5cmd_sync_dry_run,
+                )
+
+                self.assertEqual(len(os.listdir(temp_dir)), 0)
 
 
 if __name__ == "__main__":
