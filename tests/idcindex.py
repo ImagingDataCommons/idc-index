@@ -114,6 +114,13 @@ class TestIDCClient(unittest.TestCase):
         quiet_values = [True, False]
         show_progress_bar_values = [True, False]
         use_s5cmd_sync_values = [True, False]
+        dirTemplateValues = [
+            None,
+            "%collection_id_%PatientID/%Modality-%StudyInstanceUID%SeriesInstanceUID",
+            "%collection_id%PatientID-%Modality_%StudyInstanceUID/%SeriesInstanceUID",
+            "%collection_id-%PatientID_%Modality/%StudyInstanceUID-%SeriesInstanceUID",
+            "%collection_id_%PatientID/%Modality/%StudyInstanceUID_%SeriesInstanceUID",
+        ]
 
         # Generate all combinations of optional parameters
         combinations = product(
@@ -121,6 +128,7 @@ class TestIDCClient(unittest.TestCase):
             quiet_values,
             show_progress_bar_values,
             use_s5cmd_sync_values,
+            dirTemplateValues,
         )
 
         # Test each combination
@@ -129,6 +137,7 @@ class TestIDCClient(unittest.TestCase):
             quiet,
             show_progress_bar,
             use_s5cmd_sync,
+            dirTemplate,
         ) in combinations:
             with tempfile.TemporaryDirectory() as temp_dir:
                 self.client.download_from_selection(
@@ -140,6 +149,7 @@ class TestIDCClient(unittest.TestCase):
                     quiet=quiet,
                     show_progress_bar=show_progress_bar,
                     use_s5cmd_sync=use_s5cmd_sync,
+                    dirTemplate=dirTemplate,
                 )
 
                 if not dry_run:
@@ -156,21 +166,26 @@ class TestIDCClient(unittest.TestCase):
         validate_manifest_values = [True, False]
         show_progress_bar_values = [True, False]
         use_s5cmd_sync_values = [True, False]
-
+        dirTemplateValues = [
+            None,
+            "%collection_id/%PatientID/%Modality/%StudyInstanceUID/%SeriesInstanceUID",
+            "%collection_id%PatientID%Modality%StudyInstanceUID%SeriesInstanceUID",
+        ]
         # Generate all combinations of optional parameters
         combinations = product(
             quiet_values,
             validate_manifest_values,
             show_progress_bar_values,
             use_s5cmd_sync_values,
+            dirTemplateValues,
         )
-
         # Test each combination
         for (
             quiet,
             validate_manifest,
             show_progress_bar,
             use_s5cmd_sync,
+            dirTemplate,
         ) in combinations:
             with tempfile.TemporaryDirectory() as temp_dir:
                 self.client.download_from_manifest(
@@ -180,9 +195,12 @@ class TestIDCClient(unittest.TestCase):
                     validate_manifest=validate_manifest,
                     show_progress_bar=show_progress_bar,
                     use_s5cmd_sync=use_s5cmd_sync,
+                    dirTemplate=dirTemplate,
                 )
 
-                self.assertEqual(len(os.listdir(temp_dir)), 9)
+                self.assertEqual(
+                    sum([len(files) for r, d, files in os.walk(temp_dir)]), 9
+                )
 
     def test_download_from_gcp_manifest(self):
         # Define the values for each optional parameter
@@ -190,13 +208,18 @@ class TestIDCClient(unittest.TestCase):
         validate_manifest_values = [True, False]
         show_progress_bar_values = [True, False]
         use_s5cmd_sync_values = [True, False]
-
+        dirTemplateValues = [
+            None,
+            "%collection_id/%PatientID/%Modality/%StudyInstanceUID/%SeriesInstanceUID",
+            "%collection_id_%PatientID_%Modality_%StudyInstanceUID_%SeriesInstanceUID",
+        ]
         # Generate all combinations of optional parameters
         combinations = product(
             quiet_values,
             validate_manifest_values,
             show_progress_bar_values,
             use_s5cmd_sync_values,
+            dirTemplateValues,
         )
 
         # Test each combination
@@ -205,6 +228,7 @@ class TestIDCClient(unittest.TestCase):
             validate_manifest,
             show_progress_bar,
             use_s5cmd_sync,
+            dirTemplate,
         ) in combinations:
             with tempfile.TemporaryDirectory() as temp_dir:
                 self.client.download_from_manifest(
@@ -214,9 +238,12 @@ class TestIDCClient(unittest.TestCase):
                     validate_manifest=validate_manifest,
                     show_progress_bar=show_progress_bar,
                     use_s5cmd_sync=use_s5cmd_sync,
+                    dirTemplate=dirTemplate,
                 )
 
-                self.assertEqual(len(os.listdir(temp_dir)), 9)
+                self.assertEqual(
+                    sum([len(files) for r, d, files in os.walk(temp_dir)]), 9
+                )
 
     def test_download_from_bogus_manifest(self):
         # Define the values for each optional parameter
