@@ -512,34 +512,45 @@ class IDCClient:
         # Next, extract crdc_instance_uuid from aws_series_url in the index and
         # try to verify if every series in the manifest is present in the index
 
+        # ruff: noqa
         sql = """
             PRAGMA disable_progress_bar;
-            with index_temp as
-            (select
-            seriesInstanceUID,
-            series_aws_url,
-            series_size_MB,
-            regexp_extract(series_aws_url, '(?:.*?\\/){3}([^\\/?#]+)', 1) index_crdc_series_uuid
-            from index_df_copy),
-            manifest_temp as (
-            select
-            manifest_cp_cmd,
-            regexp_extract(manifest_cp_cmd, '(?:.*?\\/){3}([^\\/?#]+)', 1) as manifest_crdc_series_uuid,
-            regexp_replace(regexp_replace(manifest_cp_cmd, 'cp ', ''), '\\s[^\\s]*$', '') as s3_url,
-            from
-            manifest_df
-            )
-            select
-            seriesInstanceuid,
-            s3_url,
-            series_size_MB,
-            index_crdc_series_uuid==manifest_crdc_series_uuid as crdc_series_uuid_match,
-            s3_url==series_aws_url as s3_url_match,
-            CASE WHEN s3_url==series_aws_url THEN 'aws' ELSE 'unknown' END as endpoint
-            from
-            manifest_temp
-            left join index_temp on index_temp.index_crdc_series_uuid = manifest_temp.manifest_crdc_series_uuid
-            """
+            WITH
+            index_temp AS (
+            SELECT
+                seriesInstanceUID,
+                series_aws_url,
+                series_size_MB,
+                REGEXP_EXTRACT(series_aws_url, '(?:.*?\\/){3}([^\\/?#]+)', 1) index_crdc_series_uuid
+            FROM
+                index_df_copy),
+            manifest_temp AS (
+            SELECT
+                manifest_cp_cmd,
+                REGEXP_EXTRACT(manifest_cp_cmd, '(?:.*?\\/){3}([^\\/?#]+)', 1) AS manifest_crdc_series_uuid,
+                REGEXP_REPLACE(regexp_replace(manifest_cp_cmd, 'cp ', ''), '\\s[^\\s]*$', '') AS s3_url,
+            FROM
+                manifest_df )
+            SELECT
+                seriesInstanceuid,
+                s3_url,
+                series_size_MB,
+                index_crdc_series_uuid==manifest_crdc_series_uuid AS crdc_series_uuid_match,
+                s3_url==series_aws_url AS s3_url_match,
+            CASE
+                WHEN s3_url==series_aws_url THEN 'aws'
+            ELSE
+                'unknown'
+            END
+                AS endpoint
+            FROM
+                manifest_temp
+            LEFT JOIN
+                index_temp
+            ON
+                index_temp.index_crdc_series_uuid = manifest_temp.manifest_crdc_series_uuid
+        """
+        # ruff: noqa: end
         merged_df = duckdb.query(sql).df()
 
         if validate_manifest:
@@ -695,30 +706,34 @@ class IDCClient:
         # create a copy of the index
         index_df_copy = self.index
 
+        # ruff: noqa
         sql = """
             PRAGMA disable_progress_bar;
-            with index_temp as
-            (select
-            *,
-            regexp_extract(series_aws_url, '(?:.*?\\/){3}([^\\/?#]+)', 1) index_crdc_series_uuid
-            from index_df_copy),
-            sync_temp as (
-            select
-            distinct
-            concat(regexp_extract(s5cmd_output, 'cp (s3://[^/]+/[^/]+)/.*', 1), '/*') as s3_url,
-            regexp_extract(concat(regexp_extract(s5cmd_output, 'cp (s3://[^/]+/[^/]+)/.*', 1), '/*'),'(?:.*?\\/){3}([^\\/?#]+)',1) as sync_crdc_instance_uuid
-            from
-            stdout_df
-            )
-            select
-            distinct
-            seriesInstanceUID,
-            series_size_MB,
-            s3_url
-            from
-            sync_temp
-            left join index_temp on index_temp.index_crdc_series_uuid = sync_temp.sync_crdc_instance_uuid
+            WITH
+            index_temp AS (
+            SELECT
+                *,
+                REGEXP_EXTRACT(series_aws_url, '(?:.*?\\/){3}([^\\/?#]+)', 1) index_crdc_series_uuid
+            FROM
+                index_df_copy),
+            sync_temp AS (
+            SELECT
+                DISTINCT CONCAT(REGEXP_EXTRACT(s5cmd_output, 'cp (s3://[^/]+/[^/]+)/.*', 1), '/*') AS s3_url,
+                REGEXP_EXTRACT(CONCAT(REGEXP_EXTRACT(s5cmd_output, 'cp (s3://[^/]+/[^/]+)/.*', 1), '/*'),'(?:.*?\\/){3}([^\\/?#]+)',1) AS sync_crdc_instance_uuid
+            FROM
+                stdout_df )
+            SELECT
+                DISTINCT seriesInstanceUID,
+                series_size_MB,
+                s3_url
+            FROM
+                sync_temp
+            LEFT JOIN
+                index_temp
+            ON
+                index_temp.index_crdc_series_uuid = sync_temp.sync_crdc_instance_uuid
         """
+        # ruff: noqa: end
         merged_df = duckdb.query(sql).df()
         sync_size = merged_df["series_size_MB"].sum()
         sync_size_rounded = round(sync_size, 2)
