@@ -252,6 +252,21 @@ class TestIDCClient(unittest.TestCase):
 
                 self.assertEqual(len(os.listdir(temp_dir)), 0)
 
+    def test_download_cohort_from_sql_query(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            sql_query = """
+                SELECT
+                    *
+                FROM
+                    index
+                WHERE
+                    studyInstanceUID in ('1.3.6.1.4.1.14519.5.2.1.7695.1700.114861588187429958687900856462')
+            """
+            self.client.download_cohort_from_sql_query(
+                sql_query=sql_query, downloadDir=temp_dir
+            )
+            self.assertNotEqual(len(os.listdir(temp_dir)), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

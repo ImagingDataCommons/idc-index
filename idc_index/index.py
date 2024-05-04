@@ -1264,3 +1264,70 @@ Destination folder is not empty and sync size is less than total size. Displayin
 
         index = self.index
         return duckdb.query(sql_query).to_df()
+
+    def download_cohort_from_sql_query(
+        self,
+        sql_query,
+        downloadDir,
+        dry_run=False,
+        quiet=True,
+        show_progress_bar=True,
+        use_s5cmd_sync=False,
+    ):
+        """
+        Download the files from the result of an sql query. At least one of the uuids collection_id, PatientID, SeriesInstanceUID,StudyInstanceUID must be present in the query
+
+        Args:
+            sql_query: string containing the SQL query to execute. The table name to use in the FROM clause is 'index' (without quotes).
+            downloadDir: string containing the path to the directory to download the files to
+            dry_run: calculates the size of the cohort but download does not start
+            quiet (bool, optional): If True, suppresses the output of the subprocess. Defaults to True.
+            show_progress_bar (bool, optional): If True, tracks the progress of download
+            use_s5cmd_sync (bool, optional): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
+
+        Returns: None
+
+        Raises:
+            TypeError: If none of the uuids collection_id, PatientID, SeriesInstanceUID,StudyInstanceUID are in the query
+
+        """
+        index = self.index
+        cohort_df = self.sql_query(sql_query)
+        logger.info(f"columns found in the sql query's result df: {cohort_df.columns}")
+
+        # Create a mapping dictionary
+        uuid_mapping = {
+            "seriesinstanceuid": "seriesInstanceUID",
+            "studyinstanceuid": "studyInstanceUID",
+            "patientid": "patientId",
+            "collection_id": "collection_id",
+        }
+
+        # Define the order of UUIDs
+        uuid_order = [
+            "seriesinstanceuid",
+            "studyinstanceuid",
+            "patientid",
+            "collection_id",
+        ]
+
+        # Convert dataframe column names to lowercase
+        cohort_df.columns = map(str.lower, cohort_df.columns)
+
+        for uuid in uuid_order:
+            if uuid in cohort_df.columns:
+                print(f"Found {uuid} in the sql query result's dataframe")
+                args = {uuid_mapping[uuid]: cohort_df[uuid].to_list()}
+                self.download_from_selection(
+                    downloadDir=downloadDir,
+                    dry_run=dry_run,
+                    quiet=quiet,
+                    show_progress_bar=show_progress_bar,
+                    use_s5cmd_sync=use_s5cmd_sync,
+                    **args,
+                )
+                return
+
+        raise TypeError(
+            "None of the uuids collection_id, PatientID, seriesInstanceUID, studyInstanceUID are in the query"
+        )
