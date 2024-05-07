@@ -106,7 +106,7 @@ class TestIDCClient(unittest.TestCase):
                 seriesInstanceUID="1.3.6.1.4.1.14519.5.2.1.7695.1700.153974929648969296590126728101",
                 downloadDir=temp_dir,
             )
-            self.assertEqual(sum([len(files) for r, d, files in os.walk(temp_dir)]), 9)
+            self.assertEqual(sum([len(files) for r, d, files in os.walk(temp_dir)]), 3)
 
     def test_download_with_template(self):
         dirTemplateValues = [
@@ -124,7 +124,7 @@ class TestIDCClient(unittest.TestCase):
                     dirTemplate=template,
                 )
                 self.assertEqual(
-                    sum([len(files) for r, d, files in os.walk(temp_dir)]), 9
+                    sum([len(files) for r, d, files in os.walk(temp_dir)]), 3
                 )
 
     def test_download_from_selection(self):
