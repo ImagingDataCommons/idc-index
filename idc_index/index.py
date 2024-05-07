@@ -486,8 +486,8 @@ class IDCClient:
             downloadDir (str): The path to the download directory.
             validate_manifest (bool, optional): If True, validates the manifest for any errors. Defaults to True.
             show_progress_bar (bool, optional): If True, tracks the progress of download
-            use_s5cmd_sync_dry_run (bool, optional): If True, improves the accuracy of progress bar in unusual circumstances
-            dirTemplate (str): A template string for the directory path. Defaults to %collection_id/%PatientID/%Modality/%StudyInstanceUID/%SeriesInstanceUID. It can contain attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) wrapped in '%'. Special characters can be used as connectors: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). Can be disabled by None.
+            use_s5cmd_sync (bool, optional): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
+            dirTemplate (str): A template string for the directory path. Must start with %. Defaults to %collection_id/%PatientID/%Modality/%StudyInstanceUID/%SeriesInstanceUID. It can contain attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) wrapped in '%'. Special characters can be used as connectors: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). Can be disabled by None.
 
         Returns:
             total_size (float): The total size of all series in the manifest file.
@@ -636,6 +636,7 @@ class IDCClient:
                 JOIN
                     index using (seriesInstanceUID)
                 """
+            logger.debug(f"About to run this query:\n{sql}")
             merged_df = self.sql_query(sql)
         # Write a temporary manifest file
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as temp_manifest_file:
@@ -671,6 +672,10 @@ class IDCClient:
 
     @staticmethod
     def _generate_sql_concat_for_building_directory(dirTemplate, downloadDir):
+        # for now, we limit the allowed columns to this list to make sure that all
+        # values are guaranteed to be non-empty and to not contain any special characters
+        # in the future, we should consider including more attributes
+        # also, if we allow any column, we should decide what we would do if the value is NULL
         valid_attributes = [
             "PatientID",
             "collection_id",
@@ -678,49 +683,37 @@ class IDCClient:
             "StudyInstanceUID",
             "SeriesInstanceUID",
         ]
-        # Validate dirTemplate for any invalid characters
-        if re.search(r"[^\w%\-\/]", dirTemplate):
-            error = f"Invalid character in template: {dirTemplate}"
-            raise ValueError(error)
+        valid_separators = ["_", "-", "/"]
 
-        # Split the template into parts by '%'
-        parts = dirTemplate.split("%")
-        # Remove empty strings from the list
-        parts = [part for part in parts if part]
-        new_parts = []
-        # Validate the attributes
-        for part in parts:
-            if part not in valid_attributes:
-                # Special case for 'collection_id'
-                if "collection_id" in part:
-                    # Split the part by 'collection_id' and handle the suffix
-                    split_parts = re.split(r"(collection_id)", part)
-                    split_parts = [
-                        f"'{item}'" if item in ("_", "-", "/") else item
-                        for item in split_parts
-                    ]
-                    new_parts.extend(split_parts)
-                else:
-                    # If the part is not a valid attribute, split it by '_', '-', and '/'
-                    split_parts = re.split(r"(\_|\-|\/)", part)
-                    # If the part is still not a valid attribute, check for underscores
-                    if all(sub_part in valid_attributes for sub_part in split_parts):
-                        new_parts.extend(split_parts)
-                    else:
-                        split_parts = [
-                            f"'{item}'" if item in ("_", "-", "/") else item
-                            for item in split_parts
-                        ]
-                        new_parts.extend(split_parts)
-            else:
-                new_parts.append(part)
-        parts = list(filter(None, new_parts))
-        # Add quotes around downloadDir and add ',' and '/'
-        parts = [f"'{downloadDir}'", "'/'", *parts]
-        # Join the parts with commas to create the argument list for CONCAT
-        arguments = ", ".join(parts)
-        # Return the CONCAT function string
-        return f"CONCAT({arguments})"
+        updated_template = dirTemplate
+
+        # validate input template by removing all valid attributes and separators
+        for attr in valid_attributes:
+            updated_template = updated_template.replace("%" + attr, "")
+        for sep in valid_separators:
+            updated_template = updated_template.replace(sep, "")
+
+        if updated_template != "":
+            logger.error("Invalid download hierarchy template:" + updated_template)
+            logger.error(
+                "Make sure your template uses only valid attributes and separators"
+            )
+            logger.error("Valid attributes: " + str(valid_attributes))
+            logger.error("Valid separators: " + str(valid_separators))
+            raise ValueError
+
+        concat_command = dirTemplate
+        for attr in valid_attributes:
+            concat_command = concat_command.replace("%" + attr, f"', {attr},'")
+
+        # CONCAT command may contain empty strings, and they are not harmless -
+        # duckdb does not like them!
+        # NB: double-quotes are not allowed by duckdb!
+        concat_command = "CONCAT('" + concat_command + "')"
+        concat_command = concat_command.replace(",''", "")
+        concat_command = concat_command.replace("'',", "")
+        concat_command = concat_command.replace(",'',", "")
+        return concat_command
 
     @staticmethod
     def _track_download_progress(
@@ -1151,6 +1144,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
         quiet=True,
         show_progress_bar=True,
         use_s5cmd_sync=False,
+        # TODO: replace with class variables, have more than one preset
         dirTemplate="%collection_id/%PatientID/%Modality/%StudyInstanceUID/%SeriesInstanceUID",
     ):
         """Download the files corresponding to the selection. The filtering will be applied in sequence (but does it matter?) by first selecting the collection(s), followed by
