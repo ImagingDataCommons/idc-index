@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import os
-import re
 import shutil
 import subprocess
 import tempfile
@@ -27,6 +26,10 @@ gcp_endpoint_url = "https://storage.googleapis.com"
 
 
 class IDCClient:
+    DOWNLOAD_HIERARCHY_DEFAULT = (
+        "%collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID"
+    )
+
     def __init__(self):
         file_path = idc_index_data.IDC_INDEX_PARQUET_FILEPATH
 
@@ -487,7 +490,7 @@ class IDCClient:
             validate_manifest (bool, optional): If True, validates the manifest for any errors. Defaults to True.
             show_progress_bar (bool, optional): If True, tracks the progress of download
             use_s5cmd_sync (bool, optional): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
-            dirTemplate (str): A template string for the directory path. Must start with %. Defaults to %collection_id/%PatientID/%Modality/%StudyInstanceUID/%SeriesInstanceUID. It can contain attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) wrapped in '%'. Special characters can be used as connectors: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). Can be disabled by None.
+            dirTemplate (str): A template string for the directory path. Must start with %. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT. It can contain attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) wrapped in '%'. Special characters can be used as connectors: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). Can be disabled by None.
 
         Returns:
             total_size (float): The total size of all series in the manifest file.
@@ -709,7 +712,7 @@ class IDCClient:
         # CONCAT command may contain empty strings, and they are not harmless -
         # duckdb does not like them!
         # NB: double-quotes are not allowed by duckdb!
-        concat_command = "CONCAT('" + concat_command + "')"
+        concat_command = f"CONCAT('{downloadDir}/','" + concat_command + "')"
         concat_command = concat_command.replace(",''", "")
         concat_command = concat_command.replace("'',", "")
         concat_command = concat_command.replace(",'',", "")
@@ -791,7 +794,7 @@ class IDCClient:
         Args:
             output (str): The output of s5cmd sync --dry-run command.
             downloadDir (str): The directory to download the files to.
-            dirTemplate (str): A template string for the directory path. Defaults to %collection_id/%PatientID/%Modality/%StudyInstanceUID/%SeriesInstanceUID. It can contain attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) wrapped in '%'. Special characters can be used as connectors: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). Can be disabled by None.
+            dirTemplate (str): A template string for the directory path.
 
         Returns:
             Path: The path to the generated synced manifest file.
@@ -904,7 +907,7 @@ class IDCClient:
             quiet (bool, optional): If True, suppresses the stdout and stderr of the s5cmd command.
             show_progress_bar (bool, optional): If True, tracks the progress of download
             use_s5cmd_sync (bool, optional): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
-            dirTemplate (str): A template string for the directory path. Defaults to %collection_id/%PatientID/%Modality/%StudyInstanceUID/%SeriesInstanceUID. It can contain attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) wrapped in '%'. Special characters can be used as connectors: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). Can be disabled by None.
+            dirTemplate (str): A template string for the directory path.
 
         Raises:
             subprocess.CalledProcessError: If the s5cmd command fails.
@@ -1079,7 +1082,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
         validate_manifest: bool = True,
         show_progress_bar: bool = True,
         use_s5cmd_sync: bool = False,
-        dirTemplate="%collection_id/%PatientID/%Modality/%StudyInstanceUID/%SeriesInstanceUID",
+        dirTemplate=DOWNLOAD_HIERARCHY_DEFAULT,
     ) -> None:
         """
         Download the manifest file. In a series of steps, the manifest file
@@ -1094,7 +1097,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
             validate_manifest (bool, optional): If True, validates the manifest for any errors. Defaults to True.
             show_progress_bar (bool, optional): If True, tracks the progress of download
             use_s5cmd_sync (bool, optional): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
-            dirTemplate (str): A template string for the directory path. Defaults to %collection_id/%PatientID/%Modality/%StudyInstanceUID/%SeriesInstanceUID. It can contain attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) wrapped in '%'. Special characters can be used as connectors: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). Can be disabled by None.
+            dirTemplate (str): A template string for the directory path. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. It can contain attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) prefixed by '%'. The following special characters can be used as connectors: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
 
         Raises:
             ValueError: If the download directory does not exist.
@@ -1144,8 +1147,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
         quiet=True,
         show_progress_bar=True,
         use_s5cmd_sync=False,
-        # TODO: replace with class variables, have more than one preset
-        dirTemplate="%collection_id/%PatientID/%Modality/%StudyInstanceUID/%SeriesInstanceUID",
+        dirTemplate=DOWNLOAD_HIERARCHY_DEFAULT,
     ):
         """Download the files corresponding to the selection. The filtering will be applied in sequence (but does it matter?) by first selecting the collection(s), followed by
         patient(s), study(studies) and series. If no filtering is applied, all the files will be downloaded.
@@ -1290,7 +1292,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         quiet=True,
         show_progress_bar=True,
         use_s5cmd_sync=False,
-        dirTemplate="%collection_id/%PatientID/%Modality/%StudyInstanceUID/%SeriesInstanceUID",
+        dirTemplate=DOWNLOAD_HIERARCHY_DEFAULT,
     ) -> None:
         """
         Download the files corresponding to the seriesInstanceUID to the specified directory.
@@ -1328,7 +1330,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         quiet=True,
         show_progress_bar=True,
         use_s5cmd_sync=False,
-        dirTemplate="%collection_id/%PatientID/%Modality/%StudyInstanceUID/%SeriesInstanceUID",
+        dirTemplate=DOWNLOAD_HIERARCHY_DEFAULT,
     ) -> None:
         """
         Download the files corresponding to the studyInstanceUID to the specified directory.
@@ -1366,7 +1368,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         quiet=True,
         show_progress_bar=True,
         use_s5cmd_sync=False,
-        dirTemplate="%collection_id/%PatientID/%Modality/%StudyInstanceUID/%SeriesInstanceUID",
+        dirTemplate=DOWNLOAD_HIERARCHY_DEFAULT,
     ) -> None:
         """
         Download the files corresponding to the studyInstanceUID to the specified directory.
@@ -1404,7 +1406,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         quiet=True,
         show_progress_bar=True,
         use_s5cmd_sync=False,
-        dirTemplate="%collection_id/%PatientID/%Modality/%StudyInstanceUID/%SeriesInstanceUID",
+        dirTemplate=DOWNLOAD_HIERARCHY_DEFAULT,
     ) -> None:
         """
         Download the files corresponding to the studyInstanceUID to the specified directory.
