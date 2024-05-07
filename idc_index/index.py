@@ -794,7 +794,7 @@ class IDCClient:
         Args:
             output (str): The output of s5cmd sync --dry-run command.
             downloadDir (str): The directory to download the files to.
-            dirTemplate (str): A template string for the directory path.
+            dirTemplate (str): Download directory hierarchy template.
 
         Returns:
             Path: The path to the generated synced manifest file.
@@ -907,7 +907,7 @@ class IDCClient:
             quiet (bool, optional): If True, suppresses the stdout and stderr of the s5cmd command.
             show_progress_bar (bool, optional): If True, tracks the progress of download
             use_s5cmd_sync (bool, optional): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
-            dirTemplate (str): A template string for the directory path.
+            dirTemplate (str): Download directory hierarchy template.
 
         Raises:
             subprocess.CalledProcessError: If the s5cmd command fails.
@@ -1097,7 +1097,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
             validate_manifest (bool, optional): If True, validates the manifest for any errors. Defaults to True.
             show_progress_bar (bool, optional): If True, tracks the progress of download
             use_s5cmd_sync (bool, optional): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
-            dirTemplate (str): A template string for the directory path. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. It can contain attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) prefixed by '%'. The following special characters can be used as connectors: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
+            dirTemplate (str): Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
 
         Raises:
             ValueError: If the download directory does not exist.
@@ -1162,7 +1162,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
             quiet (bool, optional): If True, suppresses the output of the subprocess. Defaults to True
             show_progress_bar (bool, optional): If True, tracks the progress of download
             use_s5cmd_sync (bool, optional): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
-            dirTemplate (str): A template string for the directory path. Defaults to %collection_id/%PatientID/%Modality/%StudyInstanceUID/%SeriesInstanceUID. It can contain attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) wrapped in '%'. Special characters can be used as connectors: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). Can be disabled by None.
+            dirTemplate (str): Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
 
         """
 
@@ -1304,7 +1304,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             quiet (bool, optional): If True, suppresses the output of the subprocess. Defaults to True.
             show_progress_bar (bool, optional): If True, tracks the progress of download
             use_s5cmd_sync (bool, optional): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
-            dirTemplate (str): A template string for the directory path. Defaults to %collection_id/%PatientID/%Modality/%StudyInstanceUID/%SeriesInstanceUID. It can contain attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) wrapped in '%'. Special characters can be used as connectors: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). Can be disabled by None.
+            dirTemplate (str): Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
 
         Returns: None
 
@@ -1342,7 +1342,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             quiet (bool, optional): If True, suppresses the output of the subprocess. Defaults to True.
             show_progress_bar (bool, optional): If True, tracks the progress of download
             use_s5cmd_sync (bool, optional): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
-            dirTemplate (str): A template string for the directory path. Defaults to %collection_id/%PatientID/%Modality/%StudyInstanceUID/%SeriesInstanceUID. It can contain attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) wrapped in '%'. Special characters can be used as connectors: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). Can be disabled by None.
+            dirTemplate (str): Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
 
         Returns: None
 
@@ -1380,7 +1380,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             quiet (bool, optional): If True, suppresses the output of the subprocess. Defaults to True.
             show_progress_bar (bool, optional): If True, tracks the progress of download
             use_s5cmd_sync (bool, optional): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
-            dirTemplate (str): A template string for the directory path. Defaults to %collection_id/%PatientID/%Modality/%StudyInstanceUID/%SeriesInstanceUID. It can contain attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) wrapped in '%'. Special characters can be used as connectors: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). Can be disabled by None.
+            dirTemplate (str): Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
 
         Returns: None
 
@@ -1418,7 +1418,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             quiet (bool, optional): If True, suppresses the output of the subprocess. Defaults to True.
             show_progress_bar (bool, optional): If True, tracks the progress of download
             use_s5cmd_sync (bool, optional): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
-            dirTemplate (str): A template string for the directory path. Defaults to %collection_id/%PatientID/%Modality/%StudyInstanceUID/%SeriesInstanceUID. It can contain attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) wrapped in '%'. Special characters can be used as connectors: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). Can be disabled by None.
+            dirTemplate (str): Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
 
         Returns: None
 
