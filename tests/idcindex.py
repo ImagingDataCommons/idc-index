@@ -105,6 +105,27 @@ class TestIDCClient(unittest.TestCase):
                     )  # Check that the DataFrame is not empty
 
     def test_get_series(self):
+        """
+        Query used for selecting the smallest series/studies:
+
+        SELECT
+            StudyInstanceUID,
+            ARRAY_AGG(DISTINCT(collection_id)) AS collection,
+            ARRAY_AGG(DISTINCT(series_aws_url)) AS aws_url,
+            ARRAY_AGG(DISTINCT(series_gcs_url)) AS gcs_url,
+            COUNT(DISTINCT(SOPInstanceUID)) AS num_instances,
+            SUM(instance_size) AS series_size
+        FROM
+            `bigquery-public-data.idc_current.dicom_all`
+        GROUP BY
+            StudyInstanceUID
+        HAVING
+            num_instances > 2
+        ORDER BY
+            series_size asc
+        LIMIT
+            10
+        """
         # Define the values for each optional parameter
         output_format_values = ["list", "dict", "df"]
         study_instance_uid_values = [
