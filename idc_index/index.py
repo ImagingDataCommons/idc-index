@@ -161,7 +161,7 @@ class IDCClient:
                     STRING_AGG(DISTINCT PatientSex) as PatientSex,
                     STRING_AGG(DISTINCT PatientAge) as PatientAge
                 FROM
-                    index
+                    patient_df
                 GROUP BY
                     PatientID
                 ORDER BY
