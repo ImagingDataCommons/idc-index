@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from itertools import product
 
+import pandas as pd
 import pytest
 from idc_index import index
 
@@ -37,29 +38,71 @@ class TestIDCClient(unittest.TestCase):
         self.assertTrue(idc_version.startswith("v"))
 
     def test_get_patients(self):
-        patients = self.client.get_patients(
-            collection_id="tcga_gbm", outputFormat="list"
-        )
+        # Define the values for each optional parameter
+        output_format_values = ["list", "dict", "df"]
+        collection_id_values = [
+            "htan_ohsu",
+            ["ct_phantom4radiomics", "cmb_gec"],
+        ]
 
-        patients = self.client.get_patients(
-            collection_id=["qin_prostate_repeatability", "phantom_fda"],
-            outputFormat="list",
-        )
+        # Test each combination
+        for collection_id in collection_id_values:
+            for output_format in output_format_values:
+                patients = self.client.get_patients(
+                    collection_id=collection_id, outputFormat=output_format
+                )
 
-        self.assertIsNotNone(patients)
+                # Check if the output format matches the expected type
+                if output_format == "list":
+                    self.assertIsInstance(patients, list)
+                    self.assertTrue(bool(patients))  # Check that the list is not empty
+                elif output_format == "dict":
+                    self.assertTrue(
+                        isinstance(patients, dict)
+                        or (
+                            isinstance(patients, list)
+                            and all(isinstance(i, dict) for i in patients)
+                        )
+                    )  # Check that the output is either a dictionary or a list of dictionaries
+                    self.assertTrue(
+                        bool(patients)
+                    )  # Check that the output is not empty
+                elif output_format == "df":
+                    self.assertIsInstance(patients, pd.DataFrame)
+                    self.assertFalse(
+                        patients.empty
+                    )  # Check that the DataFrame is not empty
 
     def test_get_studies(self):
-        studies = self.client.get_dicom_studies(
-            patientId="PCAMPMRI-00001", outputFormat="list"
-        )
+        # Define the values for each optional parameter
+        output_format_values = ["list", "dict", "df"]
+        patient_id_values = ["PCAMPMRI-00001", ["PCAMPMRI-00001", "NoduleLayout_1"]]
 
-        self.assertIsNotNone(studies)
+        # Test each combination
+        for patient_id in patient_id_values:
+            for output_format in output_format_values:
+                studies = self.client.get_dicom_studies(
+                    patientId=patient_id, outputFormat=output_format
+                )
 
-        studies = self.client.get_dicom_studies(
-            patientId=["PCAMPMRI-00001", "NoduleLayout_1"], outputFormat="list"
-        )
-
-        self.assertIsNotNone(studies)
+                # Check if the output format matches the expected type
+                if output_format == "list":
+                    self.assertIsInstance(studies, list)
+                    self.assertTrue(bool(studies))  # Check that the list is not empty
+                elif output_format == "dict":
+                    self.assertTrue(
+                        isinstance(studies, dict)
+                        or (
+                            isinstance(studies, list)
+                            and all(isinstance(i, dict) for i in studies)
+                        )
+                    )  # Check that the output is either a dictionary or a list of dictionaries
+                    self.assertTrue(bool(studies))  # Check that the output is not empty
+                elif output_format == "df":
+                    self.assertIsInstance(studies, pd.DataFrame)
+                    self.assertFalse(
+                        studies.empty
+                    )  # Check that the DataFrame is not empty
 
     def test_get_series(self):
         """
@@ -83,22 +126,40 @@ class TestIDCClient(unittest.TestCase):
         LIMIT
             10
         """
-        series = self.client.get_dicom_series(
-            studyInstanceUID="1.3.6.1.4.1.14519.5.2.1.6279.6001.175012972118199124641098335511",
-            outputFormat="list",
-        )
-
-        self.assertIsNotNone(series)
-
-        series = self.client.get_dicom_series(
-            studyInstanceUID=[
+        # Define the values for each optional parameter
+        output_format_values = ["list", "dict", "df"]
+        study_instance_uid_values = [
+            "1.3.6.1.4.1.14519.5.2.1.6279.6001.175012972118199124641098335511",
+            [
                 "1.3.6.1.4.1.14519.5.2.1.1239.1759.691327824408089993476361149761",
                 "1.3.6.1.4.1.14519.5.2.1.1239.1759.272272273744698671736205545239",
             ],
-            outputFormat="list",
-        )
+        ]
 
-        self.assertIsNotNone(series)
+        # Test each combination
+        for study_instance_uid in study_instance_uid_values:
+            for output_format in output_format_values:
+                series = self.client.get_dicom_series(
+                    studyInstanceUID=study_instance_uid, outputFormat=output_format
+                )
+
+                # Check if the output format matches the expected type
+                if output_format == "list":
+                    self.assertIsInstance(series, list)
+                    self.assertTrue(bool(series))  # Check that the list is not empty
+                elif output_format == "dict":
+                    self.assertTrue(
+                        isinstance(series, dict)
+                        or (
+                            isinstance(series, list)
+                            and all(isinstance(i, dict) for i in series)
+                        )
+                    )  # Check that the output is either a dictionary or a list of dictionaries
+                elif output_format == "df":
+                    self.assertIsInstance(series, pd.DataFrame)
+                    self.assertFalse(
+                        series.empty
+                    )  # Check that the DataFrame is not empty
 
     def test_download_dicom_series(self):
         with tempfile.TemporaryDirectory() as temp_dir:

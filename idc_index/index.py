@@ -155,20 +155,19 @@ class IDCClient:
         if outputFormat == "list":
             response = patient_df["PatientID"].unique().tolist()
         else:
-            patient_df = patient_df.rename(columns={"collection_id": "Collection"})
-            patient_df = patient_df[["PatientID", "PatientSex", "PatientAge"]]
-            patient_df = (
-                patient_df.groupby("PatientID")
-                .agg(
-                    {
-                        "PatientSex": lambda x: ",".join(x[x != ""].unique()),
-                        "PatientAge": lambda x: ",".join(x[x != ""].unique()),
-                    }
-                )
-                .reset_index()
-            )
-
-            patient_df = patient_df.drop_duplicates().sort_values(by="PatientID")
+            sql = """
+                SELECT
+                    PatientID,
+                    STRING_AGG(DISTINCT PatientSex) as PatientSex,
+                    STRING_AGG(DISTINCT PatientAge) as PatientAge
+                FROM
+                    index
+                GROUP BY
+                    PatientID
+                ORDER BY
+                    PatientID
+                """
+            patient_df = self.sql_query(sql)
             # Convert DataFrame to a list of dictionaries for the API-like response
             if outputFormat == "dict":
                 response = patient_df.to_dict(orient="records")
