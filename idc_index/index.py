@@ -167,7 +167,7 @@ class IDCClient:
                 ORDER BY
                     PatientID
                 """
-            patient_df = self.sql_query(sql)
+            patient_df = duckdb.sql(sql).df()
             # Convert DataFrame to a list of dictionaries for the API-like response
             if outputFormat == "dict":
                 response = patient_df.to_dict(orient="records")
@@ -203,45 +203,20 @@ class IDCClient:
         if outputFormat == "list":
             response = studies_df["StudyInstanceUID"].unique().tolist()
         else:
-            studies_df["patient_study_size_MB"] = studies_df.groupby(
-                ["PatientID", "StudyInstanceUID"]
-            )["series_size_MB"].transform("sum")
-            studies_df["patient_study_series_count"] = studies_df.groupby(
-                ["PatientID", "StudyInstanceUID"]
-            )["SeriesInstanceUID"].transform("count")
-            studies_df["patient_study_instance_count"] = studies_df.groupby(
-                ["PatientID", "StudyInstanceUID"]
-            )["instanceCount"].transform("count")
-
-            studies_df = studies_df.rename(
-                columns={
-                    "collection_id": "Collection",
-                    "patient_study_series_count": "SeriesCount",
-                }
-            )
-
-            # patient_study_df = patient_study_df[['PatientID', 'PatientSex', 'Collection', 'PatientAge', 'StudyInstanceUID', 'StudyDate', 'StudyDescription', 'patient_study_size_MB', 'SeriesCount', 'patient_study_instance_count']]
-            studies_df = studies_df[
-                ["StudyInstanceUID", "StudyDate", "StudyDescription", "SeriesCount"]
-            ]
-            # Group by 'StudyInstanceUID'
-            studies_df = (
-                studies_df.groupby("StudyInstanceUID")
-                .agg(
-                    {
-                        "StudyDate": lambda x: ",".join(x[x != ""].unique()),
-                        "StudyDescription": lambda x: ",".join(x[x != ""].unique()),
-                        "SeriesCount": lambda x: int(x[x != ""].iloc[0])
-                        if len(x[x != ""]) > 0
-                        else 0,
-                    }
-                )
-                .reset_index()
-            )
-
-            studies_df = studies_df.drop_duplicates().sort_values(
-                by=["StudyDate", "StudyDescription", "SeriesCount"]
-            )
+            sql = """
+                SELECT
+                    StudyInstanceUID,
+                    STRING_AGG(DISTINCT StudyDate) as StudyDate,
+                    STRING_AGG(DISTINCT StudyDescription) as StudyDescription,
+                    COUNT(SeriesInstanceUID) as SeriesCount
+                FROM
+                    studies_df
+                GROUP BY
+                    StudyInstanceUID
+                ORDER BY
+                    2,3,4
+                """
+            studies_df = duckdb.query(sql).df()
 
             if outputFormat == "dict":
                 response = studies_df.to_dict(orient="records")
