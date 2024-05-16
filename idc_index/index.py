@@ -420,6 +420,7 @@ class IDCClient:
             query_result = self.sql_query(query)
             modality = query_result.Modality[0]
 
+        viewer_url = None
         if viewer_selector is None:
             if "SM" in modality:
                 viewer_selector = "slim"
@@ -438,7 +439,7 @@ class IDCClient:
                 viewer_url = f"https://viewer.imaging.datacommons.cancer.gov/v3/viewer/?StudyInstanceUIDs={studyInstanceUID}&SeriesInstanceUID={seriesInstanceUID}"
         elif viewer_selector == "volview":
             # TODO! Not implemented yet
-            pass
+            viewer_url = None
         elif viewer_selector == "slim":
             if seriesInstanceUID is None:
                 viewer_url = f"https://viewer.imaging.datacommons.cancer.gov/slim/studies/{studyInstanceUID}"
@@ -534,6 +535,8 @@ class IDCClient:
         """
         # ruff: noqa: end
         merged_df = duckdb.query(sql).df()
+
+        endpoint_to_use = None
 
         if validate_manifest:
             # Check if crdc_instance_uuid is found in the index
