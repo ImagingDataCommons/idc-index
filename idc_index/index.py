@@ -1178,9 +1178,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
             result_df = self._filter_by_dicom_series_uid(result_df, seriesInstanceUID)
 
         total_size = round(result_df["series_size_MB"].sum(), 2)
-        logger.info(
-            "Total size of files to download: " + str(float(total_size) / 1000) + "GB"
-        )
+        logger.info("Total size of files to download: " + self._format_size(total_size))
         logger.info(
             "Total free space on disk: "
             + str(psutil.disk_usage(downloadDir).free / (1000 * 1000 * 1000))
@@ -1191,8 +1189,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
             logger.info(
                 "Dry run. Not downloading files. Rerun with dry_run=False to download the files."
             )
-        else:
-            logger.info("Total size: " + self._format_size(total_size))
+            return
 
         if dirTemplate is not None:
             hierarchy = self._generate_sql_concat_for_building_directory(
