@@ -420,6 +420,7 @@ class IDCClient:
             query_result = self.sql_query(query)
             modality = query_result.Modality[0]
 
+        viewer_url = None
         if viewer_selector is None:
             if "SM" in modality:
                 viewer_selector = "slim"
@@ -438,7 +439,7 @@ class IDCClient:
                 viewer_url = f"https://viewer.imaging.datacommons.cancer.gov/v3/viewer/?StudyInstanceUIDs={studyInstanceUID}&SeriesInstanceUID={seriesInstanceUID}"
         elif viewer_selector == "volview":
             # TODO! Not implemented yet
-            pass
+            viewer_url = None
         elif viewer_selector == "slim":
             if seriesInstanceUID is None:
                 viewer_url = f"https://viewer.imaging.datacommons.cancer.gov/slim/studies/{studyInstanceUID}"
@@ -534,6 +535,8 @@ class IDCClient:
         """
         # ruff: noqa: end
         merged_df = duckdb.query(sql).df()
+
+        endpoint_to_use = None
 
         if validate_manifest:
             # Check if crdc_instance_uuid is found in the index
@@ -1178,9 +1181,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
             result_df = self._filter_by_dicom_series_uid(result_df, seriesInstanceUID)
 
         total_size = round(result_df["series_size_MB"].sum(), 2)
-        logger.info(
-            "Total size of files to download: " + str(float(total_size) / 1000) + "GB"
-        )
+        logger.info("Total size of files to download: " + self._format_size(total_size))
         logger.info(
             "Total free space on disk: "
             + str(psutil.disk_usage(downloadDir).free / (1000 * 1000 * 1000))
@@ -1191,8 +1192,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
             logger.info(
                 "Dry run. Not downloading files. Rerun with dry_run=False to download the files."
             )
-        else:
-            logger.info("Total size: " + self._format_size(total_size))
+            return
 
         if dirTemplate is not None:
             hierarchy = self._generate_sql_concat_for_building_directory(
