@@ -117,10 +117,13 @@ class IDCClient:
     def get_series_size(self, seriesInstanceUID):
         """
         Gets cumulative size (MB) of the DICOM instances in a given SeriesInstanceUID.
+
         Args:
             seriesInstanceUID (str): The DICOM SeriesInstanceUID.
+
         Returns:
             float: The cumulative size of the DICOM instances in the given SeriesInstanceUID rounded to two digits, in MB.
+
         Raises:
             ValueError: If the `seriesInstanceUID` does not exist.
         """
@@ -143,6 +146,7 @@ class IDCClient:
 
         Returns:
             dict or pandas.DataFrame or list: Patient IDs in the requested output format. By default, it returns a dictionary.
+
         Raises:
             ValueError: If `outputFormat` is not one of 'dict', 'df', 'list'.
         """
@@ -193,6 +197,7 @@ class IDCClient:
 
         Returns:
             dict or pandas.DataFrame or list: Studies in the requested output format. By default, it returns a dictionary.
+
         Raises:
             ValueError: If `outputFormat` is not one of 'dict', 'df', 'list'.
             ValueError: If any of the `patientId` does not exist.
@@ -245,6 +250,7 @@ class IDCClient:
 
         Returns:
             dict or pandas.DataFrame or list: Series in the requested output format. By default, it returns a dictionary.
+
         Raises:
             ValueError: If `outputFormat` is not one of 'dict', 'df', 'list'.
             ValueError: If any of the `studyInstanceUID` does not exist.
