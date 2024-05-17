@@ -38,6 +38,7 @@ dependencies = [
   "pandas<2.2",
   "psutil",
   "pyarrow",
+  "requests",
   "s5cmd",
   "tqdm"
 ]

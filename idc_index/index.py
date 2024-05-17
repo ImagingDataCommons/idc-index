@@ -15,20 +15,29 @@ import duckdb
 import idc_index_data
 import pandas as pd
 import psutil
+import requests
 from packaging.version import Version
 from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.DEBUG)
+logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
 
 aws_endpoint_url = "https://s3.amazonaws.com"
 gcp_endpoint_url = "https://storage.googleapis.com"
 
 
 class IDCClient:
+    # Default download hierarchy template
     DOWNLOAD_HIERARCHY_DEFAULT = (
         "%collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID"
     )
+
+    # Defined citation formats that can be passed to the citations request methods
+    # see acceptable values at https://citation.crosscite.org/docs.html#sec-4
+    CITATION_FORMAT_APA = "text/x-bibliography; style=apa; locale=en-US"
+    CITATION_FORMAT_TURTLE = "text/turtle"
+    CITATION_FORMAT_JSON = "application/vnd.citationstyles.csl+json"
+    CITATION_FORMAT_BIBTEX = "application/x-bibtex"
 
     def __init__(self):
         file_path = idc_index_data.IDC_INDEX_PARQUET_FILEPATH
@@ -76,6 +85,49 @@ class IDCClient:
             error_message = f"No data found for the {key} with the values {values}."
             raise ValueError(error_message)
         return filtered_df
+
+    @staticmethod
+    def _safe_filter_by_selection(
+        df_index, collection_id, patientId, studyInstanceUID, seriesInstanceUID
+    ):
+        if collection_id is not None:
+            if not isinstance(collection_id, str) and not isinstance(
+                collection_id, list
+            ):
+                raise TypeError("collection_id must be a string or list of strings")
+        if patientId is not None:
+            if not isinstance(patientId, str) and not isinstance(patientId, list):
+                raise TypeError("patientId must be a string or list of strings")
+        if studyInstanceUID is not None:
+            if not isinstance(studyInstanceUID, str) and not isinstance(
+                studyInstanceUID, list
+            ):
+                raise TypeError("studyInstanceUID must be a string or list of strings")
+        if seriesInstanceUID is not None:
+            if not isinstance(seriesInstanceUID, str) and not isinstance(
+                seriesInstanceUID, list
+            ):
+                raise TypeError("seriesInstanceUID must be a string or list of strings")
+
+        if collection_id is not None:
+            result_df = IDCClient._filter_by_collection_id(df_index, collection_id)
+        else:
+            result_df = df_index
+
+        if patientId is not None:
+            result_df = IDCClient._filter_by_patient_id(result_df, patientId)
+
+        if studyInstanceUID is not None:
+            result_df = IDCClient._filter_by_dicom_study_uid(
+                result_df, studyInstanceUID
+            )
+
+        if seriesInstanceUID is not None:
+            result_df = IDCClient._filter_by_dicom_series_uid(
+                result_df, seriesInstanceUID
+            )
+
+        return result_df
 
     @staticmethod
     def _filter_by_collection_id(df_index, collection_id):
@@ -1128,6 +1180,62 @@ Destination folder is not empty and sync size is less than total size. Displayin
             list_of_directories=list_of_directories,
         )
 
+    def citations_from_selection(
+        self,
+        collection_id=None,
+        patientId=None,
+        studyInstanceUID=None,
+        seriesInstanceUID=None,
+        citation_format=CITATION_FORMAT_APA,
+    ):
+        """Get the list of publications that should be cited/attributed for the specific collection, patient (case) ID, study or series UID.
+
+        Args:
+            collection_id: string or list of strings containing the values of collection_id to filter by
+            patientId: string or list of strings containing the values of PatientID to filter by
+            studyInstanceUID: string or list of strings containing the values of DICOM StudyInstanceUID to filter by
+            seriesInstanceUID: string or list of strings containing the values of DICOM SeriesInstanceUID to filter by
+            format: string containing the format of the citation. Must be one of the following: CITATION_FORMAT_APA, CITATION_FORMAT_BIBTEX, CITATION_FORMAT_JSON. Defaults to CITATION_FORMAT_APA. Can be initialized to the alternative formats as allowed by DOI API, see https://citation.crosscite.org/docs.html#sec-4.
+        """
+        result_df = self._safe_filter_by_selection(
+            self.index,
+            collection_id=collection_id,
+            patientId=patientId,
+            studyInstanceUID=studyInstanceUID,
+            seriesInstanceUID=seriesInstanceUID,
+        )
+
+        citations = []
+
+        if not result_df.empty:
+            distinct_dois = result_df["source_DOI"].unique().tolist()
+
+            if len(distinct_dois) == 0:
+                logger.error("No DOIs found for the selection.")
+                return citations
+
+            # include citation for the currently main IDC publication
+            # https://doi.org/10.1148/rg.230180
+            distinct_dois.append("10.1148/rg.230180")
+
+            headers = {"accept": citation_format}
+            timeout = 30
+
+            for doi in distinct_dois:
+                url = "https://dx.doi.org/" + doi
+
+                response = requests.get(url, headers=headers, timeout=timeout)
+
+                if response.status_code == 200:
+                    if citation_format == self.CITATION_FORMAT_JSON:
+                        citations.append(response.json())
+                    else:
+                        citations.append(response.text)
+                else:
+                    logger.error(f"Failed to get citation for DOI: {url}")
+
+        return citations
+
     def download_from_selection(
         self,
         downloadDir,
@@ -1162,38 +1270,13 @@ Destination folder is not empty and sync size is less than total size. Displayin
         if not os.path.exists(downloadDir):
             raise ValueError("Download directory does not exist.")
 
-        if collection_id is not None:
-            if not isinstance(collection_id, str) and not isinstance(
-                collection_id, list
-            ):
-                raise TypeError("collection_id must be a string or list of strings")
-        if patientId is not None:
-            if not isinstance(patientId, str) and not isinstance(patientId, list):
-                raise TypeError("patientId must be a string or list of strings")
-        if studyInstanceUID is not None:
-            if not isinstance(studyInstanceUID, str) and not isinstance(
-                studyInstanceUID, list
-            ):
-                raise TypeError("studyInstanceUID must be a string or list of strings")
-        if seriesInstanceUID is not None:
-            if not isinstance(seriesInstanceUID, str) and not isinstance(
-                seriesInstanceUID, list
-            ):
-                raise TypeError("seriesInstanceUID must be a string or list of strings")
-
-        if collection_id is not None:
-            result_df = self._filter_by_collection_id(self.index, collection_id)
-        else:
-            result_df = self.index
-
-        if patientId is not None:
-            result_df = self._filter_by_patient_id(result_df, patientId)
-
-        if studyInstanceUID is not None:
-            result_df = self._filter_by_dicom_study_uid(result_df, studyInstanceUID)
-
-        if seriesInstanceUID is not None:
-            result_df = self._filter_by_dicom_series_uid(result_df, seriesInstanceUID)
+        result_df = self._safe_filter_by_selection(
+            self.index,
+            collection_id=collection_id,
+            patientId=patientId,
+            studyInstanceUID=studyInstanceUID,
+            seriesInstanceUID=seriesInstanceUID,
+        )
 
         total_size = round(result_df["series_size_MB"].sum(), 2)
         logger.info("Total size of files to download: " + self._format_size(total_size))
