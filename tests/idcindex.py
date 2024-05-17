@@ -351,6 +351,25 @@ class TestIDCClient(unittest.TestCase):
 
                 self.assertEqual(len(os.listdir(temp_dir)), 0)
 
+    def test_citations(self):
+        citations = self.client.citations_from_selection(
+            collection_id="tcga_gbm",
+            citation_format=index.IDCClient.CITATION_FORMAT_APA,
+        )
+        self.assertIsNotNone(citations)
+
+        citations = self.client.citations_from_selection(
+            seriesInstanceUID="1.3.6.1.4.1.14519.5.2.1.7695.4164.588007658875211151397302775781",
+            citation_format=index.IDCClient.CITATION_FORMAT_BIBTEX,
+        )
+        self.assertIsNotNone(citations)
+
+        citations = self.client.citations_from_selection(
+            studyInstanceUID="1.2.840.113654.2.55.174144834924218414213677353968537663991",
+            citation_format=index.IDCClient.CITATION_FORMAT_BIBTEX,
+        )
+        self.assertIsNotNone(citations)
+
 
 if __name__ == "__main__":
     unittest.main()
