@@ -1,5 +1,4 @@
-"""
-Copyright (c) 2024 Imaging Data Commons. All rights reserved.
+"""Copyright (c) 2024 Imaging Data Commons. All rights reserved.
 
 idc-index: Package to query and download data from an index of ImagingDataCommons
 """

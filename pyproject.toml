@@ -127,6 +127,7 @@ extend-select = [
   "I",        # isort
   "ARG",      # flake8-unused-arguments
   "C4",       # flake8-comprehensions
+  "D",        # pydocstyle
   "EM",       # flake8-errmsg
   "ICN",      # flake8-import-conventions
   "G",        # flake8-logging-format
@@ -180,8 +181,18 @@ isort.required-imports = ["from __future__ import annotations"]
 # typing-modules = ["idc_index._compat.typing"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["T20"]
-"noxfile.py" = ["T20"]
+"docs/conf.py" = ["D"]
+"tests/**" = [
+  "D",
+  "T20",
+]
+"noxfile.py" = [
+  "D",
+  "T20",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 
 [tool.pylint]
