@@ -141,7 +141,7 @@ class IDCClient:
             collection_id (str or list[str]): The collection id or list of collection ids. This should be in lower case separated by underscores.
                 For example, 'pdmr_texture_analysis'. or ['pdmr_texture_analysis','nlst']
 
-            outputFormat (str, optional): The format in which to return the patient IDs. Available options are 'dict',
+            outputFormat (str): The format in which to return the patient IDs. Available options are 'dict',
                 'df', and 'list'. Default is 'dict'.
 
         Returns:
@@ -192,7 +192,7 @@ class IDCClient:
         Args:
             patientId (str or list of str): The patient Id or a list of patient Ids.
 
-            outputFormat (str, optional): The format in which to return the studies. Available options are 'dict',
+            outputFormat (str): The format in which to return the studies. Available options are 'dict',
                 'df', and 'list'. Default is 'dict'.
 
         Returns:
@@ -245,7 +245,7 @@ class IDCClient:
         Args:
             studyInstanceUID (str or list of str): The DICOM StudyInstanceUID or a list of StudyInstanceUIDs.
 
-            outputFormat (str, optional): The format in which to return the series. Available options are 'dict',
+            outputFormat (str): The format in which to return the series. Available options are 'dict',
                 'df', and 'list'. Default is 'dict'.
 
         Returns:
@@ -477,9 +477,9 @@ class IDCClient:
         Args:
             manifestFile (str): The path to the manifest file.
             downloadDir (str): The path to the download directory.
-            validate_manifest (bool, optional): If True, validates the manifest for any errors. Defaults to True.
-            show_progress_bar (bool, optional): If True, tracks the progress of download
-            use_s5cmd_sync (bool, optional): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
+            validate_manifest (bool): If True, validates the manifest for any errors. Defaults to True.
+            show_progress_bar (bool): If True, tracks the progress of download
+            use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
             dirTemplate (str): A template string for the directory path. Must start with %. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT. It can contain attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) wrapped in '%'. Special characters can be used as connectors: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). Can be disabled by None.
 
         Returns:
@@ -896,9 +896,9 @@ class IDCClient:
             manifest_file (str): The path to the manifest file listing the files to be downloaded.
             total_size (float): The total size of the files to be downloaded in MB.
             downloadDir (str): The local directory where the files will be downloaded.
-            quiet (bool, optional): If True, suppresses the stdout and stderr of the s5cmd command.
-            show_progress_bar (bool, optional): If True, tracks the progress of download
-            use_s5cmd_sync (bool, optional): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
+            quiet (bool): If True, suppresses the stdout and stderr of the s5cmd command.
+            show_progress_bar (bool): If True, tracks the progress of download
+            use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
             dirTemplate (str): Download directory hierarchy template.
 
         Raises:
@@ -1085,10 +1085,10 @@ Destination folder is not empty and sync size is less than total size. Displayin
         Args:
             manifestFile (str): The path to the manifest file.
             downloadDir (str): The directory to download the files to.
-            quiet (bool, optional): If True, suppresses the output of the subprocess. Defaults to True.
-            validate_manifest (bool, optional): If True, validates the manifest for any errors. Defaults to True.
-            show_progress_bar (bool, optional): If True, tracks the progress of download
-            use_s5cmd_sync (bool, optional): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
+            quiet (bool): If True, suppresses the output of the subprocess. Defaults to True.
+            validate_manifest (bool): If True, validates the manifest for any errors. Defaults to True.
+            show_progress_bar (bool): If True, tracks the progress of download
+            use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
             dirTemplate (str): Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
 
         Raises:
@@ -1151,9 +1151,9 @@ Destination folder is not empty and sync size is less than total size. Displayin
             patientId: string or list of strings containing the values of PatientID to filter by
             studyInstanceUID: string or list of strings containing the values of DICOM StudyInstanceUID to filter by
             seriesInstanceUID: string or list of strings containing the values of DICOM SeriesInstanceUID to filter by
-            quiet (bool, optional): If True, suppresses the output of the subprocess. Defaults to True
-            show_progress_bar (bool, optional): If True, tracks the progress of download
-            use_s5cmd_sync (bool, optional): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
+            quiet (bool): If True, suppresses the output of the subprocess. Defaults to True
+            show_progress_bar (bool): If True, tracks the progress of download
+            use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
             dirTemplate (str): Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
 
         """
@@ -1290,9 +1290,9 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             seriesInstanceUID: string or list of strings containing the values of DICOM SeriesInstanceUID to filter by
             downloadDir: string containing the path to the directory to download the files to
             dry_run: calculates the size of the cohort but download does not start
-            quiet (bool, optional): If True, suppresses the output of the subprocess. Defaults to True.
-            show_progress_bar (bool, optional): If True, tracks the progress of download
-            use_s5cmd_sync (bool, optional): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
+            quiet (bool): If True, suppresses the output of the subprocess. Defaults to True.
+            show_progress_bar (bool): If True, tracks the progress of download
+            use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
             dirTemplate (str): Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
 
         Returns: None
@@ -1328,9 +1328,9 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             studyInstanceUID: string or list of strings containing the values of DICOM studyInstanceUID to filter by
             downloadDir: string containing the path to the directory to download the files to
             dry_run: calculates the size of the cohort but download does not start
-            quiet (bool, optional): If True, suppresses the output of the subprocess. Defaults to True.
-            show_progress_bar (bool, optional): If True, tracks the progress of download
-            use_s5cmd_sync (bool, optional): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
+            quiet (bool): If True, suppresses the output of the subprocess. Defaults to True.
+            show_progress_bar (bool): If True, tracks the progress of download
+            use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
             dirTemplate (str): Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
 
         Returns: None
@@ -1366,9 +1366,9 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             patientId: string or list of strings containing the values of DICOM patientId to filter by
             downloadDir: string containing the path to the directory to download the files to
             dry_run: calculates the size of the cohort but download does not start
-            quiet (bool, optional): If True, suppresses the output of the subprocess. Defaults to True.
-            show_progress_bar (bool, optional): If True, tracks the progress of download
-            use_s5cmd_sync (bool, optional): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
+            quiet (bool): If True, suppresses the output of the subprocess. Defaults to True.
+            show_progress_bar (bool): If True, tracks the progress of download
+            use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
             dirTemplate (str): Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
 
         Returns: None
@@ -1404,9 +1404,9 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             collection_id: string or list of strings containing the values of DICOM patientId to filter by
             downloadDir: string containing the path to the directory to download the files to
             dry_run: calculates the size of the cohort but download does not start
-            quiet (bool, optional): If True, suppresses the output of the subprocess. Defaults to True.
-            show_progress_bar (bool, optional): If True, tracks the progress of download
-            use_s5cmd_sync (bool, optional): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
+            quiet (bool): If True, suppresses the output of the subprocess. Defaults to True.
+            show_progress_bar (bool): If True, tracks the progress of download
+            use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
             dirTemplate (str): Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
 
         Returns: None
