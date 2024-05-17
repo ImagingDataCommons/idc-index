@@ -117,10 +117,13 @@ class IDCClient:
     def get_series_size(self, seriesInstanceUID):
         """
         Gets cumulative size (MB) of the DICOM instances in a given SeriesInstanceUID.
+
         Args:
             seriesInstanceUID (str): The DICOM SeriesInstanceUID.
+
         Returns:
             float: The cumulative size of the DICOM instances in the given SeriesInstanceUID rounded to two digits, in MB.
+
         Raises:
             ValueError: If the `seriesInstanceUID` does not exist.
         """
@@ -133,13 +136,17 @@ class IDCClient:
     def get_patients(self, collection_id, outputFormat="dict"):
         """
         Gets the patients in a collection.
+
         Args:
             collection_id (str or a list of str): The collection id or list of collection ids. This should be in lower case separated by underscores.
                                 For example, 'pdmr_texture_analysis'. or ['pdmr_texture_analysis','nlst']
+
             outputFormat (str, optional): The format in which to return the patient IDs. Available options are 'dict',
                                         'df', and 'list'. Default is 'dict'.
+
         Returns:
             dict or pandas.DataFrame or list: Patient IDs in the requested output format. By default, it returns a dictionary.
+
         Raises:
             ValueError: If `outputFormat` is not one of 'dict', 'df', 'list'.
         """
@@ -181,12 +188,16 @@ class IDCClient:
     def get_dicom_studies(self, patientId, outputFormat="dict"):
         """
         Returns Studies for a given patient or list of patients.
+
         Args:
             patientId (str or list of str): The patient Id or a list of patient Ids.
+
             outputFormat (str, optional): The format in which to return the studies. Available options are 'dict',
                                         'df', and 'list'. Default is 'dict'.
+
         Returns:
             dict or pandas.DataFrame or list: Studies in the requested output format. By default, it returns a dictionary.
+
         Raises:
             ValueError: If `outputFormat` is not one of 'dict', 'df', 'list'.
             ValueError: If any of the `patientId` does not exist.
@@ -230,12 +241,16 @@ class IDCClient:
     def get_dicom_series(self, studyInstanceUID, outputFormat="dict"):
         """
         Returns Series for a given study or list of studies.
+
         Args:
             studyInstanceUID (str or list of str): The DICOM StudyInstanceUID or a list of StudyInstanceUIDs.
+
             outputFormat (str, optional): The format in which to return the series. Available options are 'dict',
                                         'df', and 'list'. Default is 'dict'.
+
         Returns:
             dict or pandas.DataFrame or list: Series in the requested output format. By default, it returns a dictionary.
+
         Raises:
             ValueError: If `outputFormat` is not one of 'dict', 'df', 'list'.
             ValueError: If any of the `studyInstanceUID` does not exist.
