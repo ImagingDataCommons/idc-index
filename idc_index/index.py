@@ -1435,7 +1435,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             pandas dataframe containing the results of the query
 
         Raises:
-            any exception that duckdb.query() raises
+            duckdb.Error: any exception that duckdb.query() raises
         """
 
         index = self.index
