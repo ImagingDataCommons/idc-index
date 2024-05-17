@@ -138,11 +138,11 @@ class IDCClient:
         Gets the patients in a collection.
 
         Args:
-            collection_id (str or a list of str): The collection id or list of collection ids. This should be in lower case separated by underscores.
-                                For example, 'pdmr_texture_analysis'. or ['pdmr_texture_analysis','nlst']
+            collection_id (str or list[str]): The collection id or list of collection ids. This should be in lower case separated by underscores.
+                For example, 'pdmr_texture_analysis'. or ['pdmr_texture_analysis','nlst']
 
             outputFormat (str, optional): The format in which to return the patient IDs. Available options are 'dict',
-                                        'df', and 'list'. Default is 'dict'.
+                'df', and 'list'. Default is 'dict'.
 
         Returns:
             dict or pandas.DataFrame or list: Patient IDs in the requested output format. By default, it returns a dictionary.
@@ -193,7 +193,7 @@ class IDCClient:
             patientId (str or list of str): The patient Id or a list of patient Ids.
 
             outputFormat (str, optional): The format in which to return the studies. Available options are 'dict',
-                                        'df', and 'list'. Default is 'dict'.
+                'df', and 'list'. Default is 'dict'.
 
         Returns:
             dict or pandas.DataFrame or list: Studies in the requested output format. By default, it returns a dictionary.
@@ -246,7 +246,7 @@ class IDCClient:
             studyInstanceUID (str or list of str): The DICOM StudyInstanceUID or a list of StudyInstanceUIDs.
 
             outputFormat (str, optional): The format in which to return the series. Available options are 'dict',
-                                        'df', and 'list'. Default is 'dict'.
+                'df', and 'list'. Default is 'dict'.
 
         Returns:
             dict or pandas.DataFrame or list: Series in the requested output format. By default, it returns a dictionary.
@@ -369,13 +369,13 @@ class IDCClient:
 
         Args:
             SeriesInstanceUID: string containing the value of DICOM SeriesInstanceUID for a series
-            available in IDC
+                available in IDC
 
             StudyInstanceUID: string containing the value of DICOM SeriesInstanceUID for a series
-            available in IDC
+                available in IDC
 
             viewer_selector: string containing the name of the viewer to use. Must be one of the following:
-            ohif_v2, ohif_v3, or slim. If not provided, default viewers will be used.
+                ohif_v2, ohif_v3, or slim. If not provided, default viewers will be used.
 
         Returns:
             string containing the IDC viewer URL for the given SeriesInstanceUID
