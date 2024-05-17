@@ -21,6 +21,16 @@ starting a discussion in [IDC User forum](https://discourse.canceridc.dev/).
 :start-after: <!-- SPHINX-START -->
 ```
 
+## Contents
+
+```{toctree}
+:maxdepth: 1
+:titlesonly:
+:caption: API docs
+
+api/idc_index
+```
+
 ## Indices and tables
 
 - {ref}`genindex`
