@@ -1219,7 +1219,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
             distinct_dois.append("10.1148/rg.230180")
 
             headers = {"accept": citation_format}
-            timeout = 3
+            timeout = 30
 
             for doi in distinct_dois:
                 url = "https://dx.doi.org/" + doi
