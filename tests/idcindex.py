@@ -370,6 +370,9 @@ class TestIDCClient(unittest.TestCase):
         )
         self.assertIsNotNone(citations)
 
+        citations = self.client.citations_from_manifest("./study_manifest_aws.s5cmd")
+        self.assertIsNotNone(citations)
+
 
 if __name__ == "__main__":
     unittest.main()
