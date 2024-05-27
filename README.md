@@ -82,13 +82,9 @@ client.download_from_selection(
 
 ## Tutorial
 
-This package was first presented at the 2023 Annual meeting of Radiological
-Society of North America (RSNA) Deep Learning Lab
-[IDC session](https://github.com/RSNA/AI-Deep-Learning-Lab-2023/tree/main/sessions/idc).
-
 Please check out
 [this tutorial notebook](https://github.com/ImagingDataCommons/IDC-Tutorials/blob/master/notebooks/labs/idc_rsna2023.ipynb)
-for the introduction into using `idc-index` for navigating IDC data.
+for the introduction into using `idc-index`.
 
 ## Resources
 
