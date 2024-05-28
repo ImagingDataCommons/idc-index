@@ -807,9 +807,14 @@ class IDCClient:
                 for directory in list_of_directories:
                     path = Path(directory)
                     if path.exists() and path.is_dir():
-                        downloaded_bytes += sum(
-                            f.stat().st_size for f in path.iterdir() if f.is_file()
-                        )
+                        for f in path.iterdir():
+                            if f.is_file():
+                                try:
+                                    downloaded_bytes += f.stat().st_size
+                                except FileNotFoundError:
+                                    # file must have been removed before we
+                                    # could get its size
+                                    pass
                 downloaded_bytes -= initial_size_bytes
                 pbar.n = min(
                     downloaded_bytes, total_size_bytes
