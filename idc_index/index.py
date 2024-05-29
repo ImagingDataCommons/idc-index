@@ -783,11 +783,7 @@ class IDCClient:
             initial_size_bytes = 0
             # Calculate the initial size of the directory
             for directory in list_of_directories:
-                path = Path(directory)
-                if path.exists() and path.is_dir():
-                    initial_size_bytes += sum(
-                        f.stat().st_size for f in path.iterdir() if f.is_file()
-                    )
+                initial_size_bytes = IDCClient._get_dir_sum_file_size(directory)
 
             logger.info("Initial size of the directory: %s bytes", initial_size_bytes)
             logger.info(
@@ -805,11 +801,7 @@ class IDCClient:
             while True:
                 downloaded_bytes = 0
                 for directory in list_of_directories:
-                    path = Path(directory)
-                    if path.exists() and path.is_dir():
-                        downloaded_bytes += sum(
-                            f.stat().st_size for f in path.iterdir() if f.is_file()
-                        )
+                    downloaded_bytes += IDCClient._get_dir_sum_file_size(directory)
                 downloaded_bytes -= initial_size_bytes
                 pbar.n = min(
                     downloaded_bytes, total_size_bytes
@@ -828,6 +820,21 @@ class IDCClient:
         else:
             while process.poll() is None:
                 time.sleep(0.5)
+
+    @staticmethod
+    def _get_dir_sum_file_size(directory) -> int:
+        path = Path(directory)
+        sum_file_size = 0
+        if path.exists() and path.is_dir():
+            for f in path.iterdir():
+                if f.is_file():
+                    try:
+                        sum_file_size += f.stat().st_size
+                    except FileNotFoundError:
+                        # file must have been removed before we
+                        # could get its size
+                        pass
+        return sum_file_size
 
     def _parse_s5cmd_sync_output_and_generate_synced_manifest(
         self, stdout, downloadDir, dirTemplate
@@ -1180,6 +1187,54 @@ Destination folder is not empty and sync size is less than total size. Displayin
             list_of_directories=list_of_directories,
         )
 
+    def citations_from_manifest(
+        self,
+        manifestFile: str,
+        citation_format: str = CITATION_FORMAT_APA,
+    ):
+        """Get the list of publications that should be cited/attributed for a cohort defined by a manifest.
+
+        Args:
+            manifestFile (str: string containing the path to the manifest file.
+            format (str): string containing the format of the citation. Must be one of the following: CITATION_FORMAT_APA, CITATION_FORMAT_BIBTEX, CITATION_FORMAT_JSON. Defaults to CITATION_FORMAT_APA. Can be initialized to the alternative formats as allowed by DOI API, see https://citation.crosscite.org/docs.html#sec-4.
+
+        Returns:
+            List of citations in the requested format.
+        """
+
+        manifest_df = pd.read_csv(
+            manifestFile,
+            comment="#",
+            skip_blank_lines=True,
+            header=None,
+            names=["manifest_line"],
+        )
+        uuid_pattern = r"s3://.*/([^/]+)/\*"
+        manifest_df["crdc_series_uuid"] = manifest_df["manifest_line"].str.extract(
+            uuid_pattern, expand=False
+        )
+        index_copy = self.index[["series_aws_url", "SeriesInstanceUID"]].copy()
+        index_copy["crdc_series_uuid"] = index_copy["series_aws_url"].str.extract(
+            uuid_pattern, expand=False
+        )
+        query = """
+        SELECT
+          SeriesInstanceUID
+        FROM
+          index_copy
+        JOIN
+          manifest_df
+        ON
+          index_copy.crdc_series_uuid = manifest_df.crdc_series_uuid
+        """
+
+        result_df = self.sql_query(query)
+
+        return self.citations_from_selection(
+            seriesInstanceUID=result_df["SeriesInstanceUID"].tolist(),
+            citation_format=citation_format,
+        )
+
     def citations_from_selection(
         self,
         collection_id=None,
@@ -1193,9 +1248,12 @@ Destination folder is not empty and sync size is less than total size. Displayin
         Args:
             collection_id: string or list of strings containing the values of collection_id to filter by
             patientId: string or list of strings containing the values of PatientID to filter by
-            studyInstanceUID: string or list of strings containing the values of DICOM StudyInstanceUID to filter by
+            studyInstanceUID (str): string or list of strings containing the values of DICOM StudyInstanceUID to filter by
             seriesInstanceUID: string or list of strings containing the values of DICOM SeriesInstanceUID to filter by
             format: string containing the format of the citation. Must be one of the following: CITATION_FORMAT_APA, CITATION_FORMAT_BIBTEX, CITATION_FORMAT_JSON. Defaults to CITATION_FORMAT_APA. Can be initialized to the alternative formats as allowed by DOI API, see https://citation.crosscite.org/docs.html#sec-4.
+
+        Returns:
+            List of citations in the requested format.
         """
         result_df = self._safe_filter_by_selection(
             self.index,
@@ -1224,15 +1282,24 @@ Destination folder is not empty and sync size is less than total size. Displayin
             for doi in distinct_dois:
                 url = "https://dx.doi.org/" + doi
 
+                logger.debug(f"Requesting citation for DOI: {doi}")
+
                 response = requests.get(url, headers=headers, timeout=timeout)
+
+                logger.debug("Received response: " + str(response.status_code))
 
                 if response.status_code == 200:
                     if citation_format == self.CITATION_FORMAT_JSON:
                         citations.append(response.json())
                     else:
                         citations.append(response.text)
+                    logger.debug("Received citation: " + citations[-1])
+
                 else:
                     logger.error(f"Failed to get citation for DOI: {url}")
+                    logger.error(
+                        f"DOI server response status code: {response.status_code}"
+                    )
 
         return citations
 

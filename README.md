@@ -21,32 +21,43 @@
 
 ## About
 
-`idc-index` is a Python package that enables query of the basic metadata and
-download of DICOM files hosted by the
-[NCI Imaging Data Commons (IDC)](https://imaging.datacommons.cancer.gov).
+`idc-index` is a Python package that enables basic operations for working with
+[NCI Imaging Data Commons (IDC)](https://imaging.datacommons.cancer.gov):
 
-## Usage
+- subsetting of the IDC data using selected metadata attributes
+- download of the files corresponding to selection
+- generation of the viewer URLs for the selected data
 
-There are no prerequisites - just install the package ...
+## Getting started
+
+Install the latest version of the package.
 
 ```bash
-$ pip install idc-index
+$ pip install --upgrade idc-index
 ```
 
-... and download files corresponding to any collection, DICOM
-PatientID/Study/Series as follows:
+Instantiate `IDCClient`, which provides the interface for main operations.
 
 ```python
 from idc_index import index
 
 client = index.IDCClient()
-
-all_collection_ids = client.get_collections()
-
-client.download_from_selection(collection_id="rider_pilot", downloadDir="/some/dir")
 ```
 
-... or run queries against the "mini" index of Imaging Data Commons data!
+You can use [IDC Portal](https://imaging.datacommons.cancer.gov/explore) to
+browse collections, cases, studies and series, copy their identifiers and
+download the corresponding files using `idc-index` helper functions.
+
+You can try this out with the `rider_pilot` collection, which is just 10.5 GB in
+size:
+
+```
+client.download_from_selection(collection_id="rider_pilot", downloadDir=".")
+```
+
+... or run queries against the "mini" index of Imaging Data Commons data, and
+download images that match your selection criteria! The following will select
+all Magnetic Resonance (MR) series, and will download the first 10.
 
 ```python
 from idc_index import index
@@ -55,31 +66,25 @@ client = index.IDCClient()
 
 query = """
 SELECT
-  collection_id,
-  STRING_AGG(DISTINCT(Modality)) as modalities,
-  STRING_AGG(DISTINCT(BodyPartExamined)) as body_parts
+  SeriesInstanceUID
 FROM
   index
-GROUP BY
-  collection_id
-ORDER BY
-  collection_id ASC
+WHERE
+  Modality = 'MR'
 """
 
-client.sql_query(query)
-```
+selection_df = client.sql_query(query)
 
-Details of the attributes included in the index are in the release notes.
+client.download_from_selection(
+    seriesInstanceUID=selection_df["SeriesInstanceUID"].values[:10], downloadDir="."
+)
+```
 
 ## Tutorial
 
-This package was first presented at the 2023 Annual meeting of Radiological
-Society of North America (RSNA) Deep Learning Lab
-[IDC session](https://github.com/RSNA/AI-Deep-Learning-Lab-2023/tree/main/sessions/idc).
-
 Please check out
 [this tutorial notebook](https://github.com/ImagingDataCommons/IDC-Tutorials/blob/master/notebooks/labs/idc_rsna2023.ipynb)
-for the introduction into using `idc-index` for navigating IDC data.
+for the introduction into using `idc-index`.
 
 ## Resources
 
