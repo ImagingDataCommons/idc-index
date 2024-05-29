@@ -22,7 +22,7 @@ from tqdm import tqdm
 aws_endpoint_url = "https://s3.amazonaws.com"
 gcp_endpoint_url = "https://storage.googleapis.com"
 
-logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.DEBUG)
+logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
