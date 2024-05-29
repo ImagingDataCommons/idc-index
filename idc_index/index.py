@@ -1297,6 +1297,9 @@ Destination folder is not empty and sync size is less than total size. Displayin
 
                 else:
                     logger.error(f"Failed to get citation for DOI: {url}")
+                    logger.error(
+                        f"DOI server response status code: {response.status_code}"
+                    )
 
         return citations
 
