@@ -783,11 +783,7 @@ class IDCClient:
             initial_size_bytes = 0
             # Calculate the initial size of the directory
             for directory in list_of_directories:
-                path = Path(directory)
-                if path.exists() and path.is_dir():
-                    initial_size_bytes += sum(
-                        f.stat().st_size for f in path.iterdir() if f.is_file()
-                    )
+                initial_size_bytes = IDCClient._get_dir_sum_file_size(directory)
 
             logger.info("Initial size of the directory: %s bytes", initial_size_bytes)
             logger.info(
@@ -805,11 +801,7 @@ class IDCClient:
             while True:
                 downloaded_bytes = 0
                 for directory in list_of_directories:
-                    path = Path(directory)
-                    if path.exists() and path.is_dir():
-                        downloaded_bytes += sum(
-                            f.stat().st_size for f in path.iterdir() if f.is_file()
-                        )
+                    downloaded_bytes += IDCClient._get_dir_sum_file_size(directory)
                 downloaded_bytes -= initial_size_bytes
                 pbar.n = min(
                     downloaded_bytes, total_size_bytes
@@ -828,6 +820,21 @@ class IDCClient:
         else:
             while process.poll() is None:
                 time.sleep(0.5)
+
+    @staticmethod
+    def _get_dir_sum_file_size(directory) -> int:
+        path = Path(directory)
+        sum_file_size = 0
+        if path.exists() and path.is_dir():
+            for f in path.iterdir():
+                if f.is_file():
+                    try:
+                        sum_file_size += f.stat().st_size
+                    except FileNotFoundError:
+                        # file must have been removed before we
+                        # could get its size
+                        pass
+        return sum_file_size
 
     def _parse_s5cmd_sync_output_and_generate_synced_manifest(
         self, stdout, downloadDir, dirTemplate
@@ -1290,6 +1297,9 @@ Destination folder is not empty and sync size is less than total size. Displayin
 
                 else:
                     logger.error(f"Failed to get citation for DOI: {url}")
+                    logger.error(
+                        f"DOI server response status code: {response.status_code}"
+                    )
 
         return citations
 
