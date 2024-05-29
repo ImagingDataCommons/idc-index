@@ -19,11 +19,11 @@ import requests
 from packaging.version import Version
 from tqdm import tqdm
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
-
 aws_endpoint_url = "https://s3.amazonaws.com"
 gcp_endpoint_url = "https://storage.googleapis.com"
+
+logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 class IDCClient:

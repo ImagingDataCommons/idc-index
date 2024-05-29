@@ -8,12 +8,13 @@ from itertools import product
 
 import pandas as pd
 import pytest
-from idc_index import index
+from click.testing import CliRunner
+from idc_index import cli, index
 
 # Run tests using the following command from the root of the repository:
 # python -m unittest -vv tests/idcindex.py
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 
 @pytest.fixture(autouse=True)
@@ -24,6 +25,8 @@ def _change_test_dir(request, monkeypatch):
 class TestIDCClient(unittest.TestCase):
     def setUp(self):
         self.client = index.IDCClient()
+        self.download_from_manifest = cli.download_from_manifest
+        self.download_from_selection = cli.download_from_selection
 
         logger = logging.getLogger("idc_index")
         logger.setLevel(logging.DEBUG)
@@ -375,6 +378,48 @@ class TestIDCClient(unittest.TestCase):
         citations = self.client.citations_from_manifest("./study_manifest_aws.s5cmd")
         self.assertIsNotNone(citations)
     """
+
+    def test_cli_download_from_selection(self):
+        runner = CliRunner()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = runner.invoke(
+                self.download_from_selection,
+                [
+                    "--download-dir",
+                    temp_dir,
+                    "--dry-run",
+                    False,
+                    "--quiet",
+                    True,
+                    "--show-progress-bar",
+                    True,
+                    "--use-s5cmd-sync",
+                    False,
+                    "--study-instance-uid",
+                    "1.3.6.1.4.1.14519.5.2.1.7695.1700.114861588187429958687900856462",
+                ],
+            )
+            assert len(os.listdir(temp_dir)) != 0
+
+    def test_cli_download_from_manifest(self):
+        runner = CliRunner()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = runner.invoke(
+                self.download_from_manifest,
+                [
+                    "--manifest-file",
+                    "./study_manifest_aws.s5cmd",
+                    "--download-dir",
+                    temp_dir,
+                    "--quiet",
+                    True,
+                    "--show-progress-bar",
+                    True,
+                    "--use-s5cmd-sync",
+                    False,
+                ],
+            )
+            assert len(os.listdir(temp_dir)) != 0
 
 
 if __name__ == "__main__":
