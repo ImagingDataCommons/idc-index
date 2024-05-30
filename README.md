@@ -76,7 +76,8 @@ WHERE
 selection_df = client.sql_query(query)
 
 client.download_from_selection(
-    seriesInstanceUID=selection_df["SeriesInstanceUID"].values[:10], downloadDir="."
+    seriesInstanceUID=list(selection_df["SeriesInstanceUID"].values[:10]),
+    downloadDir=".",
 )
 ```
 
