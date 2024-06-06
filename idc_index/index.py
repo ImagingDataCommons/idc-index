@@ -11,7 +11,6 @@ import time
 from importlib.metadata import distribution
 from pathlib import Path
 
-import csv
 import duckdb
 import idc_index_data
 import pandas as pd
@@ -711,9 +710,11 @@ class IDCClient:
                     "cp " + merged_df["s3_url"] + " " + '"' + downloadDir + '"'
                 )
 
-            merged_df["s5cmd_cmd"].to_csv(
-                temp_manifest_file, header=False, index=False, quoting=csv.QUOTE_NONE
-            )
+            # Combine all commands into a single string with newline separators
+            commands = "\n".join(merged_df["s5cmd_cmd"])
+
+            temp_manifest_file.write(commands)
+
             logger.info("Parsing the manifest is finished. Download will begin soon")
 
         if dirTemplate is not None:
@@ -936,9 +937,11 @@ class IDCClient:
                     "sync " + synced_df["s3_url"] + " " + '"' + downloadDir + '"'
                 )
                 list_of_directories = [downloadDir]
-            synced_df["s5cmd_cmd"].to_csv(
-                synced_manifest, header=False, index=False, quoting=csv.QUOTE_NONE
-            )
+                # Combine all commands into a single string with newline separators
+            commands = "\n".join(synced_df["s5cmd_cmd"])
+
+            synced_manifest.write(commands)
+
             logger.info("Parsing the s5cmd sync dry run output finished")
         return Path(synced_manifest.name), sync_size_rounded, list_of_directories
 
@@ -1418,9 +1421,11 @@ Destination folder is not empty and sync size is less than total size. Displayin
                     "cp " + result_df["series_aws_url"] + ' "' + downloadDir + '"'
                 )
 
-            result_df["s5cmd_cmd"].to_csv(
-                manifest_file, header=False, index=False, quoting=csv.QUOTE_NONE
-            )
+            # Combine all commands into a single string with newline separators
+            commands = "\n".join(result_df["s5cmd_cmd"])
+
+            manifest_file.write(commands)
+
             if dirTemplate is not None:
                 list_of_directories = result_df.path.to_list()
             else:
