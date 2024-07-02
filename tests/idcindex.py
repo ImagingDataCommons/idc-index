@@ -421,6 +421,15 @@ class TestIDCClient(unittest.TestCase):
             )
             assert len(os.listdir(temp_dir)) != 0
 
+    def test_cli_download(self):
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            result = runner.invoke(
+                self.download,
+                "1.3.6.1.4.1.14519.5.2.1.7695.1700.114861588187429958687900856462",
+            )
+            assert len(os.listdir(os.Path.getcwd())) != 0
+
 
 if __name__ == "__main__":
     unittest.main()
