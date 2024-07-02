@@ -5,6 +5,7 @@ This module provides command-line interface (CLI) commands to interact with the 
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 import click
 
@@ -251,6 +252,55 @@ def download_from_manifest(
         show_progress_bar=show_progress_bar,
         use_s5cmd_sync=use_s5cmd_sync,
     )
+
+
+@main.command()
+@click.argument(
+    "generic_argument",
+    type=str,
+)
+def download(
+    generic_argument,
+):
+    """Download content given the input parameter.
+
+    Determine whether the input parameter corresponds to a file manifest or a list of collection_id, PatientID, StudyInstanceUID, or SeriesInstanceUID values, and download the corresponding files into the current directory. Default parameters will be used for organizing the downloaded files into folder hierarchy. Use `download_from_selection()` and `download_from_manifest()` functions if granular control over the download process is needed.
+    """
+    # Create an instance of the IDCClient
+    client = IDCClient()
+
+    download_dir = Path.cwd()
+
+    if Path(generic_argument).is_file():
+        # Parse the input parameters and pass them to IDC
+        logger_cli.debug("Detected manifest file, downloading from manifest.")
+        client.download_from_manifest(generic_argument, downloadDir=download_dir)
+    # this is not a file manifest
+    else:
+        # check if the passed string contains commands
+        if "," in generic_argument:
+            item_ids = generic_argument.split(",")
+        else:
+            item_ids = [generic_argument]
+        # this is a streamlined command, we will only check the first item, and will assume all other items are of the same kind
+        if client.index["collection_id"].str.contains(item_ids[0]).any():
+            logger_cli.debug("Downloading from collection_id")
+            client.download_from_selection(
+                collection_id=item_ids, downloadDir=download_dir
+            )
+        elif client.index["PatientID"].str.contains(item_ids[0]).any():
+            logger_cli.debug("Downloading from PatientID")
+            client.download_from_selection(patientId=item_ids, downloadDir=download_dir)
+        elif client.index["StudyInstanceUID"].str.contains(item_ids[0]).any():
+            logger_cli.debug("Downloading from StudyInstanceUID")
+            client.download_from_selection(
+                studyInstanceUID=item_ids, downloadDir=download_dir
+            )
+        elif client.index["SeriesInstanceUID"].str.contains(item_ids[0]).any():
+            logger_cli.debug("Downloading from SeriesInstanceUID")
+            client.download_from_selection(
+                seriesInstanceUID=item_ids, downloadDir=download_dir
+            )
 
 
 if __name__ == "__main__":
