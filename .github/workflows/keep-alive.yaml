@@ -17,4 +17,4 @@ jobs:
       - uses: gautamkrishnar/keepalive-workflow@v2
         with:
           time_elapsed: 50
-          use_api: true
+          use_api: false
