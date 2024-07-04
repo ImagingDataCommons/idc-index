@@ -287,7 +287,7 @@ def download(
 
         def check_and_download(column_name, item_ids, download_dir, kwarg_name):
             matches = index_df[column_name].isin(item_ids)
-            matched_ids = index_df[column_name][matches].tolist()
+            matched_ids = index_df[column_name][matches].unique().tolist()
             if not matched_ids:
                 return False
             unmatched_ids = list(set(item_ids) - set(matched_ids))
