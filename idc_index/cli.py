@@ -259,13 +259,21 @@ def download_from_manifest(
     "generic_argument",
     type=str,
 )
-def download(
-    generic_argument,
-):
+@click.option(
+    "--log-level",
+    type=click.Choice(
+        ["debug", "info", "warning", "error", "critical"], case_sensitive=False
+    ),
+    default="info",
+    help="Set the logging level for the CLI module.",
+)
+def download(generic_argument, log_level):
     """Download content given the input parameter.
 
     Determine whether the input parameter corresponds to a file manifest or a list of collection_id, PatientID, StudyInstanceUID, or SeriesInstanceUID values, and download the corresponding files into the current directory. Default parameters will be used for organizing the downloaded files into folder hierarchy. Use `download_from_selection()` and `download_from_manifest()` functions if granular control over the download process is needed.
     """
+    # Set the logging level for the CLI module
+    set_log_level(log_level)
     # Create an instance of the IDCClient
     client = IDCClient()
 
