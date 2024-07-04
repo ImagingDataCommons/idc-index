@@ -264,7 +264,7 @@ def download_from_manifest(
     type=click.Choice(
         ["debug", "info", "warning", "error", "critical"], case_sensitive=False
     ),
-    default="info",
+    default="warning",
     help="Set the logging level for the CLI module.",
 )
 def download(generic_argument, log_level):
