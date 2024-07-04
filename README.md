@@ -39,9 +39,9 @@ $ pip install --upgrade idc-index
 Instantiate `IDCClient`, which provides the interface for main operations.
 
 ```python
-from idc_index import index
+from idc_index import IDCClient
 
-client = index.IDCClient()
+client = IDCClient.client()
 ```
 
 You can use [IDC Portal](https://imaging.datacommons.cancer.gov/explore) to
