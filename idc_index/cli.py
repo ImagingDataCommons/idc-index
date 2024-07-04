@@ -5,6 +5,7 @@ This module provides command-line interface (CLI) commands to interact with the 
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 import click
 
@@ -14,7 +15,7 @@ from .index import IDCClient
 # Set up logging for the CLI module
 logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.DEBUG)
 logger_cli = logging.getLogger("cli")
-logger_cli.setLevel("WARNING")
+logger_cli.setLevel(logging.INFO)
 
 
 @click.group()
@@ -38,6 +39,7 @@ def set_log_level(log_level):
     logging_level = log_levels.get(log_level.lower(), logging.WARNING)
     logger_cli.debug(f"Setting the log level of index.py to {logging_level}")
     index.logger.setLevel(logging_level)
+    logger_cli.setLevel(logging_level)
 
 
 @main.command()
@@ -128,6 +130,7 @@ def download_from_selection(
     set_log_level(log_level)
     # Create an instance of the IDCClient
     client = IDCClient()
+    logger_cli.info(f"Downloading from IDC {client.get_idc_version()} index")
     # Parse the input parameters and pass them to IDCClient's download_from_selection method
     collection_id = (
         [cid.strip() for cid in (",".join(collection_id)).split(",")]
@@ -236,6 +239,7 @@ def download_from_manifest(
     set_log_level(log_level)
     # Create an instance of the IDCClient
     client = IDCClient()
+    logger_cli.info(f"Downloading from IDC {client.get_idc_version()} index")
     logger_cli.debug("Inputs received from cli manifest download:")
     logger_cli.debug(f"manifest_file_path: {manifest_file}")
     logger_cli.debug(f"download_dir: {download_dir}")
@@ -251,6 +255,82 @@ def download_from_manifest(
         show_progress_bar=show_progress_bar,
         use_s5cmd_sync=use_s5cmd_sync,
     )
+
+
+@main.command()
+@click.argument(
+    "generic_argument",
+    type=str,
+)
+@click.option(
+    "--log-level",
+    type=click.Choice(
+        ["debug", "info", "warning", "error", "critical"], case_sensitive=False
+    ),
+    default="info",
+    help="Set the logging level for the CLI module.",
+)
+def download(generic_argument, log_level):
+    """Download content given the input parameter.
+
+    Determine whether the input parameter corresponds to a file manifest or a list of collection_id, PatientID, StudyInstanceUID, or SeriesInstanceUID values, and download the corresponding files into the current directory. Default parameters will be used for organizing the downloaded files into folder hierarchy. Use `download_from_selection()` and `download_from_manifest()` functions if granular control over the download process is needed.
+    """
+    # Set the logging level for the CLI module
+    set_log_level(log_level)
+    # Create an instance of the IDCClient
+    client = IDCClient()
+
+    logger_cli.info(f"Downloading from IDC {client.get_idc_version()} index")
+
+    download_dir = Path.cwd()
+
+    if Path(generic_argument).is_file():
+        # Parse the input parameters and pass them to IDC
+        logger_cli.info("Detected manifest file, downloading from manifest.")
+        client.download_from_manifest(generic_argument, downloadDir=download_dir)
+    # this is not a file manifest
+    else:
+        # Split the input string and filter out any empty values
+        item_ids = [item for item in generic_argument.split(",") if item]
+
+        if not item_ids:
+            logger_cli.error("No valid IDs provided.")
+
+        index_df = client.index
+
+        def check_and_download(column_name, item_ids, download_dir, kwarg_name):
+            matches = index_df[column_name].isin(item_ids)
+            matched_ids = index_df[column_name][matches].unique().tolist()
+            if not matched_ids:
+                return False
+            unmatched_ids = list(set(item_ids) - set(matched_ids))
+            if unmatched_ids:
+                logger_cli.debug(
+                    f"Partial match for {column_name}: matched {matched_ids}, unmatched {unmatched_ids}"
+                )
+            logger_cli.info(f"Identified matching {column_name}: {matched_ids}")
+            client.download_from_selection(
+                **{kwarg_name: matched_ids, "downloadDir": download_dir}
+            )
+            return True
+
+        matches_found = 0
+        matches_found += check_and_download(
+            "collection_id", item_ids, download_dir, "collection_id"
+        )
+        matches_found += check_and_download(
+            "PatientID", item_ids, download_dir, "patientId"
+        )
+        matches_found += check_and_download(
+            "StudyInstanceUID", item_ids, download_dir, "studyInstanceUID"
+        )
+        matches_found += check_and_download(
+            "SeriesInstanceUID", item_ids, download_dir, "seriesInstanceUID"
+        )
+        if not matches_found:
+            logger_cli.error(
+                "None of the values passed matched any of the identifiers: collection_id, PatientID, StudyInstanceUID, SeriesInstanceUID."
+            )
 
 
 if __name__ == "__main__":
