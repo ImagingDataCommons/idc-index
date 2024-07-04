@@ -781,10 +781,10 @@ class IDCClient:
         show_progress_bar: bool = True,
         list_of_directories=None,
     ):
-        logger.info("Inputs received for tracking download:")
-        logger.info(f"size_MB: {size_MB}")
-        logger.info(f"downloadDir: {downloadDir}")
-        logger.info(f"show_progress_bar: {show_progress_bar}")
+        logger.debug("Inputs received for tracking download:")
+        logger.debug(f"size_MB: {size_MB}")
+        logger.debug(f"downloadDir: {downloadDir}")
+        logger.debug(f"show_progress_bar: {show_progress_bar}")
 
         runtime_errors = []
 
@@ -798,7 +798,7 @@ class IDCClient:
 
             logger.info("Initial size of the directory: %s bytes", initial_size_bytes)
             logger.info(
-                "Approx. Size of the files need to be downloaded: %s bytes",
+                "Approximate size of the files that need to be downloaded: %s bytes",
                 total_size_bytes,
             )
 
@@ -902,7 +902,7 @@ class IDCClient:
         sync_size = merged_df["series_size_MB"].sum()
         sync_size_rounded = round(sync_size, 2)
 
-        logger.info(f"sync_size_rounded: {sync_size_rounded}")
+        logger.debug(f"sync_size_rounded: {sync_size_rounded}")
 
         if dirTemplate is not None:
             hierarchy = self._generate_sql_concat_for_building_directory(
@@ -1050,11 +1050,11 @@ evaluate what to download and corresponding size with only series level precisio
                     if sync_size < total_size:
                         logger.info(
                             """
-Destination folder is not empty and sync size is less than total size. Displaying a warning
+Destination folder is not empty and sync size is less than total size.
 """
                         )
                         existing_data_size = round(total_size - sync_size, 2)
-                        logger.warning(
+                        logger.info(
                             f"Requested total download size is {total_size} MB, \
                                     however at least {existing_data_size} MB is already present,\
                                     so downloading only remaining upto {sync_size} MB\n\
@@ -1075,7 +1075,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
                 )
         else:
             logger.info(
-                "Not using s5cmd sync dry run as the destination folder is empty or sync dry or progress bar is not requested"
+                "Not using s5cmd sync as the destination folder is empty or sync or progress bar is not requested"
             )
             cmd = [
                 self.s5cmdPath,
@@ -1430,7 +1430,7 @@ Destination folder is not empty and sync size is less than total size. Displayin
                 list_of_directories = result_df.path.to_list()
             else:
                 list_of_directories = [downloadDir]
-        logger.info(
+        logger.debug(
             """
 Temporary download manifest is generated and is passed to self._s5cmd_run
 """

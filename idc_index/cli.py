@@ -15,7 +15,7 @@ from .index import IDCClient
 # Set up logging for the CLI module
 logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.DEBUG)
 logger_cli = logging.getLogger("cli")
-logger_cli.setLevel("WARNING")
+logger_cli.setLevel(logging.INFO)
 
 
 @click.group()
@@ -39,6 +39,7 @@ def set_log_level(log_level):
     logging_level = log_levels.get(log_level.lower(), logging.WARNING)
     logger_cli.debug(f"Setting the log level of index.py to {logging_level}")
     index.logger.setLevel(logging_level)
+    logger_cli.setLevel(logging_level)
 
 
 @main.command()
@@ -129,6 +130,7 @@ def download_from_selection(
     set_log_level(log_level)
     # Create an instance of the IDCClient
     client = IDCClient()
+    logger_cli.info(f"Downloading from IDC {client.get_idc_version()} index")
     # Parse the input parameters and pass them to IDCClient's download_from_selection method
     collection_id = (
         [cid.strip() for cid in (",".join(collection_id)).split(",")]
@@ -237,6 +239,7 @@ def download_from_manifest(
     set_log_level(log_level)
     # Create an instance of the IDCClient
     client = IDCClient()
+    logger_cli.info(f"Downloading from IDC {client.get_idc_version()} index")
     logger_cli.debug("Inputs received from cli manifest download:")
     logger_cli.debug(f"manifest_file_path: {manifest_file}")
     logger_cli.debug(f"download_dir: {download_dir}")
@@ -264,7 +267,7 @@ def download_from_manifest(
     type=click.Choice(
         ["debug", "info", "warning", "error", "critical"], case_sensitive=False
     ),
-    default="warning",
+    default="info",
     help="Set the logging level for the CLI module.",
 )
 def download(generic_argument, log_level):
@@ -277,11 +280,13 @@ def download(generic_argument, log_level):
     # Create an instance of the IDCClient
     client = IDCClient()
 
+    logger_cli.info(f"Downloading from IDC {client.get_idc_version()} index")
+
     download_dir = Path.cwd()
 
     if Path(generic_argument).is_file():
         # Parse the input parameters and pass them to IDC
-        logger_cli.debug("Detected manifest file, downloading from manifest.")
+        logger_cli.info("Detected manifest file, downloading from manifest.")
         client.download_from_manifest(generic_argument, downloadDir=download_dir)
     # this is not a file manifest
     else:
@@ -300,28 +305,31 @@ def download(generic_argument, log_level):
                 return False
             unmatched_ids = list(set(item_ids) - set(matched_ids))
             if unmatched_ids:
-                logger_cli.warning(
+                logger_cli.debug(
                     f"Partial match for {column_name}: matched {matched_ids}, unmatched {unmatched_ids}"
                 )
-            logger_cli.debug(f"Downloading from {column_name}")
+            logger_cli.info(f"Identified matching {column_name}: {matched_ids}")
             client.download_from_selection(
                 **{kwarg_name: matched_ids, "downloadDir": download_dir}
             )
             return True
 
-        # Check for matches in each column and download if matches found
-        if not (
-            check_and_download("collection_id", item_ids, download_dir, "collection_id")
-            or check_and_download("PatientID", item_ids, download_dir, "patientId")
-            or check_and_download(
-                "StudyInstanceUID", item_ids, download_dir, "studyInstanceUID"
-            )
-            or check_and_download(
-                "SeriesInstanceUID", item_ids, download_dir, "seriesInstanceUID"
-            )
-        ):
+        matches_found = 0
+        matches_found += check_and_download(
+            "collection_id", item_ids, download_dir, "collection_id"
+        )
+        matches_found += check_and_download(
+            "PatientID", item_ids, download_dir, "patientId"
+        )
+        matches_found += check_and_download(
+            "StudyInstanceUID", item_ids, download_dir, "studyInstanceUID"
+        )
+        matches_found += check_and_download(
+            "SeriesInstanceUID", item_ids, download_dir, "seriesInstanceUID"
+        )
+        if not matches_found:
             logger_cli.error(
-                "None of the values passed matched any of the four UUIDs: collection_id, PatientID, StudyInstanceUID, SeriesInstanceUID."
+                "None of the values passed matched any of the identifiers: collection_id, PatientID, StudyInstanceUID, SeriesInstanceUID."
             )
 
 
