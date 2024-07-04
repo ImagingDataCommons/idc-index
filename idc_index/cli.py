@@ -277,29 +277,43 @@ def download(
         client.download_from_manifest(generic_argument, downloadDir=download_dir)
     # this is not a file manifest
     else:
-        # check if the passed string contains commands
-        if "," in generic_argument:
-            item_ids = generic_argument.split(",")
-        else:
-            item_ids = [generic_argument]
-        # this is a streamlined command, we will only check the first item, and will assume all other items are of the same kind
-        if client.index["collection_id"].str.contains(item_ids[0]).any():
-            logger_cli.debug("Downloading from collection_id")
+        # Split the input string and filter out any empty values
+        item_ids = [item for item in generic_argument.split(",") if item]
+
+        if not item_ids:
+            logger_cli.error("No valid IDs provided.")
+
+        index_df = client.index
+
+        def check_and_download(column_name, item_ids, download_dir, kwarg_name):
+            matches = index_df[column_name].isin(item_ids)
+            matched_ids = index_df[column_name][matches].tolist()
+            if not matched_ids:
+                return False
+            unmatched_ids = list(set(item_ids) - set(matched_ids))
+            if unmatched_ids:
+                logger_cli.warning(
+                    f"Partial match for {column_name}: matched {matched_ids}, unmatched {unmatched_ids}"
+                )
+            logger_cli.debug(f"Downloading from {column_name}")
             client.download_from_selection(
-                collection_id=item_ids, downloadDir=download_dir
+                **{kwarg_name: matched_ids, "downloadDir": download_dir}
             )
-        elif client.index["PatientID"].str.contains(item_ids[0]).any():
-            logger_cli.debug("Downloading from PatientID")
-            client.download_from_selection(patientId=item_ids, downloadDir=download_dir)
-        elif client.index["StudyInstanceUID"].str.contains(item_ids[0]).any():
-            logger_cli.debug("Downloading from StudyInstanceUID")
-            client.download_from_selection(
-                studyInstanceUID=item_ids, downloadDir=download_dir
+            return True
+
+        # Check for matches in each column and download if matches found
+        if not (
+            check_and_download("collection_id", item_ids, download_dir, "collection_id")
+            or check_and_download("PatientID", item_ids, download_dir, "patientId")
+            or check_and_download(
+                "StudyInstanceUID", item_ids, download_dir, "studyInstanceUID"
             )
-        elif client.index["SeriesInstanceUID"].str.contains(item_ids[0]).any():
-            logger_cli.debug("Downloading from SeriesInstanceUID")
-            client.download_from_selection(
-                seriesInstanceUID=item_ids, downloadDir=download_dir
+            or check_and_download(
+                "SeriesInstanceUID", item_ids, download_dir, "seriesInstanceUID"
+            )
+        ):
+            logger_cli.error(
+                "None of the values passed matched any of the four UUIDs: collection_id, PatientID, StudyInstanceUID, SeriesInstanceUID."
             )
 
 
