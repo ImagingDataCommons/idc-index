@@ -107,6 +107,12 @@ def set_log_level(log_level):
     default="info",
     help="Set the logging level for the CLI module.",
 )
+@click.option(
+    "--dir-template",
+    type=str,
+    default=IDCClient.DOWNLOAD_HIERARCHY_DEFAULT,
+    help="Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.",
+)
 def download_from_selection(
     download_dir,
     dry_run,
@@ -118,6 +124,7 @@ def download_from_selection(
     show_progress_bar,
     use_s5cmd_sync,
     log_level,
+    dir_template
 ):
     """Download from a selection of collection(s), patient(s), study(studies) and series.
 
@@ -158,6 +165,7 @@ def download_from_selection(
     logger_cli.debug(f"quiet: {quiet}")
     logger_cli.debug(f"show_progress_bar: {show_progress_bar}")
     logger_cli.debug(f"use_s5cmd_sync: {use_s5cmd_sync}")
+    logger_cli.debug(f"dirTemplate: {dir_template}")
 
     client.download_from_selection(
         download_dir,
@@ -169,6 +177,7 @@ def download_from_selection(
         quiet=quiet,
         show_progress_bar=show_progress_bar,
         use_s5cmd_sync=use_s5cmd_sync,
+        dirTemplate=dir_template,
     )
 
 
@@ -217,6 +226,12 @@ def download_from_selection(
     default="info",
     help="Set the logging level for the CLI module.",
 )
+@click.option(
+    "--dir-template",
+    type=str,
+    default=IDCClient.DOWNLOAD_HIERARCHY_DEFAULT,
+    help="Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.",
+)
 def download_from_manifest(
     manifest_file,
     download_dir,
@@ -225,6 +240,7 @@ def download_from_manifest(
     show_progress_bar,
     use_s5cmd_sync,
     log_level,
+    dir_template,
 ):
     """Download the manifest file.
 
@@ -242,6 +258,8 @@ def download_from_manifest(
     logger_cli.debug(f"validate_manifest: {validate_manifest}")
     logger_cli.debug(f"show_progress_bar: {show_progress_bar}")
     logger_cli.debug(f"use_s5cmd_sync: {use_s5cmd_sync}")
+    logger_cli.debug(f"dirTemplate: {dir_template}")
+
     # Call IDCClient's download_from_manifest method with the provided parameters
     client.download_from_manifest(
         manifestFile=manifest_file,
@@ -250,6 +268,7 @@ def download_from_manifest(
         validate_manifest=validate_manifest,
         show_progress_bar=show_progress_bar,
         use_s5cmd_sync=use_s5cmd_sync,
+        dirTemplate=dir_template,
     )
 
 
