@@ -124,7 +124,7 @@ def download_from_selection(
     show_progress_bar,
     use_s5cmd_sync,
     log_level,
-    dir_template
+    dir_template,
 ):
     """Download from a selection of collection(s), patient(s), study(studies) and series.
 
