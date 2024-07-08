@@ -424,11 +424,10 @@ class TestIDCClient(unittest.TestCase):
             assert len(os.listdir(temp_dir)) != 0
 
     def test_singleton_attribute(self):
-        
         # singleton, initialized on first use
         i1 = IDCClient.client()
         i2 = IDCClient.client()
-        
+
         # new instances created via constructor (through init)
         i3 = IDCClient()
         i4 = self.client
@@ -452,7 +451,7 @@ class TestIDCClient(unittest.TestCase):
         assert isinstance(i2, IDCClient)
         assert isinstance(i3, IDCClient)
         assert isinstance(i4, IDCClient)
-        
+
     def test_cli_download(self):
         runner = CliRunner()
         with runner.isolated_filesystem():
@@ -461,6 +460,7 @@ class TestIDCClient(unittest.TestCase):
                 ["1.3.6.1.4.1.14519.5.2.1.7695.1700.114861588187429958687900856462"],
             )
             assert len(os.listdir(Path.cwd())) != 0
+
 
 if __name__ == "__main__":
     unittest.main()

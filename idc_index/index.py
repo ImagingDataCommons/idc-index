@@ -39,7 +39,6 @@ class IDCClient:
     CITATION_FORMAT_JSON = "application/vnd.citationstyles.csl+json"
     CITATION_FORMAT_BIBTEX = "application/x-bibtex"
 
-
     # Singleton pattern
     # NOTE: In the future, one may want to use multiple clients e.g. for sub-datasets so a attribute-singleton as shown bewlo seems a better option.
     # _instance: IDCClient
@@ -54,7 +53,7 @@ class IDCClient:
     @classmethod
     def client(cls) -> IDCClient:
         if not hasattr(cls, "_client") or getattr(cls, "_client") is None:
-            setattr(cls, '_client', IDCClient())
+            setattr(cls, "_client", IDCClient())
 
         return cls._client
 
