@@ -10,7 +10,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 from click.testing import CliRunner
-from idc_index import cli, index
+from idc_index import IDCClient, cli
 
 # Run tests using the following command from the root of the repository:
 # python -m unittest -vv tests/idcindex.py
@@ -25,7 +25,7 @@ def _change_test_dir(request, monkeypatch):
 
 class TestIDCClient(unittest.TestCase):
     def setUp(self):
-        self.client = index.IDCClient()
+        self.client = IDCClient()
         self.download_from_manifest = cli.download_from_manifest
         self.download_from_selection = cli.download_from_selection
         self.download = cli.download
@@ -422,6 +422,35 @@ class TestIDCClient(unittest.TestCase):
                 ],
             )
             assert len(os.listdir(temp_dir)) != 0
+
+    def test_singleton_attribute(self):
+        # singleton, initialized on first use
+        i1 = IDCClient.client()
+        i2 = IDCClient.client()
+
+        # new instances created via constructor (through init)
+        i3 = IDCClient()
+        i4 = self.client
+
+        # all must be not none
+        assert i1 is not None
+        assert i2 is not None
+        assert i3 is not None
+        assert i4 is not None
+
+        # singletons must return the same instance
+        assert i1 == i2
+
+        # new instances must be different
+        assert i1 != i3
+        assert i1 != i4
+        assert i3 != i4
+
+        # all must be instances of IDCClient
+        assert isinstance(i1, IDCClient)
+        assert isinstance(i2, IDCClient)
+        assert isinstance(i3, IDCClient)
+        assert isinstance(i4, IDCClient)
 
     def test_cli_download(self):
         runner = CliRunner()

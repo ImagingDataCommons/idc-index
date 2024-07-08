@@ -39,6 +39,24 @@ class IDCClient:
     CITATION_FORMAT_JSON = "application/vnd.citationstyles.csl+json"
     CITATION_FORMAT_BIBTEX = "application/x-bibtex"
 
+    # Singleton pattern
+    # NOTE: In the future, one may want to use multiple clients e.g. for sub-datasets so a attribute-singleton as shown bewlo seems a better option.
+    # _instance: IDCClient
+    # def __new__(cls):
+    #     if not hasattr(cls, "_instance") or getattr(cls, "_instance") is None:
+    #         instance = super(IDCClient, cls).__new__(cls)
+    #         setattr(cls, "_instance", instance)
+    #     return cls._instance
+
+    _client: IDCClient
+
+    @classmethod
+    def client(cls) -> IDCClient:
+        if not hasattr(cls, "_client") or getattr(cls, "_client") is None:
+            setattr(cls, "_client", IDCClient())
+
+        return cls._client
+
     def __init__(self):
         file_path = idc_index_data.IDC_INDEX_PARQUET_FILEPATH
 
