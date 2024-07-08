@@ -5,6 +5,7 @@ import os
 import tempfile
 import unittest
 from itertools import product
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -27,6 +28,7 @@ class TestIDCClient(unittest.TestCase):
         self.client = IDCClient()
         self.download_from_manifest = cli.download_from_manifest
         self.download_from_selection = cli.download_from_selection
+        self.download = cli.download
 
         logger = logging.getLogger("idc_index")
         logger.setLevel(logging.DEBUG)
@@ -421,12 +423,6 @@ class TestIDCClient(unittest.TestCase):
             )
             assert len(os.listdir(temp_dir)) != 0
 
-    # def test_singleton(self):
-    #     i1 = IDCClient()
-    #     i2 = IDCClient()
-
-    #     assert i1 == i2
-
     def test_singleton_attribute(self):
         
         # singleton, initialized on first use
@@ -456,7 +452,15 @@ class TestIDCClient(unittest.TestCase):
         assert isinstance(i2, IDCClient)
         assert isinstance(i3, IDCClient)
         assert isinstance(i4, IDCClient)
-
+        
+    def test_cli_download(self):
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            result = runner.invoke(
+                self.download,
+                ["1.3.6.1.4.1.14519.5.2.1.7695.1700.114861588187429958687900856462"],
+            )
+            assert len(os.listdir(Path.cwd())) != 0
 
 if __name__ == "__main__":
     unittest.main()
