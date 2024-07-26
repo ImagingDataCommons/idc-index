@@ -21,6 +21,7 @@ from tqdm import tqdm
 
 aws_endpoint_url = "https://s3.amazonaws.com"
 gcp_endpoint_url = "https://storage.googleapis.com"
+asset_endpoint_url = f"https://api.github.com/repos/ImagingDataCommons/idc-index-data/releases/tags/{idc_index_data.__version__}"
 
 logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -67,7 +68,24 @@ class IDCClient:
         self.collection_summary = self.index.groupby("collection_id").agg(
             {"Modality": pd.Series.unique, "series_size_MB": "sum"}
         )
-        self.indices_overview = self.list_indices()
+
+        self.indices_overview = pd.DataFrame(
+            {
+                "index": {"description": None, "installed": True, "url": None},
+                "sm_index": {
+                    "description": None,
+                    "installed": True,
+                    "url": os.path.join(asset_endpoint_url, "sm_index.parquet"),
+                },
+                "sm_instance_index": {
+                    "description": None,
+                    "installed": True,
+                    "url": os.path.join(
+                        asset_endpoint_url, "sm_instance_index.parquet"
+                    ),
+                },
+            }
+        )
 
         # Lookup s5cmd
         self.s5cmdPath = shutil.which("s5cmd")
@@ -172,33 +190,6 @@ class IDCClient:
         idc_version = Version(idc_index_data.__version__).major
         return f"v{idc_version}"
 
-    @staticmethod
-    def _get_latest_idc_index_data_release_assets():
-        """
-        Retrieves a list of the latest idc-index-data release assets.
-
-        Returns:
-            release_assets (list): List of tuples (asset_name, asset_url).
-        """
-        release_assets = []
-        url = f"https://api.github.com/repos/ImagingDataCommons/idc-index-data/releases/tags/{idc_index_data.__version__}"
-        try:
-            response = requests.get(url, timeout=30)
-            if response.status_code == 200:
-                release_data = response.json()
-                assets = release_data.get("assets", [])
-                for asset in assets:
-                    release_assets.append(
-                        (asset["name"], asset["browser_download_url"])
-                    )
-            else:
-                logger.error(f"Failed to fetch releases: {response.status_code}")
-
-        except FileNotFoundError:
-            logger.error(f"Failed to fetch releases: {response.status_code}")
-
-        return release_assets
-
     def list_indices(self):
         """
         Lists all available indices including their installation status.
@@ -206,40 +197,6 @@ class IDCClient:
         Returns:
             indices_overview (pd.DataFrame): DataFrame containing information per index.
         """
-
-        if "indices_overview" not in locals():
-            indices_overview = {}
-            # Find installed indices
-            for file in distribution("idc-index-data").files:
-                if str(file).endswith("index.parquet"):
-                    index_name = os.path.splitext(
-                        str(file).rsplit("/", maxsplit=1)[-1]
-                    )[0]
-
-                    indices_overview[index_name] = {
-                        "description": None,
-                        "installed": True,
-                        "local_path": os.path.join(
-                            idc_index_data.IDC_INDEX_PARQUET_FILEPATH.parents[0],
-                            f"{index_name}.parquet",
-                        ),
-                    }
-
-            # Find available indices from idc-index-data
-            release_assets = self._get_latest_idc_index_data_release_assets()
-            for asset_name, asset_url in release_assets:
-                if asset_name.endswith(".parquet"):
-                    asset_name = os.path.splitext(asset_name)[0]
-                    if asset_name not in indices_overview:
-                        indices_overview[asset_name] = {
-                            "description": None,
-                            "installed": False,
-                            "url": asset_url,
-                        }
-
-            self.indices_overview = pd.DataFrame.from_dict(
-                indices_overview, orient="index"
-            )
 
         return self.indices_overview
 
@@ -251,14 +208,14 @@ class IDCClient:
             index (str): Name of the index to be downloaded.
         """
 
-        if index not in self.indices_overview.index.tolist():
+        if index not in self.indices_overview.keys():
             logger.error(f"Index {index} is not available and can not be fetched.")
-        elif self.indices_overview.loc[index, "installed"]:
+        elif self.indices_overview[index]["installed"]:
             logger.warning(
                 f"Index {index} already installed and will not be fetched again."
             )
         else:
-            response = requests.get(self.indices_overview.loc[index, "url"], timeout=30)
+            response = requests.get(self.indices_overview[index]["url"], timeout=30)
             if response.status_code == 200:
                 filepath = os.path.join(
                     idc_index_data.IDC_INDEX_PARQUET_FILEPATH.parents[0],
@@ -266,8 +223,7 @@ class IDCClient:
                 )
                 with open(filepath, mode="wb") as file:
                     file.write(response.content)
-                self.indices_overview.loc[index, "installed"] = True
-                self.indices_overview.loc[index, "local_path"] = filepath
+                self.indices_overview[index]["installed"] = True
             else:
                 logger.error(f"Failed to fetch index: {response.status_code}")
 
