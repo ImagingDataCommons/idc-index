@@ -34,7 +34,7 @@ dynamic = ["version"]
 dependencies = [
   "click",
   'duckdb>=0.10.0',
-  "idc-index-data==18.0.1",
+  "idc-index-data==18.1.0",
   "packaging",
   "pandas<2.2",
   "psutil",
