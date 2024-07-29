@@ -574,8 +574,8 @@ class IDCClient:
         # create a copy of the index
         index_df_copy = self.index
 
-        # Extract s3 url and crdc_instance_uuid from the manifest copy commands
-        # Next, extract crdc_instance_uuid from aws_series_url in the index and
+        # Extract s3 url and crdc_series_uuid from the manifest copy commands
+        # Next, extract crdc_series_uuid from aws_series_url in the index and
         # try to verify if every series in the manifest is present in the index
 
         # TODO: need to remove the assumption that manifest commands will have 'cp'
@@ -603,8 +603,9 @@ class IDCClient:
                 seriesInstanceuid,
                 s3_url,
                 series_size_MB,
-                index_crdc_series_uuid==manifest_crdc_series_uuid AS crdc_series_uuid_match,
+                index_crdc_series_uuid is not NULL as crdc_series_uuid_match,
                 s3_url==series_aws_url AS s3_url_match,
+                manifest_temp.manifest_cp_cmd,
             CASE
                 WHEN s3_url==series_aws_url THEN 'aws'
             ELSE
@@ -623,19 +624,23 @@ class IDCClient:
 
         endpoint_to_use = None
 
-        if validate_manifest:
-            # Check if crdc_instance_uuid is found in the index
-            if not all(merged_df["crdc_series_uuid_match"]):
-                missing_manifest_cp_cmds = merged_df.loc[
-                    ~merged_df["crdc_series_uuid_match"], "manifest_cp_cmd"
-                ]
-                missing_manifest_cp_cmds_str = f"The following manifest copy commands do not have any associated series in the index: {missing_manifest_cp_cmds.tolist()}"
-                raise ValueError(missing_manifest_cp_cmds_str)
+        # Check if any crdc_series_uuid are not found in the index
+        if not merged_df["crdc_series_uuid_match"].all():
+            missing_manifest_cp_cmds = merged_df.loc[
+                ~merged_df["crdc_series_uuid_match"], "manifest_cp_cmd"
+            ]
+            logger.error(
+                "The following manifest copy commands are not recognized as referencing any associated series in the index.\n"
+                "This means either these commands are invalid, or they may correspond to files available in a release of IDC\n"
+                f"prior to {self.get_idc_version()}. The corresponding files will not be downloaded.\n"
+            )
+            logger.error("\n" + "\n".join(missing_manifest_cp_cmds.tolist()))
 
-            # Check if there are more than one endpoints
+        if validate_manifest:
+            # Check if there is more than one endpoint
             if len(merged_df["endpoint"].unique()) > 1:
                 raise ValueError(
-                    "Either GCS bucket path is invalid or manifest has a mix of GCS and AWS urls. If so, please use urls from one provider only"
+                    "Either GCS bucket path is invalid or manifest has a mix of GCS and AWS urls. "
                 )
 
             if (
