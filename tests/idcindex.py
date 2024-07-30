@@ -461,6 +461,28 @@ class TestIDCClient(unittest.TestCase):
             )
             assert len(os.listdir(Path.cwd())) != 0
 
+    def test_prior_version_manifest(self):
+        c = IDCClient()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            (
+                total_size,
+                endpoint_to_use,
+                temp_manifest_file,
+                list_of_directories,
+            ) = c._validate_update_manifest_and_get_download_size(
+                "./prior_version_manifest.s5cmd",
+                temp_dir,
+                True,
+                False,
+                IDCClient.DOWNLOAD_HIERARCHY_DEFAULT,
+            )
+
+            # TODO: once issue https://github.com/ImagingDataCommons/idc-index/issues/100
+            # is fully resolved, the manifest below should not be empty, and this test should be updated
+            # with count equal to 5
+            with open(temp_manifest_file) as file:
+                assert len(file.readlines()) == 0
+
 
 if __name__ == "__main__":
     unittest.main()

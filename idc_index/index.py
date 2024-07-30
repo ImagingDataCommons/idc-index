@@ -625,14 +625,14 @@ class IDCClient:
         endpoint_to_use = None
 
         # Check if any crdc_series_uuid are not found in the index
-        if not merged_df["crdc_series_uuid_match"].all():
+        if not all(merged_df["crdc_series_uuid_match"]):
             missing_manifest_cp_cmds = merged_df.loc[
                 ~merged_df["crdc_series_uuid_match"], "manifest_cp_cmd"
             ]
             logger.error(
                 "The following manifest copy commands are not recognized as referencing any associated series in the index.\n"
                 "This means either these commands are invalid, or they may correspond to files available in a release of IDC\n"
-                f"prior to {self.get_idc_version()}. The corresponding files will not be downloaded.\n"
+                f"different from {self.get_idc_version()} used in this version of idc-index. The corresponding files will not be downloaded.\n"
             )
             logger.error("\n" + "\n".join(missing_manifest_cp_cmds.tolist()))
 
