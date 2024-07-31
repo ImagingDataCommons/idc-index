@@ -19,8 +19,8 @@ logger_cli.setLevel(logging.INFO)
 
 
 @click.group()
-def main():
-    """Idc is a command line client to help download data from Imaging Data Commons."""
+def idc():
+    """`idc` is a command line interface to the API functionality available in idc-index."""
 
 
 def set_log_level(log_level):
@@ -42,7 +42,7 @@ def set_log_level(log_level):
     logger_cli.setLevel(logging_level)
 
 
-@main.command()
+@idc.command()
 @click.option(
     "--download-dir",
     required=True,
@@ -199,7 +199,7 @@ def download_from_selection(
     )
 
 
-@main.command()
+@idc.command()
 @click.option(
     "--manifest-file",
     required=True,
@@ -291,7 +291,7 @@ def download_from_manifest(
     )
 
 
-@main.command()
+@idc.command()
 @click.argument(
     "generic_argument",
     type=str,
@@ -371,4 +371,4 @@ def download(generic_argument, log_level):
 
 
 if __name__ == "__main__":
-    main()
+    idc()
