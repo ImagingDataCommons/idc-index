@@ -58,9 +58,8 @@ class IDCClient:
         return cls._client
 
     def __init__(self):
+        # Read main index file
         file_path = idc_index_data.IDC_INDEX_PARQUET_FILEPATH
-
-        # Read index file
         logger.debug(f"Reading index file v{idc_index_data.__version__}")
         self.index = pd.read_parquet(file_path)
         # self.index = self.index.astype(str).replace("nan", "")
@@ -68,10 +67,10 @@ class IDCClient:
         self.collection_summary = self.index.groupby("collection_id").agg(
             {"Modality": pd.Series.unique, "series_size_MB": "sum"}
         )
+        self.indices_overview = self.list_indices()
 
         # Lookup s5cmd
         self.s5cmdPath = shutil.which("s5cmd")
-
         if self.s5cmdPath is None:
             # Workaround to support environment without a properly setup PATH
             # See https://github.com/Slicer/Slicer/pull/7587
@@ -80,16 +79,12 @@ class IDCClient:
                 if str(script).startswith("s5cmd/bin/s5cmd"):
                     self.s5cmdPath = script.locate().resolve(strict=True)
                     break
-
         if self.s5cmdPath is None:
             raise FileNotFoundError(
                 "s5cmd executable not found. Please install s5cmd from https://github.com/peak/s5cmd#installation"
             )
-
         self.s5cmdPath = str(self.s5cmdPath)
-
         logger.debug(f"Found s5cmd executable: {self.s5cmdPath}")
-
         # ... and check it can be executed
         subprocess.check_call([self.s5cmdPath, "--help"], stdout=subprocess.DEVNULL)
 
@@ -176,6 +171,105 @@ class IDCClient:
         """
         idc_version = Version(idc_index_data.__version__).major
         return f"v{idc_version}"
+
+    @staticmethod
+    def _get_latest_idc_index_data_release_assets():
+        """
+        Retrieves a list of the latest idc-index-data release assets.
+
+        Returns:
+            release_assets (list): List of tuples (asset_name, asset_url).
+        """
+        release_assets = []
+        url = f"https://api.github.com/repos/ImagingDataCommons/idc-index-data/releases/tags/{idc_index_data.__version__}"
+        try:
+            response = requests.get(url, timeout=30)
+            if response.status_code == 200:
+                release_data = response.json()
+                assets = release_data.get("assets", [])
+                for asset in assets:
+                    release_assets.append(
+                        (asset["name"], asset["browser_download_url"])
+                    )
+            else:
+                logger.error(f"Failed to fetch releases: {response.status_code}")
+
+        except FileNotFoundError:
+            logger.error(f"Failed to fetch releases: {response.status_code}")
+
+        return release_assets
+
+    def list_indices(self):
+        """
+        Lists all available indices including their installation status.
+
+        Returns:
+            indices_overview (pd.DataFrame): DataFrame containing information per index.
+        """
+
+        if "indices_overview" not in locals():
+            indices_overview = {}
+            # Find installed indices
+            for file in distribution("idc-index-data").files:
+                if str(file).endswith("index.parquet"):
+                    index_name = os.path.splitext(
+                        str(file).rsplit("/", maxsplit=1)[-1]
+                    )[0]
+
+                    indices_overview[index_name] = {
+                        "description": None,
+                        "installed": True,
+                        "local_path": os.path.join(
+                            idc_index_data.IDC_INDEX_PARQUET_FILEPATH.parents[0],
+                            f"{index_name}.parquet",
+                        ),
+                    }
+
+            # Find available indices from idc-index-data
+            release_assets = self._get_latest_idc_index_data_release_assets()
+            for asset_name, asset_url in release_assets:
+                if asset_name.endswith(".parquet"):
+                    asset_name = os.path.splitext(asset_name)[0]
+                    if asset_name not in indices_overview:
+                        indices_overview[asset_name] = {
+                            "description": None,
+                            "installed": False,
+                            "url": asset_url,
+                        }
+
+            self.indices_overview = pd.DataFrame.from_dict(
+                indices_overview, orient="index"
+            )
+
+        return self.indices_overview
+
+    def fetch_index(self, index) -> None:
+        """
+        Downloads requested index.
+
+        Args:
+            index (str): Name of the index to be downloaded.
+        """
+
+        if index not in self.indices_overview.index.tolist():
+            logger.error(f"Index {index} is not available and can not be fetched.")
+        elif self.indices_overview.loc[index, "installed"]:
+            logger.warning(
+                f"Index {index} already installed and will not be fetched again."
+            )
+        else:
+            response = requests.get(self.indices_overview.loc[index, "url"], timeout=30)
+            if response.status_code == 200:
+                filepath = os.path.join(
+                    idc_index_data.IDC_INDEX_PARQUET_FILEPATH.parents[0],
+                    f"{index}.parquet",
+                )
+                with open(filepath, mode="wb") as file:
+                    file.write(response.content)
+                self.indices_overview.loc[index, "installed"] = True
+                self.indices_overview.loc[index, "local_path"] = filepath
+            else:
+                logger.error(f"Failed to fetch index: {response.status_code}")
 
     def get_collections(self):
         """
