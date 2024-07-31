@@ -1,0 +1,5 @@
+cp s3://idc-open-data/040fd3e1-0088-4bfd-8439-55e3c5d80a56/*  .
+cp s3://idc-open-data/04553d0f-1af9-414d-b631-cc31624aced5/*  .
+cp s3://idc-open-data/068346bf-16ef-4e45-87bf-87feb576a21c/*  .
+cp s3://idc-open-data/07908d47-5e85-45f3-9649-79c15f606f52/*  .
+cp s3://idc-open-data/099d180f-1d79-402d-abad-bfd8e2736b04/*  .
