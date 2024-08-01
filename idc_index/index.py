@@ -21,7 +21,7 @@ from tqdm import tqdm
 
 aws_endpoint_url = "https://s3.amazonaws.com"
 gcp_endpoint_url = "https://storage.googleapis.com"
-asset_endpoint_url = f"https://api.github.com/repos/ImagingDataCommons/idc-index-data/releases/tags/{idc_index_data.__version__}"
+asset_endpoint_url = f"https://github.com/ImagingDataCommons/idc-index-data/releases/download/{idc_index_data.__version__}"
 
 logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -69,23 +69,19 @@ class IDCClient:
             {"Modality": pd.Series.unique, "series_size_MB": "sum"}
         )
 
-        self.indices_overview = pd.DataFrame(
-            {
-                "index": {"description": None, "installed": True, "url": None},
-                "sm_index": {
-                    "description": None,
-                    "installed": True,
-                    "url": os.path.join(asset_endpoint_url, "sm_index.parquet"),
-                },
-                "sm_instance_index": {
-                    "description": None,
-                    "installed": True,
-                    "url": os.path.join(
-                        asset_endpoint_url, "sm_instance_index.parquet"
-                    ),
-                },
-            }
-        )
+        self.indices_overview = {
+            "index": {"description": None, "installed": True, "url": None},
+            "sm_index": {
+                "description": None,
+                "installed": False,
+                "url": f"{asset_endpoint_url}/sm_index.parquet",
+            },
+            "sm_instance_index": {
+                "description": None,
+                "installed": False,
+                "url": f"{asset_endpoint_url}/sm_instance_index.parquet",
+            },
+        }
 
         # Lookup s5cmd
         self.s5cmdPath = shutil.which("s5cmd")
@@ -198,7 +194,7 @@ class IDCClient:
             indices_overview (pd.DataFrame): DataFrame containing information per index.
         """
 
-        return self.indices_overview
+        return pd.DataFrame.from_dict(self.indices_overview, orient="index")
 
     def fetch_index(self, index) -> None:
         """
@@ -208,7 +204,7 @@ class IDCClient:
             index (str): Name of the index to be downloaded.
         """
 
-        if index not in self.indices_overview.keys():
+        if index not in self.indices_overview:
             logger.error(f"Index {index} is not available and can not be fetched.")
         elif self.indices_overview[index]["installed"]:
             logger.warning(
@@ -225,7 +221,9 @@ class IDCClient:
                     file.write(response.content)
                 self.indices_overview[index]["installed"] = True
             else:
-                logger.error(f"Failed to fetch index: {response.status_code}")
+                logger.error(
+                    f"Failed to fetch index from URL {self.indices_overview[index]['url']}: {response.status_code}"
+                )
 
     def get_collections(self):
         """

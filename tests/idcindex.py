@@ -485,13 +485,13 @@ class TestIDCClient(unittest.TestCase):
 
     def test_list_indices(self):
         i = IDCClient()
-        assert not i.indices_overview.empty  # assert that df was created
+        assert i.indices_overview  # assert that dict was created
 
     def test_fetch_index(self):
         i = IDCClient()
-        assert i.indices_overview["sm_index", "installed"] is False
+        assert i.indices_overview["sm_index"]["installed"] is False
         i.fetch_index("sm_index")
-        assert i.indices_overview["sm_index", "installed"] is True
+        assert i.indices_overview["sm_index"]["installed"] is True
 
 
 if __name__ == "__main__":
