@@ -70,14 +70,18 @@ class IDCClient:
         )
 
         self.indices_overview = {
-            "index": {"description": None, "installed": True, "url": None},
+            "index": {
+                "description": "Main index containing one row per DICOM series.",
+                "installed": True,
+                "url": None,
+            },
             "sm_index": {
-                "description": None,
+                "description": "DICOM Slide Microscopy series-level index.",
                 "installed": False,
                 "url": f"{asset_endpoint_url}/sm_index.parquet",
             },
             "sm_instance_index": {
-                "description": None,
+                "description": "DICOM Slide Microscopy instance-level index.",
                 "installed": False,
                 "url": f"{asset_endpoint_url}/sm_instance_index.parquet",
             },
