@@ -84,7 +84,7 @@ api/idc_index
 
 ## Command line tools
 
-```{click} groups.cli:main
+```{click} cli:main
   :prog: main
   :nested: full
 ```
