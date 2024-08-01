@@ -41,6 +41,7 @@ dependencies = [
   "pyarrow",
   "requests",
   "s5cmd",
+  "sphinx-click",
   "tqdm"
 ]
 

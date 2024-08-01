@@ -81,3 +81,11 @@ api/idc_index
 - {ref}`genindex`
 - {ref}`modindex`
 - {ref}`search`
+
+## Command line tools
+
+```
+.. click:: groups.cli:cli
+  :prog: cli
+  :nested: full
+```
