@@ -481,7 +481,7 @@ class TestIDCClient(unittest.TestCase):
             # is fully resolved, the manifest below should not be empty, and this test should be updated
             # with count equal to 5
             with open(temp_manifest_file) as file:
-                assert len(file.readlines()) == 0
+                assert len(file.readlines()) == 5
 
     def test_list_indices(self):
         i = IDCClient()
