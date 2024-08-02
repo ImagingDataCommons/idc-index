@@ -223,6 +223,7 @@ class IDCClient:
                 )
                 with open(filepath, mode="wb") as file:
                     file.write(response.content)
+                setattr(self.__class__, index, pd.read_parquet(filepath))
                 self.indices_overview[index]["installed"] = True
             else:
                 logger.error(

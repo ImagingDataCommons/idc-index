@@ -492,6 +492,7 @@ class TestIDCClient(unittest.TestCase):
         assert i.indices_overview["sm_index"]["installed"] is False
         i.fetch_index("sm_index")
         assert i.indices_overview["sm_index"]["installed"] is True
+        assert hasattr(i, "sm_index")
 
 
 if __name__ == "__main__":
