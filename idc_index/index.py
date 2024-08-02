@@ -21,6 +21,7 @@ from tqdm import tqdm
 
 aws_endpoint_url = "https://s3.amazonaws.com"
 gcp_endpoint_url = "https://storage.googleapis.com"
+asset_endpoint_url = f"https://github.com/ImagingDataCommons/idc-index-data/releases/download/{idc_index_data.__version__}"
 
 logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -58,9 +59,8 @@ class IDCClient:
         return cls._client
 
     def __init__(self):
+        # Read main index file
         file_path = idc_index_data.IDC_INDEX_PARQUET_FILEPATH
-
-        # Read index file
         logger.debug(f"Reading index file v{idc_index_data.__version__}")
         self.index = pd.read_parquet(file_path)
         # self.index = self.index.astype(str).replace("nan", "")
@@ -69,9 +69,26 @@ class IDCClient:
             {"Modality": pd.Series.unique, "series_size_MB": "sum"}
         )
 
+        self.indices_overview = {
+            "index": {
+                "description": "Main index containing one row per DICOM series.",
+                "installed": True,
+                "url": None,
+            },
+            "sm_index": {
+                "description": "DICOM Slide Microscopy series-level index.",
+                "installed": False,
+                "url": f"{asset_endpoint_url}/sm_index.parquet",
+            },
+            "sm_instance_index": {
+                "description": "DICOM Slide Microscopy instance-level index.",
+                "installed": False,
+                "url": f"{asset_endpoint_url}/sm_instance_index.parquet",
+            },
+        }
+
         # Lookup s5cmd
         self.s5cmdPath = shutil.which("s5cmd")
-
         if self.s5cmdPath is None:
             # Workaround to support environment without a properly setup PATH
             # See https://github.com/Slicer/Slicer/pull/7587
@@ -80,16 +97,12 @@ class IDCClient:
                 if str(script).startswith("s5cmd/bin/s5cmd"):
                     self.s5cmdPath = script.locate().resolve(strict=True)
                     break
-
         if self.s5cmdPath is None:
             raise FileNotFoundError(
                 "s5cmd executable not found. Please install s5cmd from https://github.com/peak/s5cmd#installation"
             )
-
         self.s5cmdPath = str(self.s5cmdPath)
-
         logger.debug(f"Found s5cmd executable: {self.s5cmdPath}")
-
         # ... and check it can be executed
         subprocess.check_call([self.s5cmdPath, "--help"], stdout=subprocess.DEVNULL)
 
@@ -176,6 +189,36 @@ class IDCClient:
         """
         idc_version = Version(idc_index_data.__version__).major
         return f"v{idc_version}"
+
+    def fetch_index(self, index) -> None:
+        """
+        Downloads requested index.
+
+        Args:
+            index (str): Name of the index to be downloaded.
+        """
+
+        if index not in self.indices_overview:
+            logger.error(f"Index {index} is not available and can not be fetched.")
+        elif self.indices_overview[index]["installed"]:
+            logger.warning(
+                f"Index {index} already installed and will not be fetched again."
+            )
+        else:
+            response = requests.get(self.indices_overview[index]["url"], timeout=30)
+            if response.status_code == 200:
+                filepath = os.path.join(
+                    idc_index_data.IDC_INDEX_PARQUET_FILEPATH.parents[0],
+                    f"{index}.parquet",
+                )
+                with open(filepath, mode="wb") as file:
+                    file.write(response.content)
+                setattr(self.__class__, index, pd.read_parquet(filepath))
+                self.indices_overview[index]["installed"] = True
+            else:
+                logger.error(
+                    f"Failed to fetch index from URL {self.indices_overview[index]['url']}: {response.status_code}"
+                )
 
     def get_collections(self):
         """
