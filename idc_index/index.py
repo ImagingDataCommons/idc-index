@@ -190,16 +190,6 @@ class IDCClient:
         idc_version = Version(idc_index_data.__version__).major
         return f"v{idc_version}"
 
-    def list_indices(self):
-        """
-        Lists all available indices including their installation status.
-
-        Returns:
-            indices_overview (pd.DataFrame): DataFrame containing information per index.
-        """
-
-        return pd.DataFrame.from_dict(self.indices_overview, orient="index")
-
     def fetch_index(self, index) -> None:
         """
         Downloads requested index.
