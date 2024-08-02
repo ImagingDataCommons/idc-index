@@ -41,7 +41,7 @@ class IDCClient:
     CITATION_FORMAT_BIBTEX = "application/x-bibtex"
 
     # Singleton pattern
-    # NOTE: In the future, one may want to use multiple clients e.g. for sub-datasets so a attribute-singleton as shown bewlo seems a better option.
+    # NOTE: In the future, one may want to use multiple clients e.g. for sub-datasets so a attribute-singleton as shown below seems a better option.
     # _instance: IDCClient
     # def __new__(cls):
     #     if not hasattr(cls, "_instance") or getattr(cls, "_instance") is None:
@@ -63,15 +63,27 @@ class IDCClient:
         file_path = idc_index_data.IDC_INDEX_PARQUET_FILEPATH
         logger.debug(f"Reading index file v{idc_index_data.__version__}")
         self.index = pd.read_parquet(file_path)
+
+        self.previous_versions_index_path = (
+            idc_index_data.PRIOR_VERSIONS_INDEX_PARQUET_FILEPATH
+        )
+
         # self.index = self.index.astype(str).replace("nan", "")
         self.index["series_size_MB"] = self.index["series_size_MB"].astype(float)
         self.collection_summary = self.index.groupby("collection_id").agg(
             {"Modality": pd.Series.unique, "series_size_MB": "sum"}
         )
 
+        idc_version = f"v{Version(idc_index_data.__version__).major}"
+
         self.indices_overview = {
             "index": {
                 "description": "Main index containing one row per DICOM series.",
+                "installed": True,
+                "url": None,
+            },
+            "previous_versions_index": {
+                "description": "index containing one row per DICOM series from all previous IDC versions that are not in current version.",
                 "installed": True,
                 "url": None,
             },
@@ -84,6 +96,11 @@ class IDCClient:
                 "description": "DICOM Slide Microscopy instance-level index.",
                 "installed": False,
                 "url": f"{asset_endpoint_url}/sm_instance_index.parquet",
+            },
+            "clinical_index": {
+                "description": "Index of clinical data accompanying the available images.",
+                "installed": False,
+                "url": f"{asset_endpoint_url}/clinical_index.parquet",
             },
         }
 
@@ -119,7 +136,12 @@ class IDCClient:
 
     @staticmethod
     def _safe_filter_by_selection(
-        df_index, collection_id, patientId, studyInstanceUID, seriesInstanceUID
+        df_index,
+        collection_id,
+        patientId,
+        studyInstanceUID,
+        seriesInstanceUID,
+        sopInstanceUID=None,
     ):
         if collection_id is not None:
             if not isinstance(collection_id, str) and not isinstance(
@@ -139,6 +161,11 @@ class IDCClient:
                 seriesInstanceUID, list
             ):
                 raise TypeError("seriesInstanceUID must be a string or list of strings")
+        if sopInstanceUID is not None:
+            if not isinstance(sopInstanceUID, str) and not isinstance(
+                sopInstanceUID, list
+            ):
+                raise TypeError("sopInstanceUID must be a string or list of strings")
 
         if collection_id is not None:
             result_df = IDCClient._filter_by_collection_id(df_index, collection_id)
@@ -156,6 +183,11 @@ class IDCClient:
         if seriesInstanceUID is not None:
             result_df = IDCClient._filter_by_dicom_series_uid(
                 result_df, seriesInstanceUID
+            )
+
+        if sopInstanceUID is not None:
+            result_df = IDCClient._filter_by_dicom_instance_uid(
+                result_df, sopInstanceUID
             )
 
         return result_df
@@ -183,6 +215,12 @@ class IDCClient:
         )
 
     @staticmethod
+    def _filter_by_dicom_instance_uid(df_index, dicom_instance_uid):
+        return IDCClient._filter_dataframe_by_id(
+            "SOPInstanceUID", df_index, dicom_instance_uid
+        )
+
+    @staticmethod
     def get_idc_version():
         """
         Returns the version of IDC data used in idc-index
@@ -190,19 +228,19 @@ class IDCClient:
         idc_version = Version(idc_index_data.__version__).major
         return f"v{idc_version}"
 
-    def list_indices(self):
+    @staticmethod
+    def _check_create_directory(download_dir):
         """
-        Lists all available indices including their installation status.
-
-        Returns:
-            indices_overview (pd.DataFrame): DataFrame containing information per index.
+        Mimic behavior of s5cmd and create the download directory if it does not exist
         """
+        download_dir = Path(download_dir)
+        download_dir.mkdir(parents=True, exist_ok=True)
 
-        return pd.DataFrame.from_dict(self.indices_overview, orient="index")
+        return str(download_dir.resolve())
 
     def fetch_index(self, index) -> None:
         """
-        Downloads requested index.
+        Downloads requested index and adds this index joined with the main index as respective class attribute.
 
         Args:
             index (str): Name of the index to be downloaded.
@@ -221,10 +259,19 @@ class IDCClient:
                     idc_index_data.IDC_INDEX_PARQUET_FILEPATH.parents[0],
                     f"{index}.parquet",
                 )
+
                 with open(filepath, mode="wb") as file:
                     file.write(response.content)
-                setattr(self.__class__, index, pd.read_parquet(filepath))
+
+                # Join new index with main index
+                sm_instance_index = pd.read_parquet(filepath)
+                sm_instance_index = sm_instance_index.merge(
+                    self.index, on="SeriesInstanceUID", how="left"
+                )
+
+                setattr(self.__class__, index, sm_instance_index)
                 self.indices_overview[index]["installed"] = True
+
             else:
                 logger.error(
                     f"Failed to fetch index from URL {self.indices_overview[index]['url']}: {response.status_code}"
@@ -501,7 +548,7 @@ class IDCClient:
                 ohif_v2, ohif_v3, or slim. If not provided, default viewers will be used.
 
         Returns:
-            string containing the IDC viewer URL for the given SeriesInstanceUID
+            string containing the IDC viewer URL for the requested selection
         """
 
         if seriesInstanceUID is None and studyInstanceUID is None:
@@ -574,7 +621,7 @@ class IDCClient:
             if seriesInstanceUID is None:
                 viewer_url = f"https://viewer.imaging.datacommons.cancer.gov/v3/viewer/?StudyInstanceUIDs={studyInstanceUID}"
             else:
-                viewer_url = f"https://viewer.imaging.datacommons.cancer.gov/v3/viewer/?StudyInstanceUIDs={studyInstanceUID}&SeriesInstanceUID={seriesInstanceUID}"
+                viewer_url = f"https://viewer.imaging.datacommons.cancer.gov/v3/viewer/?StudyInstanceUIDs={studyInstanceUID}&SeriesInstanceUIDs={seriesInstanceUID}"
         elif viewer_selector == "volview":
             # TODO! Not implemented yet
             viewer_url = None
@@ -627,6 +674,14 @@ class IDCClient:
         # create a copy of the index
         index_df_copy = self.index
 
+        # use default hierarchy
+        if dirTemplate is not None:
+            hierarchy = self._generate_sql_concat_for_building_directory(
+                dirTemplate=dirTemplate, downloadDir=downloadDir
+            )
+        else:
+            hierarchy = "NULL"
+
         # Extract s3 url and crdc_series_uuid from the manifest copy commands
         # Next, extract crdc_series_uuid from aws_series_url in the index and
         # try to verify if every series in the manifest is present in the index
@@ -634,7 +689,7 @@ class IDCClient:
         # TODO: need to remove the assumption that manifest commands will have 'cp'
         #  and need to parse S3 URL directly
         # ruff: noqa
-        sql = """
+        sql = f"""
             PRAGMA disable_progress_bar;
             WITH
             index_temp AS (
@@ -642,19 +697,21 @@ class IDCClient:
                 seriesInstanceUID,
                 series_aws_url,
                 series_size_MB,
-                REGEXP_EXTRACT(series_aws_url, '(?:.*?\\/){3}([^\\/?#]+)', 1) index_crdc_series_uuid
+                {hierarchy} AS path,
+                REGEXP_EXTRACT(series_aws_url, '(?:.*?\\/){{3}}([^\\/?#]+)', 1) index_crdc_series_uuid
             FROM
                 index_df_copy),
             manifest_temp AS (
             SELECT
                 manifest_cp_cmd,
-                REGEXP_EXTRACT(manifest_cp_cmd, '(?:.*?\\/){3}([^\\/?#]+)', 1) AS manifest_crdc_series_uuid,
-                REGEXP_REPLACE(regexp_replace(manifest_cp_cmd, 'cp ', ''), '\\s[^\\s]*$', '') AS s3_url,
+                REGEXP_EXTRACT(manifest_cp_cmd, '(?:.*?\\/){{3}}([^\\/?#]+)', 1) AS manifest_crdc_series_uuid,
+                REGEXP_EXTRACT(manifest_cp_cmd, 's3://\\S+') AS s3_url,
             FROM
                 manifest_df )
             SELECT
                 seriesInstanceuid,
                 s3_url,
+                path,
                 series_size_MB,
                 index_crdc_series_uuid is not NULL as crdc_series_uuid_match,
                 s3_url==series_aws_url AS s3_url_match,
@@ -682,12 +739,83 @@ class IDCClient:
             missing_manifest_cp_cmds = merged_df.loc[
                 ~merged_df["crdc_series_uuid_match"], "manifest_cp_cmd"
             ]
-            logger.error(
-                "The following manifest copy commands are not recognized as referencing any associated series in the index.\n"
+            missing_in_main_cnt = len(missing_manifest_cp_cmds.tolist())
+            logger.warning(
+                f"The total of {missing_in_main_cnt} copy commands are not recognized as referencing any associated series in the main index.\n"
                 "This means either these commands are invalid, or they may correspond to files available in a release of IDC\n"
-                f"different from {self.get_idc_version()} used in this version of idc-index. The corresponding files will not be downloaded.\n"
+                f"different from {self.get_idc_version()} used in this version of idc-index. Prior data releases will be checked next."
             )
-            logger.error("\n" + "\n".join(missing_manifest_cp_cmds.tolist()))
+
+            logger.debug(
+                "Checking if the requested data is available in other idc versions "
+            )
+            missing_series_sql = f"""
+            PRAGMA disable_progress_bar;
+            WITH
+            combined_index AS
+            (SELECT
+                *,
+                {hierarchy} AS path,
+            FROM
+                index_df_copy
+            union by name
+            SELECT
+                *,
+                 {hierarchy} AS path,
+            FROM
+                '{self.previous_versions_index_path}' pvip
+
+            ),
+            index_temp AS (
+            SELECT
+                seriesInstanceUID,
+                series_aws_url,
+                series_size_MB,
+                path,
+                REGEXP_EXTRACT(series_aws_url, '(?:.*?\\/){{3}}([^\\/?#]+)', 1) index_crdc_series_uuid
+            FROM
+                combined_index),
+            manifest_temp AS (
+            SELECT
+                manifest_cp_cmd,
+                REGEXP_EXTRACT(manifest_cp_cmd, '(?:.*?\\/){{3}}([^\\/?#]+)', 1) AS manifest_crdc_series_uuid,
+                REGEXP_REPLACE(regexp_replace(manifest_cp_cmd, 'cp ', ''), '\\s[^\\s]*$', '') AS s3_url,
+            FROM
+                manifest_df )
+            SELECT
+                seriesInstanceuid,
+                s3_url,
+                path,
+                series_size_MB,
+                index_crdc_series_uuid is not NULL as crdc_series_uuid_match,
+                TRIM(s3_url) = TRIM(series_aws_url) AS s3_url_match,
+                manifest_temp.manifest_cp_cmd,
+            CASE
+                WHEN TRIM(s3_url) = TRIM(series_aws_url) THEN 'aws'
+            ELSE
+                'unknown'
+            END
+                AS endpoint
+            FROM
+                manifest_temp
+            LEFT JOIN
+                index_temp
+            ON
+                index_temp.index_crdc_series_uuid = manifest_temp.manifest_crdc_series_uuid
+            """
+            merged_df = duckdb.query(missing_series_sql).df()
+            if not all(merged_df["crdc_series_uuid_match"]):
+                missing_manifest_cp_cmds = merged_df.loc[
+                    ~merged_df["crdc_series_uuid_match"], "manifest_cp_cmd"
+                ]
+                logger.error(
+                    "The following manifest copy commands are not recognized as referencing any associated series in any release of IDC.\n"
+                    "This means either these commands are invalid. Please submit an issue on https://github.com/ImagingDataCommons/idc-index/issues \n"
+                    "The corresponding files could not be downloaded.\n"
+                )
+                logger.error("\n" + "\n".join(missing_manifest_cp_cmds.tolist()))
+            else:
+                logger.info("All of the identifiers from manifest have been resolved!")
 
         if validate_manifest:
             # Check if there is more than one endpoint
@@ -738,29 +866,29 @@ class IDCClient:
         total_size = merged_df["series_size_MB"].sum()
         total_size = round(total_size, 2)
 
-        if dirTemplate is not None:
-            hierarchy = self._generate_sql_concat_for_building_directory(
-                dirTemplate=dirTemplate, downloadDir=downloadDir
-            )
-            sql = f"""
-                WITH temp as
-                    (
-                        SELECT
-                            seriesInstanceUID,
-                            s3_url
-                        FROM
-                            merged_df
-                    )
-                SELECT
-                    s3_url,
-                    {hierarchy} as path
-                FROM
-                    temp
-                JOIN
-                    index using (seriesInstanceUID)
-                """
-            logger.debug(f"About to run this query:\n{sql}")
-            merged_df = self.sql_query(sql)
+        # if dirTemplate is not None:
+        #     hierarchy = self._generate_sql_concat_for_building_directory(
+        #         dirTemplate=dirTemplate, downloadDir=downloadDir
+        #     )
+        #     sql = f"""
+        #         WITH temp as
+        #             (
+        #                 SELECT
+        #                     seriesInstanceUID,
+        #                     s3_url
+        #                 FROM
+        #                     merged_df
+        #             )
+        #         SELECT
+        #             s3_url,
+        #             {hierarchy} as path
+        #         FROM
+        #             temp
+        #         JOIN
+        #             index using (seriesInstanceUID)
+        #         """
+        #     logger.debug(f"About to run this query:\n{sql}")
+        #     merged_df = self.sql_query(sql)
         # Write a temporary manifest file
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as temp_manifest_file:
             if use_s5cmd_sync and len(os.listdir(downloadDir)) != 0:
@@ -865,41 +993,40 @@ class IDCClient:
         runtime_errors = []
 
         if show_progress_bar:
-            total_size_bytes = size_MB * 10**6  # Convert MB to bytes
-            # temporary place holder. Accurate size is calculated in the next step
+            total_size_to_be_downloaded_bytes = size_MB * (10**6)
             initial_size_bytes = 0
             # Calculate the initial size of the directory
             for directory in list_of_directories:
                 initial_size_bytes = IDCClient._get_dir_sum_file_size(directory)
 
-            logger.info("Initial size of the directory: %s bytes", initial_size_bytes)
             logger.info(
-                "Approximate size of the files that need to be downloaded: %s bytes",
-                total_size_bytes,
+                "Initial size of the directory: %s",
+                IDCClient._format_size_bytes(initial_size_bytes),
+            )
+            logger.info(
+                "Approximate size of the files that need to be downloaded: %s",
+                IDCClient._format_size(size_MB),
             )
 
             pbar = tqdm(
-                total=total_size_bytes,
+                total=total_size_to_be_downloaded_bytes,
                 unit="B",
                 unit_scale=True,
                 desc="Downloading data",
             )
 
             while True:
+                time.sleep(0.5)
                 downloaded_bytes = 0
                 for directory in list_of_directories:
                     downloaded_bytes += IDCClient._get_dir_sum_file_size(directory)
                 downloaded_bytes -= initial_size_bytes
                 pbar.n = min(
-                    downloaded_bytes, total_size_bytes
+                    downloaded_bytes, total_size_to_be_downloaded_bytes
                 )  # Prevent the progress bar from exceeding 100%
                 pbar.refresh()
-
                 if process.poll() is not None:
                     break
-
-                time.sleep(0.5)
-
             # Wait for the process to finish
             _, stderr = process.communicate()
             pbar.close()
@@ -1133,7 +1260,7 @@ Destination folder is not empty and sync size is less than total size.
                         logger.info(
                             f"Requested total download size is {total_size} MB, \
                                     however at least {existing_data_size} MB is already present,\
-                                    so downloading only remaining upto {sync_size} MB\n\
+                                    so downloading only remaining up to {sync_size} MB\n\
                                     Please note that disk sizes are calculated at series level, \
                                     so if individual files are missing, displayed progress bar may\
                                     not be accurate."
@@ -1216,6 +1343,17 @@ Destination folder is not empty and sync size is less than total size.
             return f"{round(size_GB, 2)} GB"
         return f"{round(size_MB, 2)} MB"
 
+    @staticmethod
+    def _format_size_bytes(size_bytes):
+        size_MB = size_bytes / (10**6)
+        size_GB = size_MB / 1000
+
+        if size_GB >= 1:
+            return f"{round(size_GB, 2)} GB"
+        if size_MB >= 1:
+            return f"{round(size_MB, 2)} MB"
+        return f"{round(size_bytes, 2)} bytes"
+
     def download_from_manifest(
         self,
         manifestFile: str,
@@ -1245,9 +1383,7 @@ Destination folder is not empty and sync size is less than total size.
             ValueError: If the download directory does not exist.
         """
 
-        downloadDir = os.path.abspath(downloadDir).replace("\\", "/")
-        if not os.path.exists(downloadDir):
-            raise ValueError("Download directory does not exist.")
+        downloadDir = self._check_create_directory(downloadDir)
 
         # validate the manifest
         (
@@ -1402,6 +1538,7 @@ Destination folder is not empty and sync size is less than total size.
         patientId=None,
         studyInstanceUID=None,
         seriesInstanceUID=None,
+        sopInstanceUID=None,
         quiet=True,
         show_progress_bar=True,
         use_s5cmd_sync=False,
@@ -1417,6 +1554,7 @@ Destination folder is not empty and sync size is less than total size.
             patientId: string or list of strings containing the values of PatientID to filter by
             studyInstanceUID: string or list of strings containing the values of DICOM StudyInstanceUID to filter by
             seriesInstanceUID: string or list of strings containing the values of DICOM SeriesInstanceUID to filter by
+            sopInstanceUID: string or list of strings containing the values of DICOM SOPInstanceUID to filter by
             quiet (bool): If True, suppresses the output of the subprocess. Defaults to True
             show_progress_bar (bool): If True, tracks the progress of download
             use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
@@ -1424,24 +1562,43 @@ Destination folder is not empty and sync size is less than total size.
 
         """
 
-        downloadDir = os.path.abspath(downloadDir).replace("\\", "/")
-        if not os.path.exists(downloadDir):
-            raise ValueError("Download directory does not exist.")
+        downloadDir = self._check_create_directory(downloadDir)
+
+        # If SOPInstanceUID(s) are given, we need to join the main index with the instance-level index
+        if sopInstanceUID:
+            if hasattr(
+                self, "sm_instance_index"
+            ):  # check if instance-level index is installed
+                index_to_be_filtered = self.sm_instance_index
+            else:
+                logger.error(
+                    "Instance-level access not possible because instance-level index not installed."
+                )
+                raise ValueError(
+                    "Instance-level access not possible because instance-level index not installed."
+                )
+        else:
+            index_to_be_filtered = self.index
 
         result_df = self._safe_filter_by_selection(
-            self.index,
+            index_to_be_filtered,
             collection_id=collection_id,
             patientId=patientId,
             studyInstanceUID=studyInstanceUID,
             seriesInstanceUID=seriesInstanceUID,
+            sopInstanceUID=sopInstanceUID,
         )
 
-        total_size = round(result_df["series_size_MB"].sum(), 2)
+        if not sopInstanceUID:
+            total_size = round(result_df["series_size_MB"].sum(), 2)
+        else:
+            total_size_bytes = round(result_df["instance_size"].sum(), 2)
+            total_size = total_size_bytes / (10**6)  # in MB
         logger.info("Total size of files to download: " + self._format_size(total_size))
         logger.info(
             "Total free space on disk: "
             + str(psutil.disk_usage(downloadDir).free / (1000 * 1000 * 1000))
-            + "GB"
+            + " GB"
         )
 
         if dry_run:
@@ -1455,51 +1612,76 @@ Destination folder is not empty and sync size is less than total size.
                 downloadDir=downloadDir,
                 dirTemplate=dirTemplate,
             )
-            sql = f"""
-                WITH temp as
-                    (
-                        SELECT
-                            seriesInstanceUID
-                        FROM
-                            result_df
-                    )
-                SELECT
-                    series_aws_url,
-                    {hierarchy} as path
-                FROM
-                    temp
-                JOIN
-                    index using (seriesInstanceUID)
-                """
+            if sopInstanceUID:
+                sql = f"""
+                    WITH temp as
+                        (
+                            SELECT
+                                sopInstanceUID
+                            FROM
+                                result_df
+                        )
+                    SELECT
+                        CONCAT(TRIM('*' FROM series_aws_url), crdc_instance_uuid, '.dcm') as instance_url,
+                        CONCAT({hierarchy}, '/') as path
+                    FROM
+                        temp
+                    JOIN
+                        sm_instance_index using (sopInstanceUID)
+                    """
+            else:
+                sql = f"""
+                    WITH temp as
+                        (
+                            SELECT
+                                seriesInstanceUID
+                            FROM
+                                result_df
+                        )
+                    SELECT
+                        series_aws_url,
+                        {hierarchy} as path
+                    FROM
+                        temp
+                    JOIN
+                        index using (seriesInstanceUID)
+                    """
             result_df = self.sql_query(sql)
-            # Download the files
-            # make temporary file to store the list of files to download
+            # Download the files and make temporary file to store the list of files to download
+
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as manifest_file:
+            # Determine column containing the URL for instance / series-level access
+            if sopInstanceUID:
+                if not "instance_url" in result_df:
+                    result_df["instance_url"] = (
+                        result_df["series_aws_url"].replace("/*", "/")
+                        + result_df["crdc_instance_uuid"]
+                        + ".dcm"
+                    )
+                url_column = "instance_url"
+            else:
+                url_column = "series_aws_url"
+
             if use_s5cmd_sync and len(os.listdir(downloadDir)) != 0:
                 if dirTemplate is not None:
                     result_df["s5cmd_cmd"] = (
-                        "sync "
-                        + result_df["series_aws_url"]
-                        + ' "'
-                        + result_df["path"]
-                        + '"'
+                        "sync " + result_df[url_column] + ' "' + result_df["path"] + '"'
                     )
                 else:
                     result_df["s5cmd_cmd"] = (
-                        "sync " + result_df["series_aws_url"] + ' "' + downloadDir + '"'
+                        "sync " + result_df[url_column] + ' "' + downloadDir + '"'
                     )
             elif dirTemplate is not None:
                 result_df["s5cmd_cmd"] = (
-                    "cp " + result_df["series_aws_url"] + ' "' + result_df["path"] + '"'
+                    "cp " + result_df[url_column] + ' "' + result_df["path"] + '"'
                 )
             else:
                 result_df["s5cmd_cmd"] = (
-                    "cp " + result_df["series_aws_url"] + ' "' + downloadDir + '"'
+                    "cp " + result_df[url_column] + ' "' + downloadDir + '"'
                 )
 
             # Combine all commands into a single string with newline separators
             commands = "\n".join(result_df["s5cmd_cmd"])
-
             manifest_file.write(commands)
 
             if dirTemplate is not None:
@@ -1521,6 +1703,44 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             use_s5cmd_sync=use_s5cmd_sync,
             dirTemplate=dirTemplate,
             list_of_directories=list_of_directories,
+        )
+
+    def download_dicom_instance(
+        self,
+        sopInstanceUID,
+        downloadDir,
+        dry_run=False,
+        quiet=True,
+        show_progress_bar=True,
+        use_s5cmd_sync=False,
+        dirTemplate=DOWNLOAD_HIERARCHY_DEFAULT,
+    ) -> None:
+        """
+        Download the files corresponding to the seriesInstanceUID to the specified directory.
+
+        Args:
+            sopInstanceUID: string or list of strings containing the values of DICOM SOPInstanceUID to filter by
+            downloadDir: string containing the path to the directory to download the files to
+            dry_run: calculates the size of the cohort but download does not start
+            quiet (bool): If True, suppresses the output of the subprocess. Defaults to True.
+            show_progress_bar (bool): If True, tracks the progress of download
+            use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
+            dirTemplate (str): Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
+
+        Returns: None
+
+        Raises:
+            TypeError: If sopInstanceUID(s) passed is(are) not a string or list
+
+        """
+        self.download_from_selection(
+            downloadDir,
+            sopInstanceUID=sopInstanceUID,
+            dry_run=dry_run,
+            quiet=quiet,
+            show_progress_bar=show_progress_bar,
+            use_s5cmd_sync=use_s5cmd_sync,
+            dirTemplate=dirTemplate,
         )
 
     def download_dicom_series(
@@ -1689,4 +1909,11 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         """
 
         index = self.index
+        # TODO: find a more elegant way to automate the following
+        if hasattr(self, "sm_index"):
+            sm_index = self.sm_index
+        if hasattr(self, "sm_instance_index"):
+            sm_instance_index = self.sm_instance_index
+        if hasattr(self, "clinical_index"):
+            clinical_index = self.clinical_index
         return duckdb.query(sql_query).to_df()

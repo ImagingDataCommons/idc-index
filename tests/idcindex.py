@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+import requests
 from click.testing import CliRunner
 from idc_index import IDCClient, cli
 
@@ -16,6 +17,17 @@ from idc_index import IDCClient, cli
 # python -m unittest -vv tests/idcindex.py
 
 logging.basicConfig(level=logging.DEBUG)
+
+
+def remote_file_exists(url):
+    try:
+        response = requests.head(url, allow_redirects=True)
+        # Check if the status code indicates success
+        return response.status_code == 200
+    except requests.RequestException as e:
+        # Handle any exceptions (e.g., network issues)
+        print(f"An error occurred: {e}")
+        return False
 
 
 @pytest.fixture(autouse=True)
@@ -173,6 +185,17 @@ class TestIDCClient(unittest.TestCase):
                 downloadDir=temp_dir,
             )
             self.assertEqual(sum([len(files) for r, d, files in os.walk(temp_dir)]), 3)
+
+    def test_download_dicom_instance(self):
+        i = IDCClient()
+        i.fetch_index("sm_instance_index")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            self.client.download_dicom_instance(
+                sopInstanceUID="1.3.6.1.4.1.5962.99.1.528744472.1087975700.1641206284312.14.0",
+                downloadDir=temp_dir,
+            )
+
+            self.assertEqual(sum([len(files) for r, d, files in os.walk(temp_dir)]), 1)
 
     def test_download_with_template(self):
         dirTemplateValues = [
@@ -481,11 +504,7 @@ class TestIDCClient(unittest.TestCase):
             # is fully resolved, the manifest below should not be empty, and this test should be updated
             # with count equal to 5
             with open(temp_manifest_file) as file:
-                assert len(file.readlines()) == 0
-
-    def test_list_indices(self):
-        i = IDCClient()
-        assert i.indices_overview  # assert that dict was created
+                assert len(file.readlines()) == 5
 
     def test_fetch_index(self):
         i = IDCClient()
@@ -493,6 +512,12 @@ class TestIDCClient(unittest.TestCase):
         i.fetch_index("sm_index")
         assert i.indices_overview["sm_index"]["installed"] is True
         assert hasattr(i, "sm_index")
+
+    def test_indices_urls(self):
+        i = IDCClient()
+        for index in i.indices_overview:
+            if i.indices_overview[index]["url"] is not None:
+                assert remote_file_exists(i.indices_overview[index]["url"])
 
 
 if __name__ == "__main__":
