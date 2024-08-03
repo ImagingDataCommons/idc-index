@@ -16,3 +16,11 @@ idc\_index.index module
    :members:
    :undoc-members:
    :show-inheritance:
+
+idc\_index.cli module
+-----------------------
+
+.. automodule:: idc_index.cli
+   :members:
+   :undoc-members:
+   :show-inheritance:
