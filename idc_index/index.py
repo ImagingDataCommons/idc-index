@@ -80,6 +80,11 @@ class IDCClient:
                 "installed": True,
                 "url": None,
             },
+            "previous_versions_index": {
+                "description": "index containing one row per DICOM series from all previous IDC versions that are not in current version.",
+                "installed": True,
+                "url": None,
+            },
             "sm_index": {
                 "description": "DICOM Slide Microscopy series-level index.",
                 "installed": False,
