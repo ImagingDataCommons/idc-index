@@ -463,25 +463,17 @@ class TestIDCClient(unittest.TestCase):
 
     def test_prior_version_manifest(self):
         c = IDCClient()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            (
-                total_size,
-                endpoint_to_use,
-                temp_manifest_file,
-                list_of_directories,
-            ) = c._validate_update_manifest_and_get_download_size(
-                "./prior_version_manifest.s5cmd",
-                temp_dir,
-                True,
-                False,
-                IDCClient.DOWNLOAD_HIERARCHY_DEFAULT,
-            )
 
-            # TODO: once issue https://github.com/ImagingDataCommons/idc-index/issues/100
-            # is fully resolved, the manifest below should not be empty, and this test should be updated
-            # with count equal to 5
-            with open(temp_manifest_file) as file:
-                assert len(file.readlines()) == 5
+        with tempfile.TemporaryDirectory() as temp_dir:
+            c.download_from_manifest(
+                manifestFile="./prior_version_manifest.s5cmd",
+                downloadDir=temp_dir,
+                quiet=True,
+                validate_manifest=True,
+                show_progress_bar=True,
+                use_s5cmd_sync=False,
+            )
+            self.assertNotEqual(len(os.listdir(temp_dir)), 0)
 
     def test_list_indices(self):
         i = IDCClient()

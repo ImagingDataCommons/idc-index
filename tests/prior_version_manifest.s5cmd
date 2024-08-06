@@ -1,5 +1,5 @@
-cp s3://idc-open-data/040fd3e1-0088-4bfd-8439-55e3c5d80a56/*  .
-cp s3://idc-open-data/04553d0f-1af9-414d-b631-cc31624aced5/*  .
-cp s3://idc-open-data/068346bf-16ef-4e45-87bf-87feb576a21c/*  .
-cp s3://idc-open-data/07908d47-5e85-45f3-9649-79c15f606f52/*  .
-cp s3://idc-open-data/099d180f-1d79-402d-abad-bfd8e2736b04/*  .
+cp s3://idc-open-data/2f77262c-3a4a-4e5a-bdc0-056dc2837f15/* .
+cp s3://idc-open-data/35459457-bd4c-4eef-9579-47f12fc6928e/*  .
+cp s3://idc-open-data/9c9ab2bf-c784-4658-b0f9-d2e4b33f2dbf/*  .
+cp s3://idc-open-data/312788ec-8739-4e56-a857-efcab92b20ed/* .
+cp s3://idc-open-data/c27b80c9-0e90-416b-8eca-0b20bc0cf8e2/*  .
