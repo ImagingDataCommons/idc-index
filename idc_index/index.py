@@ -1507,7 +1507,9 @@ not be accurate."""
                 downloadDir=downloadDir,
                 dirTemplate=dirTemplate,
             )
-            sql = f"""
+        else:
+            hierarchy = f"CONCAT('{downloadDir}')"
+        sql = f"""
                 WITH temp as
                     (
                         SELECT
@@ -1525,9 +1527,9 @@ not be accurate."""
                 JOIN
                     index using (seriesInstanceUID)
                 """
-            result_df = self.sql_query(sql)
-            # Download the files
-            # make temporary file to store the list of files to download
+        result_df = self.sql_query(sql)
+        # Download the files
+        # make temporary file to store the list of files to download
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as manifest_file:
             if use_s5cmd_sync and len(os.listdir(downloadDir)) != 0:
                 if dirTemplate is not None:
