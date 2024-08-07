@@ -999,12 +999,12 @@ class IDCClient:
 
         Args:
             output (str): The output of s5cmd sync --dry-run command.
-            downloadDir (str): The directory to download the files to.
-            dirTemplate (str): Download directory hierarchy template.
+            s5cmd_sync_helper_df: helper df obtained after validation of manifest or filtering of selection, containing a minimum of "index_crdc_series_uuid", "s5cmd_cmd", "series_size_MB", "path" columns
 
         Returns:
             Path: The path to the generated synced manifest file.
             float: Download size in MB
+            list_of_directories: list of directories need to tracked for progress bar
         """
         logger.info("Parsing the s5cmd sync dry run output...")
 
@@ -1088,9 +1088,11 @@ class IDCClient:
             total_size (float): The total size of the files to be downloaded in MB.
             downloadDir (str): The local directory where the files will be downloaded.
             quiet (bool): If True, suppresses the stdout and stderr of the s5cmd command.
-            show_progress_bar (bool): If True, tracks the progress of download
-            use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
+            show_progress_bar (bool): If True, tracks the progress of download.
+            use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded.
             dirTemplate (str): Download directory hierarchy template.
+            list_of_directories(list): List of directories need to tracked for progress bar.
+            s5cmd_sync_helper_df (df): helper df obtained after validation of manifest or filtering of selection, containing a minimum of "index_crdc_series_uuid", "s5cmd_cmd", "series_size_MB", "path" columns.
 
         Raises:
             subprocess.CalledProcessError: If the s5cmd command fails.
@@ -1515,6 +1517,7 @@ not be accurate."""
                     )
                 SELECT
                     series_aws_url,
+                    REGEXP_EXTRACT(series_aws_url, '(?:.*?\\/){{3}}([^\\/?#]+)', 1) index_crdc_series_uuid,
                     {hierarchy} as path
                 FROM
                     temp
@@ -1571,7 +1574,9 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             use_s5cmd_sync=use_s5cmd_sync,
             dirTemplate=dirTemplate,
             list_of_directories=list_of_directories,
-            s5cmd_sync_helper_df=result_df,
+            s5cmd_sync_helper_df=result_df[
+                ["index_crdc_series_uuid", "s5cmd_cmd", "series_size_MB", "path"]
+            ],
         )
 
     def download_dicom_series(
