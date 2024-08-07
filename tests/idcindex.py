@@ -462,18 +462,47 @@ class TestIDCClient(unittest.TestCase):
             assert len(os.listdir(Path.cwd())) != 0
 
     def test_prior_version_manifest(self):
-        c = IDCClient()
+        # Define the values for each optional parameter
+        quiet_values = [True, False]
+        validate_manifest_values = [True, False]
+        show_progress_bar_values = [True, False]
+        use_s5cmd_sync_values = [True, False]
+        dirTemplateValues = [
+            None,
+            "%collection_id/%PatientID/%Modality/%StudyInstanceUID/%SeriesInstanceUID",
+            "%collection_id_%PatientID_%Modality_%StudyInstanceUID_%SeriesInstanceUID",
+        ]
+        # Generate all combinations of optional parameters
+        combinations = product(
+            quiet_values,
+            validate_manifest_values,
+            show_progress_bar_values,
+            use_s5cmd_sync_values,
+            dirTemplateValues,
+        )
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            c.download_from_manifest(
-                manifestFile="./prior_version_manifest.s5cmd",
-                downloadDir=temp_dir,
-                quiet=True,
-                validate_manifest=True,
-                show_progress_bar=True,
-                use_s5cmd_sync=False,
-            )
-            self.assertNotEqual(len(os.listdir(temp_dir)), 0)
+        # Test each combination
+        for (
+            quiet,
+            validate_manifest,
+            show_progress_bar,
+            use_s5cmd_sync,
+            dirTemplate,
+        ) in combinations:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                self.client.download_from_manifest(
+                    manifestFile="./prior_version_manifest.s5cmd",
+                    downloadDir=temp_dir,
+                    quiet=quiet,
+                    validate_manifest=validate_manifest,
+                    show_progress_bar=show_progress_bar,
+                    use_s5cmd_sync=use_s5cmd_sync,
+                    dirTemplate=dirTemplate,
+                )
+
+                self.assertEqual(
+                    sum([len(files) for r, d, files in os.walk(temp_dir)]), 5
+                )
 
     def test_list_indices(self):
         i = IDCClient()
