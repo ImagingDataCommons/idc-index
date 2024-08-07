@@ -692,12 +692,12 @@ class IDCClient:
             missing_manifest_cp_cmds = merged_df.loc[
                 ~merged_df["crdc_series_uuid_match"], "manifest_cp_cmd"
             ]
-            logger.error(
-                "The following manifest copy commands are not recognized as referencing any associated series in the index.\n"
+            missing_in_main_cnt = len(missing_manifest_cp_cmds.tolist())
+            logger.warning(
+                f"The total of {missing_in_main_cnt} copy commands are not recognized as referencing any associated series in the main index.\n"
                 "This means either these commands are invalid, or they may correspond to files available in a release of IDC\n"
-                f"different from {self.get_idc_version()} used in this version of idc-index. The corresponding files will not be downloaded.\n"
+                f"different from {self.get_idc_version()} used in this version of idc-index. Prior data releases will be checked next."
             )
-            logger.error("\n" + "\n".join(missing_manifest_cp_cmds.tolist()))
 
             logger.debug(
                 "Checking if the requested data is available in other idc versions "
@@ -767,6 +767,8 @@ class IDCClient:
                     "The corresponding files could not be downloaded.\n"
                 )
                 logger.error("\n" + "\n".join(missing_manifest_cp_cmds.tolist()))
+            else:
+                logger.info("All of the identifiers from manifest have been resolved!")
 
         if validate_manifest:
             # Check if there is more than one endpoint
