@@ -1518,6 +1518,7 @@ not be accurate."""
                 SELECT
                     series_aws_url,
                     REGEXP_EXTRACT(series_aws_url, '(?:.*?\\/){{3}}([^\\/?#]+)', 1) index_crdc_series_uuid,
+                    series_size_MB,
                     {hierarchy} as path
                 FROM
                     temp
