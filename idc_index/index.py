@@ -41,7 +41,7 @@ class IDCClient:
     CITATION_FORMAT_BIBTEX = "application/x-bibtex"
 
     # Singleton pattern
-    # NOTE: In the future, one may want to use multiple clients e.g. for sub-datasets so a attribute-singleton as shown bewlo seems a better option.
+    # NOTE: In the future, one may want to use multiple clients e.g. for sub-datasets so a attribute-singleton as shown below seems a better option.
     # _instance: IDCClient
     # def __new__(cls):
     #     if not hasattr(cls, "_instance") or getattr(cls, "_instance") is None:
@@ -74,6 +74,8 @@ class IDCClient:
             {"Modality": pd.Series.unique, "series_size_MB": "sum"}
         )
 
+        idc_version = f"v{Version(idc_index_data.__version__).major}"
+
         self.indices_overview = {
             "index": {
                 "description": "Main index containing one row per DICOM series.",
@@ -94,6 +96,11 @@ class IDCClient:
                 "description": "DICOM Slide Microscopy instance-level index.",
                 "installed": False,
                 "url": f"{asset_endpoint_url}/sm_instance_index.parquet",
+            },
+            "clinical_index": {
+                "description": "Index of clinical data accompanying the available images.",
+                "installed": False,
+                "url": f"https://idc-open-metadata.s3.amazonaws.com/bigquery_export/idc_{idc_version}_clinical/column_metadata/000000000000.parquet",
             },
         }
 
