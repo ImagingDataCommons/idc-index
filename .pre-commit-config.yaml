@@ -60,6 +60,7 @@ repos:
     rev: "v2.2.6"
     hooks:
       - id: codespell
+        args: ["--quiet-level 3"]
 
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: "v0.9.0.6"
