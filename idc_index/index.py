@@ -24,7 +24,7 @@ gcp_endpoint_url = "https://storage.googleapis.com"
 asset_endpoint_url = f"https://github.com/ImagingDataCommons/idc-index-data/releases/download/{idc_index_data.__version__}"
 # TODO: remove later
 asset_endpoint_url = (
-    f"https://github.com/ImagingDataCommons/idc-index-data/releases/download/18.2.0"
+    "https://github.com/ImagingDataCommons/idc-index-data/releases/download/18.2.0"
 )
 
 
@@ -129,7 +129,7 @@ class IDCClient:
         patientId,
         studyInstanceUID,
         seriesInstanceUID,
-        sopInstanceUID,
+        sopInstanceUID=None,
     ):
         if collection_id is not None:
             if not isinstance(collection_id, str) and not isinstance(
@@ -1463,7 +1463,10 @@ Destination folder is not empty and sync size is less than total size.
                 index_to_be_filtered = self.sm_instance_index
             else:
                 logger.error(
-                    f"Instance-level access not possible because instance-level index not installed."
+                    "Instance-level access not possible because instance-level index not installed."
+                )
+                raise ValueError(
+                    "Instance-level access not possible because instance-level index not installed."
                 )
         else:
             index_to_be_filtered = self.index
