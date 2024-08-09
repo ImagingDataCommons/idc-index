@@ -22,6 +22,11 @@ from tqdm import tqdm
 aws_endpoint_url = "https://s3.amazonaws.com"
 gcp_endpoint_url = "https://storage.googleapis.com"
 asset_endpoint_url = f"https://github.com/ImagingDataCommons/idc-index-data/releases/download/{idc_index_data.__version__}"
+# TODO: remove later
+asset_endpoint_url = (
+    f"https://github.com/ImagingDataCommons/idc-index-data/releases/download/18.2.0"
+)
+
 
 logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -119,7 +124,12 @@ class IDCClient:
 
     @staticmethod
     def _safe_filter_by_selection(
-        df_index, collection_id, patientId, studyInstanceUID, seriesInstanceUID
+        df_index,
+        collection_id,
+        patientId,
+        studyInstanceUID,
+        seriesInstanceUID,
+        sopInstanceUID,
     ):
         if collection_id is not None:
             if not isinstance(collection_id, str) and not isinstance(
@@ -139,6 +149,11 @@ class IDCClient:
                 seriesInstanceUID, list
             ):
                 raise TypeError("seriesInstanceUID must be a string or list of strings")
+        if sopInstanceUID is not None:
+            if not isinstance(sopInstanceUID, str) and not isinstance(
+                sopInstanceUID, list
+            ):
+                raise TypeError("sopInstanceUID must be a string or list of strings")
 
         if collection_id is not None:
             result_df = IDCClient._filter_by_collection_id(df_index, collection_id)
@@ -156,6 +171,11 @@ class IDCClient:
         if seriesInstanceUID is not None:
             result_df = IDCClient._filter_by_dicom_series_uid(
                 result_df, seriesInstanceUID
+            )
+
+        if sopInstanceUID is not None:
+            result_df = IDCClient._filter_by_dicom_instance_uid(
+                result_df, sopInstanceUID
             )
 
         return result_df
@@ -182,6 +202,11 @@ class IDCClient:
             "SeriesInstanceUID", df_index, dicom_series_uid
         )
 
+    def _filter_by_dicom_instance_uid(df_index, dicom_instance_uid):
+        return IDCClient._filter_dataframe_by_id(
+            "SOPInstanceUID", df_index, dicom_instance_uid
+        )
+
     @staticmethod
     def get_idc_version():
         """
@@ -192,7 +217,7 @@ class IDCClient:
 
     def fetch_index(self, index) -> None:
         """
-        Downloads requested index.
+        Downloads requested index and adds this index joined with the main index as respective class attribute.
 
         Args:
             index (str): Name of the index to be downloaded.
@@ -211,10 +236,19 @@ class IDCClient:
                     idc_index_data.IDC_INDEX_PARQUET_FILEPATH.parents[0],
                     f"{index}.parquet",
                 )
+
                 with open(filepath, mode="wb") as file:
                     file.write(response.content)
-                setattr(self.__class__, index, pd.read_parquet(filepath))
+
+                # Join new index with main index
+                sm_instance_index = pd.read_parquet(filepath)
+                sm_instance_index = sm_instance_index.merge(
+                    self.index, on="SeriesInstanceUID", how="left"
+                )
+
+                setattr(self.__class__, index, sm_instance_index)
                 self.indices_overview[index]["installed"] = True
+
             else:
                 logger.error(
                     f"Failed to fetch index from URL {self.indices_overview[index]['url']}: {response.status_code}"
@@ -1123,7 +1157,7 @@ Destination folder is not empty and sync size is less than total size.
                         logger.info(
                             f"Requested total download size is {total_size} MB, \
                                     however at least {existing_data_size} MB is already present,\
-                                    so downloading only remaining upto {sync_size} MB\n\
+                                    so downloading only remaining up to {sync_size} MB\n\
                                     Please note that disk sizes are calculated at series level, \
                                     so if individual files are missing, displayed progress bar may\
                                     not be accurate."
@@ -1392,6 +1426,7 @@ Destination folder is not empty and sync size is less than total size.
         patientId=None,
         studyInstanceUID=None,
         seriesInstanceUID=None,
+        sopInstanceUID=None,
         quiet=True,
         show_progress_bar=True,
         use_s5cmd_sync=False,
@@ -1407,6 +1442,7 @@ Destination folder is not empty and sync size is less than total size.
             patientId: string or list of strings containing the values of PatientID to filter by
             studyInstanceUID: string or list of strings containing the values of DICOM StudyInstanceUID to filter by
             seriesInstanceUID: string or list of strings containing the values of DICOM SeriesInstanceUID to filter by
+            sopInstanceUID: string or list of strings containing the values of DICOM SOPInstanceUID to filter by
             quiet (bool): If True, suppresses the output of the subprocess. Defaults to True
             show_progress_bar (bool): If True, tracks the progress of download
             use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
@@ -1418,21 +1454,36 @@ Destination folder is not empty and sync size is less than total size.
         if not os.path.exists(downloadDir):
             raise ValueError("Download directory does not exist.")
 
+        # If SOPInstanceUID(s) are given, we need to join the main index with the instance-level index
+        if sopInstanceUID:
+            assert self.indices_overview["sm_instance_index"][
+                "installed"
+            ]  # check if instance-level index is installed
+            index_to_be_filtered = self.sm_instance_index
+        else:
+            index_to_be_filtered = self.index
+
         result_df = self._safe_filter_by_selection(
-            self.index,
+            index_to_be_filtered,
             collection_id=collection_id,
             patientId=patientId,
             studyInstanceUID=studyInstanceUID,
             seriesInstanceUID=seriesInstanceUID,
+            sopInstanceUID=sopInstanceUID,
         )
 
-        total_size = round(result_df["series_size_MB"].sum(), 2)
-        logger.info("Total size of files to download: " + self._format_size(total_size))
-        logger.info(
-            "Total free space on disk: "
-            + str(psutil.disk_usage(downloadDir).free / (1000 * 1000 * 1000))
-            + "GB"
-        )
+        if not sopInstanceUID:
+            total_size = round(result_df["series_size_MB"].sum(), 2)
+            logger.info(
+                "Total size of files to download: " + self._format_size(total_size)
+            )
+            logger.info(
+                "Total free space on disk: "
+                + str(psutil.disk_usage(downloadDir).free / (1000 * 1000 * 1000))
+                + "GB"
+            )
+        else:
+            total_size = 0
 
         if dry_run:
             logger.info(
@@ -1445,51 +1496,77 @@ Destination folder is not empty and sync size is less than total size.
                 downloadDir=downloadDir,
                 dirTemplate=dirTemplate,
             )
-            sql = f"""
-                WITH temp as
-                    (
-                        SELECT
-                            seriesInstanceUID
-                        FROM
-                            result_df
-                    )
-                SELECT
-                    series_aws_url,
-                    {hierarchy} as path
-                FROM
-                    temp
-                JOIN
-                    index using (seriesInstanceUID)
-                """
+            if sopInstanceUID:
+                sql = f"""
+                    WITH temp as
+                        (
+                            SELECT
+                                sopInstanceUID
+                            FROM
+                                result_df
+                        )
+                    SELECT
+                        CONCAT(TRIM('*' FROM series_aws_url), crdc_instance_uuid, '.dcm') as instance_url,
+                        CONCAT({hierarchy}, '/') as path
+                    FROM
+                        temp
+                    JOIN
+                        sm_instance_index using (sopInstanceUID)
+                    """
+            else:
+                sql = f"""
+                    WITH temp as
+                        (
+                            SELECT
+                                seriesInstanceUID
+                            FROM
+                                result_df
+                        )
+                    SELECT
+                        series_aws_url,
+                        {hierarchy} as path
+                    FROM
+                        temp
+                    JOIN
+                        index using (seriesInstanceUID)
+                    """
             result_df = self.sql_query(sql)
-            # Download the files
-            # make temporary file to store the list of files to download
+            # Download the files and make temporary file to store the list of files to download
+
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as manifest_file:
+            # Determine column containing the URL for instance / series-level access
+            if sopInstanceUID:
+                if not "instance_url" in result_df:
+                    result_df["instance_url"] = (
+                        result_df["series_aws_url"].replace("/*", "/")
+                        + result_df["crdc_instance_uuid"]
+                        + ".dcm"
+                    )
+                url_column = "instance_url"
+            else:
+                url_column = "series_aws_url"
+
             if use_s5cmd_sync and len(os.listdir(downloadDir)) != 0:
                 if dirTemplate is not None:
                     result_df["s5cmd_cmd"] = (
-                        "sync "
-                        + result_df["series_aws_url"]
-                        + ' "'
-                        + result_df["path"]
-                        + '"'
+                        "sync " + result_df[url_column] + ' "' + result_df["path"] + '"'
                     )
                 else:
                     result_df["s5cmd_cmd"] = (
-                        "sync " + result_df["series_aws_url"] + ' "' + downloadDir + '"'
+                        "sync " + result_df[url_column] + ' "' + downloadDir + '"'
                     )
             elif dirTemplate is not None:
                 result_df["s5cmd_cmd"] = (
-                    "cp " + result_df["series_aws_url"] + ' "' + result_df["path"] + '"'
+                    "cp " + result_df[url_column] + ' "' + result_df["path"] + '"'
                 )
             else:
                 result_df["s5cmd_cmd"] = (
-                    "cp " + result_df["series_aws_url"] + ' "' + downloadDir + '"'
+                    "cp " + result_df[url_column] + ' "' + downloadDir + '"'
                 )
 
             # Combine all commands into a single string with newline separators
             commands = "\n".join(result_df["s5cmd_cmd"])
-
+            print(commands)
             manifest_file.write(commands)
 
             if dirTemplate is not None:
@@ -1511,6 +1588,44 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             use_s5cmd_sync=use_s5cmd_sync,
             dirTemplate=dirTemplate,
             list_of_directories=list_of_directories,
+        )
+
+    def download_dicom_instance(
+        self,
+        sopInstanceUID,
+        downloadDir,
+        dry_run=False,
+        quiet=True,
+        show_progress_bar=True,
+        use_s5cmd_sync=False,
+        dirTemplate=DOWNLOAD_HIERARCHY_DEFAULT,
+    ) -> None:
+        """
+        Download the files corresponding to the seriesInstanceUID to the specified directory.
+
+        Args:
+            sopInstanceUID: string or list of strings containing the values of DICOM SOPInstanceUID to filter by
+            downloadDir: string containing the path to the directory to download the files to
+            dry_run: calculates the size of the cohort but download does not start
+            quiet (bool): If True, suppresses the output of the subprocess. Defaults to True.
+            show_progress_bar (bool): If True, tracks the progress of download
+            use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
+            dirTemplate (str): Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
+
+        Returns: None
+
+        Raises:
+            TypeError: If sopInstanceUID(s) passed is(are) not a string or list
+
+        """
+        self.download_from_selection(
+            downloadDir,
+            sopInstanceUID=sopInstanceUID,
+            dry_run=dry_run,
+            quiet=quiet,
+            show_progress_bar=show_progress_bar,
+            use_s5cmd_sync=use_s5cmd_sync,
+            dirTemplate=dirTemplate,
         )
 
     def download_dicom_series(
@@ -1679,4 +1794,13 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         """
 
         index = self.index
+        # TODO: find a more elegant way to automate the following
+        try:
+            sm_index = self.sm_index
+        except Exception:
+            pass
+        try:
+            sm_instance_index = self.sm_instance_index
+        except Exception:
+            pass
         return duckdb.query(sql_query).to_df()
