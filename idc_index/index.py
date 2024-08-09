@@ -202,6 +202,7 @@ class IDCClient:
             "SeriesInstanceUID", df_index, dicom_series_uid
         )
 
+    @staticmethod
     def _filter_by_dicom_instance_uid(df_index, dicom_instance_uid):
         return IDCClient._filter_dataframe_by_id(
             "SOPInstanceUID", df_index, dicom_instance_uid
@@ -1456,10 +1457,14 @@ Destination folder is not empty and sync size is less than total size.
 
         # If SOPInstanceUID(s) are given, we need to join the main index with the instance-level index
         if sopInstanceUID:
-            assert self.indices_overview["sm_instance_index"][
-                "installed"
-            ]  # check if instance-level index is installed
-            index_to_be_filtered = self.sm_instance_index
+            if hasattr(
+                self, "sm_instance_index"
+            ):  # check if instance-level index is installed
+                index_to_be_filtered = self.sm_instance_index
+            else:
+                logger.error(
+                    f"Instance-level access not possible because instance-level index not installed."
+                )
         else:
             index_to_be_filtered = self.index
 
@@ -1795,12 +1800,8 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
 
         index = self.index
         # TODO: find a more elegant way to automate the following
-        try:
+        if hasattr(self, "sm_index"):
             sm_index = self.sm_index
-        except Exception:
-            pass
-        try:
+        if hasattr(self, "sm_instance_index"):
             sm_instance_index = self.sm_instance_index
-        except Exception:
-            pass
         return duckdb.query(sql_query).to_df()
