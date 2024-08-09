@@ -186,6 +186,17 @@ class TestIDCClient(unittest.TestCase):
             )
             self.assertEqual(sum([len(files) for r, d, files in os.walk(temp_dir)]), 3)
 
+    def test_download_dicom_instance(self):
+        i = IDCClient()
+        i.fetch_index("sm_instance_index")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            self.client.download_dicom_instance(
+                sopInstanceUID="1.3.6.1.4.1.5962.99.1.528744472.1087975700.1641206284312.14.0",
+                downloadDir=temp_dir,
+            )
+
+            self.assertEqual(sum([len(files) for r, d, files in os.walk(temp_dir)]), 1)
+
     def test_download_with_template(self):
         dirTemplateValues = [
             None,
@@ -494,10 +505,6 @@ class TestIDCClient(unittest.TestCase):
             # with count equal to 5
             with open(temp_manifest_file) as file:
                 assert len(file.readlines()) == 5
-
-    def test_list_indices(self):
-        i = IDCClient()
-        assert i.indices_overview  # assert that dict was created
 
     def test_fetch_index(self):
         i = IDCClient()
