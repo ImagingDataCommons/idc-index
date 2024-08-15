@@ -1777,4 +1777,11 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         """
 
         index = self.index
+        # TODO: find a more elegant way to automate the following:  https://www.perplexity.ai/search/write-python-code-that-iterate-XY9ppywbQFSRnOpgbwx_uQ
+        if hasattr(self, "sm_index"):
+            sm_index = self.sm_index
+        if hasattr(self, "sm_instance_index"):
+            sm_instance_index = self.sm_instance_index
+        if hasattr(self, "clinical_index"):
+            clinical_index = self.clinical_index
         return duckdb.query(sql_query).to_df()
