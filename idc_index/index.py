@@ -665,7 +665,7 @@ class IDCClient:
             SELECT
                 manifest_cp_cmd,
                 REGEXP_EXTRACT(manifest_cp_cmd, '(?:.*?\\/){{3}}([^\\/?#]+)', 1) AS manifest_crdc_series_uuid,
-                REGEXP_REPLACE(regexp_replace(manifest_cp_cmd, 'cp ', ''), '\\s[^\\s]*$', '') AS s3_url,
+                REGEXP_EXTRACT(manifest_cp_cmd, 's3://\\S+') AS s3_url,
             FROM
                 manifest_df )
             SELECT
