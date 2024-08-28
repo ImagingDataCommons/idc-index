@@ -508,7 +508,7 @@ class IDCClient:
                 ohif_v2, ohif_v3, or slim. If not provided, default viewers will be used.
 
         Returns:
-            string containing the IDC viewer URL for the given SeriesInstanceUID
+            string containing the IDC viewer URL for the requested selection
         """
 
         if seriesInstanceUID is None and studyInstanceUID is None:
@@ -581,7 +581,7 @@ class IDCClient:
             if seriesInstanceUID is None:
                 viewer_url = f"https://viewer.imaging.datacommons.cancer.gov/v3/viewer/?StudyInstanceUIDs={studyInstanceUID}"
             else:
-                viewer_url = f"https://viewer.imaging.datacommons.cancer.gov/v3/viewer/?StudyInstanceUIDs={studyInstanceUID}&SeriesInstanceUID={seriesInstanceUID}"
+                viewer_url = f"https://viewer.imaging.datacommons.cancer.gov/v3/viewer/?StudyInstanceUIDs={studyInstanceUID}&SeriesInstanceUIDs={seriesInstanceUID}"
         elif viewer_selector == "volview":
             # TODO! Not implemented yet
             viewer_url = None
