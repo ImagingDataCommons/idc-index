@@ -207,6 +207,16 @@ class IDCClient:
         idc_version = Version(idc_index_data.__version__).major
         return f"v{idc_version}"
 
+    @staticmethod
+    def _check_create_directory(download_dir):
+        """
+        Mimic behavior of s5cmd and create the download directory if it does not exist
+        """
+        download_dir = Path(download_dir)
+        download_dir.mkdir(parents=True, exist_ok=True)
+
+        return str(download_dir.resolve())
+
     def fetch_index(self, index) -> None:
         """
         Downloads requested index.
@@ -1333,9 +1343,7 @@ Destination folder is not empty and sync size is less than total size.
             ValueError: If the download directory does not exist.
         """
 
-        downloadDir = os.path.abspath(downloadDir).replace("\\", "/")
-        if not os.path.exists(downloadDir):
-            raise ValueError("Download directory does not exist.")
+        downloadDir = self._check_create_directory(downloadDir)
 
         # validate the manifest
         (
@@ -1512,9 +1520,7 @@ Destination folder is not empty and sync size is less than total size.
 
         """
 
-        downloadDir = os.path.abspath(downloadDir).replace("\\", "/")
-        if not os.path.exists(downloadDir):
-            raise ValueError("Download directory does not exist.")
+        downloadDir = self._check_create_directory(downloadDir)
 
         result_df = self._safe_filter_by_selection(
             self.index,
