@@ -1531,6 +1531,17 @@ Destination folder is not empty and sync size is less than total size.
         )
 
         total_size = round(result_df["series_size_MB"].sum(), 2)
+        disk_free_space_MB = psutil.disk_usage(downloadDir).free / (1000 * 1000)
+        if disk_free_space_MB < total_size:
+            logger.error("Not enough free space on disk to download the files.")
+            logger.error(
+                "Total size of files to download: " + self._format_size(total_size)
+            )
+            logger.error(
+                "Total free space on disk: " + self._format_size(disk_free_space_MB)
+            )
+            return
+
         logger.info("Total size of files to download: " + self._format_size(total_size))
         logger.info(
             "Total free space on disk: "
