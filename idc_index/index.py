@@ -100,7 +100,7 @@ class IDCClient:
             "clinical_index": {
                 "description": "Index of clinical data accompanying the available images.",
                 "installed": False,
-                "url": f"https://idc-open-metadata.s3.amazonaws.com/bigquery_export/idc_{idc_version}_clinical/column_metadata/000000000000.parquet",
+                "url": f"{asset_endpoint_url}/clinical_index.parquet",
             },
         }
 
