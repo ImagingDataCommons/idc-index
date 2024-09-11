@@ -1560,7 +1560,6 @@ Destination folder is not empty and sync size is less than total size.
                 downloadDir=downloadDir,
                 dirTemplate=dirTemplate,
             )
-            index = self.index
             sql = f"""
                 WITH temp as
                     (
@@ -1577,7 +1576,7 @@ Destination folder is not empty and sync size is less than total size.
                 JOIN
                     index using (seriesInstanceUID)
                 """
-            result_df = duckdb.query(sql).to_df()
+            result_df = self.sql_query(sql)
             # Download the files
             # make temporary file to store the list of files to download
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as manifest_file:
