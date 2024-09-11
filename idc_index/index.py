@@ -100,7 +100,7 @@ class IDCClient:
             "clinical_index": {
                 "description": "Index of clinical data accompanying the available images.",
                 "installed": False,
-                "url": f"https://idc-open-metadata.s3.amazonaws.com/bigquery_export/idc_{idc_version}_clinical/column_metadata/000000000000.parquet",
+                "url": f"{asset_endpoint_url}/clinical_index.parquet",
             },
         }
 
@@ -1794,6 +1794,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         """
 
         index = self.index
+        logger.debug("Executing SQL query: " + sql_query)
         # TODO: find a more elegant way to automate the following:  https://www.perplexity.ai/search/write-python-code-that-iterate-XY9ppywbQFSRnOpgbwx_uQ
         if hasattr(self, "sm_index"):
             sm_index = self.sm_index
