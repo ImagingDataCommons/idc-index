@@ -1560,6 +1560,7 @@ Destination folder is not empty and sync size is less than total size.
                 downloadDir=downloadDir,
                 dirTemplate=dirTemplate,
             )
+            index = self.index
             sql = f"""
                 WITH temp as
                     (
@@ -1576,7 +1577,7 @@ Destination folder is not empty and sync size is less than total size.
                 JOIN
                     index using (seriesInstanceUID)
                 """
-            result_df = self.sql_query(sql)
+            result_df = duckdb.query(sql).to_df()
             # Download the files
             # make temporary file to store the list of files to download
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as manifest_file:
@@ -1794,6 +1795,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         """
 
         index = self.index
+        logger.debug("Executing SQL query: " + sql_query)
         # TODO: find a more elegant way to automate the following:  https://www.perplexity.ai/search/write-python-code-that-iterate-XY9ppywbQFSRnOpgbwx_uQ
         if hasattr(self, "sm_index"):
             sm_index = self.sm_index
