@@ -1587,11 +1587,12 @@ Destination folder is not empty and sync size is less than total size.
         if not sopInstanceUID:
             total_size = round(result_df["series_size_MB"].sum(), 2)
         else:
-            total_size = round(result_df["instance_size"].sum(), 2)
+            total_size_bytes = round(result_df["instance_size"].sum(), 2)
             logger.info(
                 "Total size of files to download: "
-                + self._format_size(total_size, size_in_bytes=True)
+                + self._format_size(total_size_bytes, size_in_bytes=True)
             )
+            total_size = total_size_bytes / (10**6)
 
         disk_free_space_MB = psutil.disk_usage(downloadDir).free / (1000 * 1000)
         if disk_free_space_MB < total_size:
