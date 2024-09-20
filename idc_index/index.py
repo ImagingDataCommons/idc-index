@@ -1001,7 +1001,7 @@ class IDCClient:
 
             logger.info(
                 "Initial size of the directory: %s",
-                IDCClient._format_size_bytes(initial_size_bytes),
+                IDCClient._format_size(initial_size_bytes, size_in_bytes=True),
             )
             logger.info(
                 "Approximate size of the files that need to be downloaded: %s",
@@ -1333,7 +1333,11 @@ Destination folder is not empty and sync size is less than total size.
                     logger.info("Successfully downloaded files to %s", str(downloadDir))
 
     @staticmethod
-    def _format_size(size_MB):
+    def _format_size(size, size_in_bytes: bool = False):
+        if size_in_bytes:
+            size_MB = size / (10**6)
+        else:
+            size_MB = size
         size_GB = size_MB / 1000
         size_TB = size_GB / 1000
 
@@ -1341,18 +1345,9 @@ Destination folder is not empty and sync size is less than total size.
             return f"{round(size_TB, 2)} TB"
         if size_GB >= 1:
             return f"{round(size_GB, 2)} GB"
-        return f"{round(size_MB, 2)} MB"
-
-    @staticmethod
-    def _format_size_bytes(size_bytes):
-        size_MB = size_bytes / (10**6)
-        size_GB = size_MB / 1000
-
-        if size_GB >= 1:
-            return f"{round(size_GB, 2)} GB"
         if size_MB >= 1:
             return f"{round(size_MB, 2)} MB"
-        return f"{round(size_bytes, 2)} bytes"
+        return f"{round(size, 2)} bytes"
 
     def download_from_manifest(
         self,
