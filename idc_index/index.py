@@ -22,11 +22,6 @@ from tqdm import tqdm
 aws_endpoint_url = "https://s3.amazonaws.com"
 gcp_endpoint_url = "https://storage.googleapis.com"
 asset_endpoint_url = f"https://github.com/ImagingDataCommons/idc-index-data/releases/download/{idc_index_data.__version__}"
-# TODO: remove later
-asset_endpoint_url = (
-    "https://github.com/ImagingDataCommons/idc-index-data/releases/download/18.2.0"
-)
-
 
 logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
