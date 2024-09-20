@@ -1593,16 +1593,16 @@ Destination folder is not empty and sync size is less than total size.
                 + self._format_size(total_size_bytes, size_in_bytes=True)
             )
 
-        # disk_free_space_MB = psutil.disk_usage(downloadDir).free / (1000 * 1000)
-        # if disk_free_space_MB < total_size:
-        #    logger.error("Not enough free space on disk to download the files.")
-        #    logger.error(
-        #        "Total size of files to download: " + self._format_size(total_size)
-        #    )
-        #    logger.error(
-        #        "Total free space on disk: " + self._format_size(disk_free_space_MB)
-        #    )
-        #    return
+        disk_free_space_MB = psutil.disk_usage(downloadDir).free / (1000 * 1000)
+        if disk_free_space_MB < total_size:
+            logger.error("Not enough free space on disk to download the files.")
+            logger.error(
+                "Total size of files to download: " + self._format_size(total_size)
+            )
+            logger.error(
+                "Total free space on disk: " + self._format_size(disk_free_space_MB)
+            )
+            return
 
         logger.info(
             "Total free space on disk: "
@@ -1918,7 +1918,9 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         """
 
         index = self.index
-        # TODO: find a more elegant way to automate the following
+
+        logger.debug("Executing SQL query: " + sql_query)
+        # TODO: find a more elegant way to automate the following:  https://www.perplexity.ai/search/write-python-code-that-iterate-XY9ppywbQFSRnOpgbwx_uQ
         if hasattr(self, "sm_index"):
             sm_index = self.sm_index
         if hasattr(self, "sm_instance_index"):

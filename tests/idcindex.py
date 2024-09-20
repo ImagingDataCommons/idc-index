@@ -506,6 +506,10 @@ class TestIDCClient(unittest.TestCase):
             with open(temp_manifest_file) as file:
                 assert len(file.readlines()) == 5
 
+    def test_list_indices(self):
+        i = IDCClient()
+        assert i.indices_overview  # assert that dict was created
+
     def test_fetch_index(self):
         i = IDCClient()
         assert i.indices_overview["sm_index"]["installed"] is False
