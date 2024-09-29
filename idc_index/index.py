@@ -650,7 +650,7 @@ class IDCClient:
                 dirTemplate=dirTemplate, downloadDir=downloadDir
             )
         else:
-            hierarchy = "NULL"
+            hierarchy = f"CONCAT('{downloadDir}')"
 
         # Extract s3 url and crdc_series_uuid from the manifest copy commands
         # Next, extract crdc_series_uuid from aws_series_url in the index and
@@ -680,6 +680,7 @@ class IDCClient:
                 manifest_df )
             SELECT
                 seriesInstanceuid,
+                index_crdc_series_uuid,
                 s3_url,
                 path,
                 series_size_MB,
@@ -704,7 +705,6 @@ class IDCClient:
 
         endpoint_to_use = None
 
-        # Check if any crdc_series_uuid are not found in the index
         if not all(merged_df["crdc_series_uuid_match"]):
             missing_manifest_cp_cmds = merged_df.loc[
                 ~merged_df["crdc_series_uuid_match"], "manifest_cp_cmd"
@@ -724,13 +724,17 @@ class IDCClient:
             WITH
             combined_index AS
             (SELECT
-                *,
+                 seriesInstanceUID,
+                series_aws_url,
+                series_size_MB,
                 {hierarchy} AS path,
             FROM
                 index_df_copy
             union by name
             SELECT
-                *,
+                seriesInstanceUID,
+                series_aws_url,
+                series_size_MB,
                  {hierarchy} AS path,
             FROM
                 '{self.previous_versions_index_path}' pvip
@@ -754,6 +758,7 @@ class IDCClient:
                 manifest_df )
             SELECT
                 seriesInstanceuid,
+                index_crdc_series_uuid,
                 s3_url,
                 path,
                 series_size_MB,
@@ -773,14 +778,14 @@ class IDCClient:
             ON
                 index_temp.index_crdc_series_uuid = manifest_temp.manifest_crdc_series_uuid
             """
-            merged_df = duckdb.query(missing_series_sql).df()
+            merged_df = duckdb.sql(missing_series_sql).df()
             if not all(merged_df["crdc_series_uuid_match"]):
                 missing_manifest_cp_cmds = merged_df.loc[
                     ~merged_df["crdc_series_uuid_match"], "manifest_cp_cmd"
                 ]
                 logger.error(
                     "The following manifest copy commands are not recognized as referencing any associated series in any release of IDC.\n"
-                    "This means either these commands are invalid. Please submit an issue on https://github.com/ImagingDataCommons/idc-index/issues \n"
+                    "These commands may be invalid. Please submit an issue on https://github.com/ImagingDataCommons/idc-index/issues \n"
                     "The corresponding files could not be downloaded.\n"
                 )
                 logger.error("\n" + "\n".join(missing_manifest_cp_cmds.tolist()))
@@ -836,29 +841,6 @@ class IDCClient:
         total_size = merged_df["series_size_MB"].sum()
         total_size = round(total_size, 2)
 
-        # if dirTemplate is not None:
-        #     hierarchy = self._generate_sql_concat_for_building_directory(
-        #         dirTemplate=dirTemplate, downloadDir=downloadDir
-        #     )
-        #     sql = f"""
-        #         WITH temp as
-        #             (
-        #                 SELECT
-        #                     seriesInstanceUID,
-        #                     s3_url
-        #                 FROM
-        #                     merged_df
-        #             )
-        #         SELECT
-        #             s3_url,
-        #             {hierarchy} as path
-        #         FROM
-        #             temp
-        #         JOIN
-        #             index using (seriesInstanceUID)
-        #         """
-        #     logger.debug(f"About to run this query:\n{sql}")
-        #     merged_df = self.sql_query(sql)
         # Write a temporary manifest file
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as temp_manifest_file:
             if use_s5cmd_sync and len(os.listdir(downloadDir)) != 0:
@@ -895,11 +877,16 @@ class IDCClient:
             list_of_directories = merged_df.path.to_list()
         else:
             list_of_directories = [downloadDir]
+
+        logger.debug(f"list of directories:{list_of_directories}")
         return (
             total_size,
             endpoint_to_use,
             Path(temp_manifest_file.name),
             list_of_directories,
+            merged_df[
+                ["index_crdc_series_uuid", "s5cmd_cmd", "series_size_MB", "path"]
+            ],
         )
 
     @staticmethod
@@ -1022,19 +1009,19 @@ class IDCClient:
         return sum_file_size
 
     def _parse_s5cmd_sync_output_and_generate_synced_manifest(
-        self, stdout, downloadDir, dirTemplate
+        self, stdout, s5cmd_sync_helper_df
     ) -> Path:
         """
         Parse the output of s5cmd sync --dry-run to extract distinct folders and generate a synced manifest.
 
         Args:
             output (str): The output of s5cmd sync --dry-run command.
-            downloadDir (str): The directory to download the files to.
-            dirTemplate (str): Download directory hierarchy template.
+            s5cmd_sync_helper_df: helper df obtained after validation of manifest or filtering of selection, containing a minimum of "index_crdc_series_uuid", "s5cmd_cmd", "series_size_MB", "path" columns
 
         Returns:
             Path: The path to the generated synced manifest file.
             float: Download size in MB
+            list_of_directories: list of directories need to tracked for progress bar
         """
         logger.info("Parsing the s5cmd sync dry run output...")
 
@@ -1043,6 +1030,8 @@ class IDCClient:
         # create a copy of the index
         index_df_copy = self.index
 
+        result_df = s5cmd_sync_helper_df
+
         # TODO: need to remove the assumption that manifest commands will have 'cp'
         # ruff: noqa
         sql = """
@@ -1050,10 +1039,12 @@ class IDCClient:
             WITH
             index_temp AS (
             SELECT
-                *,
-                REGEXP_EXTRACT(series_aws_url, '(?:.*?\\/){3}([^\\/?#]+)', 1) index_crdc_series_uuid
+                 index_crdc_series_uuid,
+                 s5cmd_cmd,
+                 path,
+                 series_size_MB
             FROM
-                index_df_copy),
+                result_df),
             sync_temp AS (
             SELECT
                 DISTINCT CONCAT(REGEXP_EXTRACT(s5cmd_output, 'cp (s3://[^/]+/[^/]+)/.*', 1), '/*') AS s3_url,
@@ -1061,59 +1052,27 @@ class IDCClient:
             FROM
                 stdout_df )
             SELECT
-                DISTINCT seriesInstanceUID,
+                DISTINCT s5cmd_cmd,
                 series_size_MB,
-                s3_url
+                path
             FROM
                 sync_temp
-            LEFT JOIN
+            JOIN
                 index_temp
             ON
                 index_temp.index_crdc_series_uuid = sync_temp.sync_crdc_instance_uuid
         """
         # ruff: noqa: end
-        merged_df = duckdb.query(sql).df()
-        sync_size = merged_df["series_size_MB"].sum()
+        synced_df = duckdb.query(sql).df()
+        sync_size = synced_df["series_size_MB"].sum()
         sync_size_rounded = round(sync_size, 2)
 
         logger.debug(f"sync_size_rounded: {sync_size_rounded}")
 
-        if dirTemplate is not None:
-            hierarchy = self._generate_sql_concat_for_building_directory(
-                dirTemplate=dirTemplate, downloadDir=downloadDir
-            )
-            sql = f"""
-                WITH temp as
-                    (
-                        SELECT
-                            seriesInstanceUID
-                        FROM
-                            merged_df
-                    )
-                SELECT
-                    series_aws_url,
-                    {hierarchy} as path
-                FROM
-                    temp
-                JOIN
-                    index using (seriesInstanceUID)
-                """
-            synced_df = self.sql_query(sql)
         # Write a temporary manifest file
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as synced_manifest:
-            if dirTemplate is not None:
-                synced_df["s5cmd_cmd"] = (
-                    "sync " + synced_df["s3_url"] + " " + '"' + synced_df["path"] + '"'
-                )
-                list_of_directories = synced_df.path.to_list()
-            else:
-                synced_df["s5cmd_cmd"] = (
-                    "sync " + synced_df["s3_url"] + " " + '"' + downloadDir + '"'
-                )
-                list_of_directories = [downloadDir]
-                # Combine all commands into a single string with newline separators
+            list_of_directories = synced_df.path.to_list()
             commands = "\n".join(synced_df["s5cmd_cmd"])
-
             synced_manifest.write(commands)
 
             logger.info("Parsing the s5cmd sync dry run output finished")
@@ -1130,6 +1089,7 @@ class IDCClient:
         use_s5cmd_sync,
         dirTemplate,
         list_of_directories,
+        s5cmd_sync_helper_df,
     ):
         """
         Executes the s5cmd command to sync files from a given endpoint to a local directory.
@@ -1145,9 +1105,11 @@ class IDCClient:
             total_size (float): The total size of the files to be downloaded in MB.
             downloadDir (str): The local directory where the files will be downloaded.
             quiet (bool): If True, suppresses the stdout and stderr of the s5cmd command.
-            show_progress_bar (bool): If True, tracks the progress of download
-            use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
+            show_progress_bar (bool): If True, tracks the progress of download.
+            use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded.
             dirTemplate (str): Download directory hierarchy template.
+            list_of_directories(list): List of directories need to tracked for progress bar.
+            s5cmd_sync_helper_df (df): helper df obtained after validation of manifest or filtering of selection, containing a minimum of "index_crdc_series_uuid", "s5cmd_cmd", "series_size_MB", "path" columns.
 
         Raises:
             subprocess.CalledProcessError: If the s5cmd command fails.
@@ -1205,8 +1167,7 @@ evaluate what to download and corresponding size with only series level precisio
                     list_of_directories,
                 ) = self._parse_s5cmd_sync_output_and_generate_synced_manifest(
                     stdout=process.stdout,
-                    downloadDir=downloadDir,
-                    dirTemplate=dirTemplate,
+                    s5cmd_sync_helper_df=s5cmd_sync_helper_df,
                 )
                 logger.info(f"sync_size (MB): {sync_size}")
 
@@ -1229,19 +1190,27 @@ Destination folder is not empty and sync size is less than total size.
                         )
                         existing_data_size = round(total_size - sync_size, 2)
                         logger.info(
-                            f"Requested total download size is {total_size} MB, \
-                                    however at least {existing_data_size} MB is already present,\
-                                    so downloading only remaining upto {sync_size} MB\n\
-                                    Please note that disk sizes are calculated at series level, \
-                                    so if individual files are missing, displayed progress bar may\
-                                    not be accurate."
+                            f"""Requested total download size is {total_size} MB,
+however at least {existing_data_size} MB is already present,
+so downloading only remaining upto {sync_size} MB
+Please note that disk sizes are calculated at series level,
+so if individual files are missing, displayed progress bar may
+not be accurate."""
                         )
                         self._track_download_progress(
-                            sync_size, downloadDir, process, show_progress_bar
+                            sync_size,
+                            downloadDir,
+                            process,
+                            show_progress_bar,
+                            list_of_directories,
                         )
                     else:
                         self._track_download_progress(
-                            total_size, downloadDir, process, show_progress_bar
+                            total_size,
+                            downloadDir,
+                            process,
+                            show_progress_bar,
+                            list_of_directories,
                         )
             else:
                 logger.info(
@@ -1351,6 +1320,7 @@ Destination folder is not empty and sync size is less than total size.
             endpoint_to_use,
             temp_manifest_file,
             list_of_directories,
+            validation_result_df,
         ) = self._validate_update_manifest_and_get_download_size(
             manifestFile=manifestFile,
             downloadDir=downloadDir,
@@ -1372,6 +1342,7 @@ Destination folder is not empty and sync size is less than total size.
             use_s5cmd_sync=use_s5cmd_sync,
             dirTemplate=dirTemplate,
             list_of_directories=list_of_directories,
+            s5cmd_sync_helper_df=validation_result_df,
         )
 
     def citations_from_manifest(
@@ -1560,7 +1531,9 @@ Destination folder is not empty and sync size is less than total size.
                 downloadDir=downloadDir,
                 dirTemplate=dirTemplate,
             )
-            sql = f"""
+        else:
+            hierarchy = f"CONCAT('{downloadDir}')"
+        sql = f"""
                 WITH temp as
                     (
                         SELECT
@@ -1570,15 +1543,17 @@ Destination folder is not empty and sync size is less than total size.
                     )
                 SELECT
                     series_aws_url,
+                    REGEXP_EXTRACT(series_aws_url, '(?:.*?\\/){{3}}([^\\/?#]+)', 1) index_crdc_series_uuid,
+                    series_size_MB,
                     {hierarchy} as path
                 FROM
                     temp
                 JOIN
                     index using (seriesInstanceUID)
                 """
-            result_df = self.sql_query(sql)
-            # Download the files
-            # make temporary file to store the list of files to download
+        result_df = self.sql_query(sql)
+        # Download the files
+        # make temporary file to store the list of files to download
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as manifest_file:
             if use_s5cmd_sync and len(os.listdir(downloadDir)) != 0:
                 if dirTemplate is not None:
@@ -1626,6 +1601,9 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             use_s5cmd_sync=use_s5cmd_sync,
             dirTemplate=dirTemplate,
             list_of_directories=list_of_directories,
+            s5cmd_sync_helper_df=result_df[
+                ["index_crdc_series_uuid", "s5cmd_cmd", "series_size_MB", "path"]
+            ],
         )
 
     def download_dicom_series(
