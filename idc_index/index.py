@@ -263,13 +263,8 @@ class IDCClient:
                 with open(filepath, mode="wb") as file:
                     file.write(response.content)
 
-                # Join new index with main index
-                sm_instance_index = pd.read_parquet(filepath)
-                sm_instance_index = sm_instance_index.merge(
-                    self.index, on="SeriesInstanceUID", how="left"
-                )
-
-                setattr(self.__class__, index, sm_instance_index)
+                index_table = pd.read_parquet(filepath)
+                setattr(self.__class__, index, index_table)
                 self.indices_overview[index]["installed"] = True
 
             else:
