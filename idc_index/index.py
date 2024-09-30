@@ -264,6 +264,10 @@ class IDCClient:
                     file.write(response.content)
 
                 index_table = pd.read_parquet(filepath)
+                # index_table = index_table.merge(
+                #    self.index[["series_aws_url", "SeriesInstanceUID"]],
+                #    on="SeriesInstanceUID", how="left"
+                # )
                 setattr(self.__class__, index, index_table)
                 self.indices_overview[index]["installed"] = True
 
@@ -1617,6 +1621,7 @@ Destination folder is not empty and sync size is less than total size.
                 downloadDir=downloadDir,
                 dirTemplate=dirTemplate,
             )
+
             if sopInstanceUID:
                 sql = f"""
                     WITH temp as
@@ -1633,6 +1638,8 @@ Destination folder is not empty and sync size is less than total size.
                         temp
                     JOIN
                         sm_instance_index using (sopInstanceUID)
+                    JOIN
+                        index using (seriesInstanceUID)
                     """
             else:
                 sql = f"""
