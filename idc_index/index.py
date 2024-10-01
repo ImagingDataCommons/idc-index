@@ -1594,7 +1594,7 @@ Destination folder is not empty and sync size is less than total size.
             )
         else:
             hierarchy = f"CONCAT('{downloadDir}')"
-            
+
         if sopInstanceUID:
             sql = f"""
                 WITH temp as
