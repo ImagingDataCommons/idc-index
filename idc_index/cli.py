@@ -84,6 +84,13 @@ def set_log_level(log_level):
     help="DICOM SeriesInstanceUID(s) to filter by.",
 )
 @click.option(
+    "--crdc-series-uuid",
+    type=str,
+    multiple=True,
+    default=None,
+    help="crdc_series_uuid(s) to filter by.",
+)
+@click.option(
     "--quiet",
     type=bool,
     default=True,
@@ -122,6 +129,7 @@ def download_from_selection(
     patient_id,
     study_instance_uid,
     series_instance_uid,
+    crdc_series_uuid,
     quiet,
     show_progress_bar,
     use_s5cmd_sync,
@@ -159,11 +167,17 @@ def download_from_selection(
         if series_instance_uid
         else None
     )
+    crdc_series_uuid = (
+        [uid.strip() for uid in (",".join(crdc_series_uuid)).split(",")]
+        if crdc_series_uuid
+        else None
+    )
     logger_cli.debug("Inputs received from cli download:")
     logger_cli.debug(f"collection_id: {collection_id}")
     logger_cli.debug(f"patient_id: {patient_id}")
     logger_cli.debug(f"study_instance_uid: {study_instance_uid}")
     logger_cli.debug(f"series_instance_uid: {series_instance_uid}")
+    logger_cli.debug(f"crdc_series_uuid: {crdc_series_uuid}")
     logger_cli.debug(f"dry_run: {dry_run}")
     logger_cli.debug(f"quiet: {quiet}")
     logger_cli.debug(f"show_progress_bar: {show_progress_bar}")
@@ -177,6 +191,7 @@ def download_from_selection(
         patientId=patient_id,
         studyInstanceUID=study_instance_uid,
         seriesInstanceUID=series_instance_uid,
+        crdc_series_uuid=crdc_series_uuid,
         quiet=quiet,
         show_progress_bar=show_progress_bar,
         use_s5cmd_sync=use_s5cmd_sync,
@@ -346,9 +361,12 @@ def download(generic_argument, log_level):
         matches_found += check_and_download(
             "SeriesInstanceUID", item_ids, download_dir, "seriesInstanceUID"
         )
+        matches_found += check_and_download(
+            "crdc_series_uuid", item_ids, download_dir, "crdc_series_uuid"
+        )
         if not matches_found:
             logger_cli.error(
-                "None of the values passed matched any of the identifiers: collection_id, PatientID, StudyInstanceUID, SeriesInstanceUID."
+                "None of the values passed matched any of the identifiers: collection_id, PatientID, StudyInstanceUID, SeriesInstanceUID, crdc_series_uuid."
             )
 
 

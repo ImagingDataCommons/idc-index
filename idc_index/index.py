@@ -64,6 +64,15 @@ class IDCClient:
         logger.debug(f"Reading index file v{idc_index_data.__version__}")
         self.index = pd.read_parquet(file_path)
 
+        # initialize crdc_series_uuid for the index
+        # TODO: in the future, after https://github.com/ImagingDataCommons/idc-index/pull/113
+        # is merged (to minimize disruption), it will make more sense to change
+        # idc-index-data to separate bucket from crdc_series_uuid, add support for GCP,
+        # and consequently simplify the code here
+        self.index["crdc_series_uuid"] = (
+            self.index["series_aws_url"].str.split("/").str[3]
+        )
+
         self.previous_versions_index_path = (
             idc_index_data.PRIOR_VERSIONS_INDEX_PARQUET_FILEPATH
         )
@@ -136,7 +145,12 @@ class IDCClient:
 
     @staticmethod
     def _safe_filter_by_selection(
-        df_index, collection_id, patientId, studyInstanceUID, seriesInstanceUID
+        df_index,
+        collection_id,
+        patientId,
+        studyInstanceUID,
+        seriesInstanceUID,
+        crdc_series_uuid,
     ):
         if collection_id is not None:
             if not isinstance(collection_id, str) and not isinstance(
@@ -156,26 +170,48 @@ class IDCClient:
                 seriesInstanceUID, list
             ):
                 raise TypeError("seriesInstanceUID must be a string or list of strings")
+        if crdc_series_uuid is not None:
+            if not isinstance(crdc_series_uuid, str) and not isinstance(
+                crdc_series_uuid, list
+            ):
+                raise TypeError("crdc_series_uuid must be a string or list of strings")
 
-        if collection_id is not None:
-            result_df = IDCClient._filter_by_collection_id(df_index, collection_id)
-        else:
-            result_df = df_index
+        # Here we go down-up the hierarchy of filtering, taking into
+        # account the direction of one-to-many relationships
+        #   one crdc_series_uuid can be associated with one and only one SeriesInstanceUID
+        #   one SeriesInstanceUID can be associated with one and only one StudyInstanceUID
+        #   one StudyInstanceUID can be associated with one and only one PatientID
+        #   one PatientID can be associated with one and only one collection_id
+        # because of this we do not need to apply attributes above the given defined
+        # attribute in the hierarchy
+        # The earlier implemented behavior was a relic of the API from a different system
+        # that influenced the API of SlicerIDCIndex, and propagated into idc-index. Unfortunately.
 
-        if patientId is not None:
-            result_df = IDCClient._filter_by_patient_id(result_df, patientId)
-
-        if studyInstanceUID is not None:
-            result_df = IDCClient._filter_by_dicom_study_uid(
-                result_df, studyInstanceUID
+        if crdc_series_uuid is not None:
+            result_df = IDCClient._filter_dataframe_by_id(
+                "crdc_series_uuid", df_index, crdc_series_uuid
             )
+            return result_df
 
         if seriesInstanceUID is not None:
             result_df = IDCClient._filter_by_dicom_series_uid(
-                result_df, seriesInstanceUID
+                df_index, seriesInstanceUID
             )
+            return result_df
 
-        return result_df
+        if studyInstanceUID is not None:
+            result_df = IDCClient._filter_by_dicom_study_uid(df_index, studyInstanceUID)
+            return result_df
+
+        if patientId is not None:
+            result_df = IDCClient._filter_by_patient_id(df_index, patientId)
+            return result_df
+
+        if collection_id is not None:
+            result_df = IDCClient._filter_by_collection_id(df_index, collection_id)
+            return result_df
+
+        return None
 
     @staticmethod
     def _filter_by_collection_id(df_index, collection_id):
@@ -1399,6 +1435,7 @@ not be accurate."""
         patientId=None,
         studyInstanceUID=None,
         seriesInstanceUID=None,
+        crdc_series_uuid=None,
         citation_format=CITATION_FORMAT_APA,
     ):
         """Get the list of publications that should be cited/attributed for the specific collection, patient (case) ID, study or series UID.
@@ -1419,6 +1456,7 @@ not be accurate."""
             patientId=patientId,
             studyInstanceUID=studyInstanceUID,
             seriesInstanceUID=seriesInstanceUID,
+            crdc_series_uuid=crdc_series_uuid,
         )
 
         citations = []
@@ -1469,6 +1507,7 @@ not be accurate."""
         patientId=None,
         studyInstanceUID=None,
         seriesInstanceUID=None,
+        crdc_series_uuid=None,
         quiet=True,
         show_progress_bar=True,
         use_s5cmd_sync=False,
@@ -1484,6 +1523,7 @@ not be accurate."""
             patientId: string or list of strings containing the values of PatientID to filter by
             studyInstanceUID: string or list of strings containing the values of DICOM StudyInstanceUID to filter by
             seriesInstanceUID: string or list of strings containing the values of DICOM SeriesInstanceUID to filter by
+            crdc_series_uuid: string or list of strings containing the values of crdc_series_uuid to filter by
             quiet (bool): If True, suppresses the output of the subprocess. Defaults to True
             show_progress_bar (bool): If True, tracks the progress of download
             use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
@@ -1499,6 +1539,7 @@ not be accurate."""
             patientId=patientId,
             studyInstanceUID=studyInstanceUID,
             seriesInstanceUID=seriesInstanceUID,
+            crdc_series_uuid=crdc_series_uuid,
         )
 
         total_size = round(result_df["series_size_MB"].sum(), 2)
