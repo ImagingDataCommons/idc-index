@@ -76,6 +76,9 @@ class IDCClient:
         self.previous_versions_index_path = (
             idc_index_data.PRIOR_VERSIONS_INDEX_PARQUET_FILEPATH
         )
+        file_path = idc_index_data.PRIOR_VERSIONS_INDEX_PARQUET_FILEPATH
+
+        self.previous_versions_index = pd.read_parquet(file_path)
 
         # self.index = self.index.astype(str).replace("nan", "")
         self.index["series_size_MB"] = self.index["series_size_MB"].astype(float)
@@ -678,7 +681,28 @@ class IDCClient:
         manifest_df.columns = ["manifest_cp_cmd"]
 
         # create a copy of the index
-        index_df_copy = self.index
+        index_df_copy = self.index[
+            [
+                "SeriesInstanceUID",
+                "series_aws_url",
+                "series_size_MB",
+                "PatientID",
+                "collection_id",
+                "Modality",
+                "StudyInstanceUID",
+            ]
+        ]
+        previous_versions_index_df_copy = self.previous_versions_index[
+            [
+                "SeriesInstanceUID",
+                "series_aws_url",
+                "series_size_MB",
+                "PatientID",
+                "collection_id",
+                "Modality",
+                "StudyInstanceUID",
+            ]
+        ]
 
         # use default hierarchy
         if dirTemplate is not None:
@@ -773,7 +797,7 @@ class IDCClient:
                 series_size_MB,
                  {hierarchy} AS path,
             FROM
-                '{self.previous_versions_index_path}' pvip
+                previous_versions_index_df_copy pvip
 
             ),
             index_temp AS (
@@ -1435,7 +1459,6 @@ not be accurate."""
         patientId=None,
         studyInstanceUID=None,
         seriesInstanceUID=None,
-        crdc_series_uuid=None,
         citation_format=CITATION_FORMAT_APA,
     ):
         """Get the list of publications that should be cited/attributed for the specific collection, patient (case) ID, study or series UID.
@@ -1450,13 +1473,14 @@ not be accurate."""
         Returns:
             List of citations in the requested format.
         """
+
         result_df = self._safe_filter_by_selection(
             self.index,
             collection_id=collection_id,
             patientId=patientId,
             studyInstanceUID=studyInstanceUID,
             seriesInstanceUID=seriesInstanceUID,
-            crdc_series_uuid=crdc_series_uuid,
+            crdc_series_uuid=None,
         )
 
         citations = []
@@ -1533,8 +1557,40 @@ not be accurate."""
 
         downloadDir = self._check_create_directory(downloadDir)
 
+        if crdc_series_uuid is not None:
+            download_df = pd.concat(
+                [
+                    self.index[
+                        [
+                            "PatientID",
+                            "collection_id",
+                            "Modality",
+                            "StudyInstanceUID",
+                            "SeriesInstanceUID",
+                            "crdc_series_uuid",
+                            "series_aws_url",
+                            "series_size_MB",
+                        ]
+                    ],
+                    self.previous_versions_index[
+                        [
+                            "PatientID",
+                            "collection_id",
+                            "Modality",
+                            "StudyInstanceUID",
+                            "SeriesInstanceUID",
+                            "crdc_series_uuid",
+                            "series_aws_url",
+                            "series_size_MB",
+                        ]
+                    ],
+                ],
+            )
+        else:
+            download_df = self.index
+
         result_df = self._safe_filter_by_selection(
-            self.index,
+            download_df,
             collection_id=collection_id,
             patientId=patientId,
             studyInstanceUID=studyInstanceUID,
