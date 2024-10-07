@@ -469,7 +469,16 @@ class TestIDCClient(unittest.TestCase):
         with runner.isolated_filesystem():
             result = runner.invoke(
                 self.download,
+                # StudyInstanceUID:
                 ["1.3.6.1.4.1.14519.5.2.1.7695.1700.114861588187429958687900856462"],
+            )
+            assert len(os.listdir(Path.cwd())) != 0
+
+        with runner.isolated_filesystem():
+            result = runner.invoke(
+                self.download,
+                # crdc_series_uuid:
+                ["e5c5c71d-62c4-4c50-a8a9-b6799c7f8dea"],
             )
             assert len(os.listdir(Path.cwd())) != 0
 
