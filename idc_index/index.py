@@ -153,7 +153,7 @@ class IDCClient:
         patientId,
         studyInstanceUID,
         seriesInstanceUID,
-        sopInstanceUID=None,
+        sopInstanceUID,
         crdc_series_uuid,
     ):
         if collection_id is not None:
@@ -205,10 +205,10 @@ class IDCClient:
 
         if sopInstanceUID is not None:
             result_df = IDCClient._filter_by_dicom_instance_uid(
-                result_df, sopInstanceUID
+                df_index, sopInstanceUID
             )
             return result_df
-          
+
         if seriesInstanceUID is not None:
             result_df = IDCClient._filter_by_dicom_series_uid(
                 df_index, seriesInstanceUID
@@ -1512,6 +1512,7 @@ Destination folder is not empty and sync size is less than total size.
             patientId=patientId,
             studyInstanceUID=studyInstanceUID,
             seriesInstanceUID=seriesInstanceUID,
+            sopInstanceUID=None,
             crdc_series_uuid=None,
         )
 
@@ -1604,10 +1605,7 @@ Destination folder is not empty and sync size is less than total size.
                 raise ValueError(
                     "Instance-level access not possible because instance-level index not installed."
                 )
-        else:
-            download_df = self.index
-
-        if crdc_series_uuid is not None:
+        elif crdc_series_uuid is not None:
             download_df = pd.concat(
                 [
                     self.index[

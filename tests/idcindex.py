@@ -15,6 +15,9 @@ from idc_index import IDCClient, cli
 
 # Run tests using the following command from the root of the repository:
 # python -m unittest -vv tests/idcindex.py
+#
+# run specific tests with this:
+# pytest ./tests/idcindex.py::TestIDCClient.test_download_dicom_instance
 
 logging.basicConfig(level=logging.DEBUG)
 
