@@ -64,9 +64,21 @@ class IDCClient:
         logger.debug(f"Reading index file v{idc_index_data.__version__}")
         self.index = pd.read_parquet(file_path)
 
+        # initialize crdc_series_uuid for the index
+        # TODO: in the future, after https://github.com/ImagingDataCommons/idc-index/pull/113
+        # is merged (to minimize disruption), it will make more sense to change
+        # idc-index-data to separate bucket from crdc_series_uuid, add support for GCP,
+        # and consequently simplify the code here
+        self.index["crdc_series_uuid"] = (
+            self.index["series_aws_url"].str.split("/").str[3]
+        )
+
         self.previous_versions_index_path = (
             idc_index_data.PRIOR_VERSIONS_INDEX_PARQUET_FILEPATH
         )
+        file_path = idc_index_data.PRIOR_VERSIONS_INDEX_PARQUET_FILEPATH
+
+        self.previous_versions_index = pd.read_parquet(file_path)
 
         # self.index = self.index.astype(str).replace("nan", "")
         self.index["series_size_MB"] = self.index["series_size_MB"].astype(float)
@@ -142,6 +154,7 @@ class IDCClient:
         studyInstanceUID,
         seriesInstanceUID,
         sopInstanceUID=None,
+        crdc_series_uuid,
     ):
         if collection_id is not None:
             if not isinstance(collection_id, str) and not isinstance(
@@ -167,30 +180,54 @@ class IDCClient:
             ):
                 raise TypeError("sopInstanceUID must be a string or list of strings")
 
-        if collection_id is not None:
-            result_df = IDCClient._filter_by_collection_id(df_index, collection_id)
-        else:
-            result_df = df_index
+        if crdc_series_uuid is not None:
+            if not isinstance(crdc_series_uuid, str) and not isinstance(
+                crdc_series_uuid, list
+            ):
+                raise TypeError("crdc_series_uuid must be a string or list of strings")
 
-        if patientId is not None:
-            result_df = IDCClient._filter_by_patient_id(result_df, patientId)
+        # Here we go down-up the hierarchy of filtering, taking into
+        # account the direction of one-to-many relationships
+        #   one crdc_series_uuid can be associated with one and only one SeriesInstanceUID
+        #   one SeriesInstanceUID can be associated with one and only one StudyInstanceUID
+        #   one StudyInstanceUID can be associated with one and only one PatientID
+        #   one PatientID can be associated with one and only one collection_id
+        # because of this we do not need to apply attributes above the given defined
+        # attribute in the hierarchy
+        # The earlier implemented behavior was a relic of the API from a different system
+        # that influenced the API of SlicerIDCIndex, and propagated into idc-index. Unfortunately.
 
-        if studyInstanceUID is not None:
-            result_df = IDCClient._filter_by_dicom_study_uid(
-                result_df, studyInstanceUID
+        if crdc_series_uuid is not None:
+            result_df = IDCClient._filter_dataframe_by_id(
+                "crdc_series_uuid", df_index, crdc_series_uuid
             )
-
-        if seriesInstanceUID is not None:
-            result_df = IDCClient._filter_by_dicom_series_uid(
-                result_df, seriesInstanceUID
-            )
+            return result_df
 
         if sopInstanceUID is not None:
             result_df = IDCClient._filter_by_dicom_instance_uid(
                 result_df, sopInstanceUID
             )
+            return result_df
+          
+        if seriesInstanceUID is not None:
+            result_df = IDCClient._filter_by_dicom_series_uid(
+                df_index, seriesInstanceUID
+            )
+            return result_df
 
-        return result_df
+        if studyInstanceUID is not None:
+            result_df = IDCClient._filter_by_dicom_study_uid(df_index, studyInstanceUID)
+            return result_df
+
+        if patientId is not None:
+            result_df = IDCClient._filter_by_patient_id(df_index, patientId)
+            return result_df
+
+        if collection_id is not None:
+            result_df = IDCClient._filter_by_collection_id(df_index, collection_id)
+            return result_df
+
+        return None
 
     @staticmethod
     def _filter_by_collection_id(df_index, collection_id):
@@ -671,7 +708,28 @@ class IDCClient:
         manifest_df.columns = ["manifest_cp_cmd"]
 
         # create a copy of the index
-        index_df_copy = self.index
+        index_df_copy = self.index[
+            [
+                "SeriesInstanceUID",
+                "series_aws_url",
+                "series_size_MB",
+                "PatientID",
+                "collection_id",
+                "Modality",
+                "StudyInstanceUID",
+            ]
+        ]
+        previous_versions_index_df_copy = self.previous_versions_index[
+            [
+                "SeriesInstanceUID",
+                "series_aws_url",
+                "series_size_MB",
+                "PatientID",
+                "collection_id",
+                "Modality",
+                "StudyInstanceUID",
+            ]
+        ]
 
         # use default hierarchy
         if dirTemplate is not None:
@@ -766,7 +824,7 @@ class IDCClient:
                 series_size_MB,
                  {hierarchy} AS path,
             FROM
-                '{self.previous_versions_index_path}' pvip
+                previous_versions_index_df_copy pvip
 
             ),
             index_temp AS (
@@ -1447,12 +1505,14 @@ Destination folder is not empty and sync size is less than total size.
         Returns:
             List of citations in the requested format.
         """
+
         result_df = self._safe_filter_by_selection(
             self.index,
             collection_id=collection_id,
             patientId=patientId,
             studyInstanceUID=studyInstanceUID,
             seriesInstanceUID=seriesInstanceUID,
+            crdc_series_uuid=None,
         )
 
         citations = []
@@ -1504,6 +1564,7 @@ Destination folder is not empty and sync size is less than total size.
         studyInstanceUID=None,
         seriesInstanceUID=None,
         sopInstanceUID=None,
+        crdc_series_uuid=None,
         quiet=True,
         show_progress_bar=True,
         use_s5cmd_sync=False,
@@ -1520,6 +1581,7 @@ Destination folder is not empty and sync size is less than total size.
             studyInstanceUID: string or list of strings containing the values of DICOM StudyInstanceUID to filter by
             seriesInstanceUID: string or list of strings containing the values of DICOM SeriesInstanceUID to filter by
             sopInstanceUID: string or list of strings containing the values of DICOM SOPInstanceUID to filter by
+            crdc_series_uuid: string or list of strings containing the values of crdc_series_uuid to filter by
             quiet (bool): If True, suppresses the output of the subprocess. Defaults to True
             show_progress_bar (bool): If True, tracks the progress of download
             use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
@@ -1534,7 +1596,7 @@ Destination folder is not empty and sync size is less than total size.
             if hasattr(
                 self, "sm_instance_index"
             ):  # check if instance-level index is installed
-                index_to_be_filtered = self.sm_instance_index
+                download_df = self.sm_instance_index
             else:
                 logger.error(
                     "Instance-level access not possible because instance-level index not installed."
@@ -1543,15 +1605,48 @@ Destination folder is not empty and sync size is less than total size.
                     "Instance-level access not possible because instance-level index not installed."
                 )
         else:
-            index_to_be_filtered = self.index
+            download_df = self.index
+
+        if crdc_series_uuid is not None:
+            download_df = pd.concat(
+                [
+                    self.index[
+                        [
+                            "PatientID",
+                            "collection_id",
+                            "Modality",
+                            "StudyInstanceUID",
+                            "SeriesInstanceUID",
+                            "crdc_series_uuid",
+                            "series_aws_url",
+                            "series_size_MB",
+                        ]
+                    ],
+                    self.previous_versions_index[
+                        [
+                            "PatientID",
+                            "collection_id",
+                            "Modality",
+                            "StudyInstanceUID",
+                            "SeriesInstanceUID",
+                            "crdc_series_uuid",
+                            "series_aws_url",
+                            "series_size_MB",
+                        ]
+                    ],
+                ],
+            )
+        else:
+            download_df = self.index
 
         result_df = self._safe_filter_by_selection(
-            index_to_be_filtered,
+            download_df,
             collection_id=collection_id,
             patientId=patientId,
             studyInstanceUID=studyInstanceUID,
             seriesInstanceUID=seriesInstanceUID,
             sopInstanceUID=sopInstanceUID,
+            crdc_series_uuid=crdc_series_uuid,
         )
 
         if not sopInstanceUID:
