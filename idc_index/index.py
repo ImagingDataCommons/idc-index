@@ -1605,6 +1605,11 @@ Destination folder is not empty and sync size is less than total size.
                 raise ValueError(
                     "Instance-level access not possible because instance-level index not installed."
                 )
+            if use_s5cmd_sync:
+                logger.warning(
+                    "s5cmd sync is not supported for downloading individual files. Disabling sync."
+                )
+                use_s5cmd_sync = False
         elif crdc_series_uuid is not None:
             download_df = pd.concat(
                 [
@@ -1699,9 +1704,8 @@ Destination folder is not empty and sync size is less than total size.
                     )
                 SELECT
                     series_aws_url,
-                    CONCAT(TRIM('*' FROM series_aws_url), crdc_instance_uuid, '.dcm') as instance_url,
+                    CONCAT(TRIM('*' FROM series_aws_url), crdc_instance_uuid, '.dcm') as instance_aws_url,
                     REGEXP_EXTRACT(series_aws_url, '(?:.*?\\/){{3}}([^\\/?#]+)', 1) index_crdc_series_uuid,
-                    series_size_MB,
                     {hierarchy} as path
                 FROM
                     temp
@@ -1735,13 +1739,13 @@ Destination folder is not empty and sync size is less than total size.
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as manifest_file:
             # Determine column containing the URL for instance / series-level access
             if sopInstanceUID:
-                if not "instance_url" in result_df:
-                    result_df["instance_url"] = (
+                if not "instance_aws_url" in result_df:
+                    result_df["instance_aws_url"] = (
                         result_df["series_aws_url"].replace("/*", "/")
                         + result_df["crdc_instance_uuid"]
                         + ".dcm"
                     )
-                url_column = "instance_url"
+                url_column = "instance_aws_url"
             else:
                 url_column = "series_aws_url"
 
@@ -1776,6 +1780,12 @@ Destination folder is not empty and sync size is less than total size.
 Temporary download manifest is generated and is passed to self._s5cmd_run
 """
         )
+        if sopInstanceUID:
+            s5cmd_sync_helper_df = None
+        else:
+            s5cmd_sync_helper_df = result_df[
+                ["index_crdc_series_uuid", "s5cmd_cmd", "series_size_MB", "path"]
+            ]
         self._s5cmd_run(
             endpoint_to_use=aws_endpoint_url,
             manifest_file=Path(manifest_file.name),
@@ -1786,9 +1796,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             use_s5cmd_sync=use_s5cmd_sync,
             dirTemplate=dirTemplate,
             list_of_directories=list_of_directories,
-            s5cmd_sync_helper_df=result_df[
-                ["index_crdc_series_uuid", "s5cmd_cmd", "series_size_MB", "path"]
-            ],
+            s5cmd_sync_helper_df=s5cmd_sync_helper_df,
         )
 
     def download_dicom_instance(
