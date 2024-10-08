@@ -37,3 +37,10 @@ api/idc_index
 - {ref}`genindex`
 - {ref}`modindex`
 - {ref}`search`
+
+## Command line tools
+
+```{click} idc_index.cli:main
+  :prog: main
+  :nested: full
+```
