@@ -556,6 +556,13 @@ class TestIDCClient(unittest.TestCase):
             if i.indices_overview[index]["url"] is not None:
                 assert remote_file_exists(i.indices_overview[index]["url"])
 
+    def test_clinical_index_install(self):
+        i = IDCClient()
+        assert i.indices_overview["clinical_index"]["installed"] is False
+        i.fetch_index("clinical_index")
+        assert i.indices_overview["clinical_index"]["installed"] is True
+        assert len(os.listdir(i.clinical_data_dir)) > 0
+
 
 if __name__ == "__main__":
     unittest.main()
