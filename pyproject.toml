@@ -37,6 +37,7 @@ dependencies = [
   "idc-index-data==19.0.2",
   "packaging",
   "pandas<2.2",
+  "platformdirs",
   "psutil",
   "pyarrow",
   "requests",

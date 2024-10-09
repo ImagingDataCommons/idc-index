@@ -8,12 +8,13 @@ import shutil
 import subprocess
 import tempfile
 import time
-from importlib.metadata import distribution
+from importlib.metadata import distribution, version
 from pathlib import Path
 
 import duckdb
 import idc_index_data
 import pandas as pd
+import platformdirs
 import psutil
 import requests
 from packaging.version import Version
@@ -86,33 +87,48 @@ class IDCClient:
             {"Modality": pd.Series.unique, "series_size_MB": "sum"}
         )
 
-        idc_version = f"v{Version(idc_index_data.__version__).major}"
+        self.idc_version = f"v{Version(idc_index_data.__version__).major}"
+
+        # since indices can change between versions, we need to store them in a versioned directory
+        self.indices_data_dir = platformdirs.user_data_dir(
+            "idc_index_data", "IDC", version=version("idc-index-data")
+        )
+        # these are the items that are fetched from IDC release assets (e.g., clinical data files)
+        self.idc_data_dir = platformdirs.user_data_dir(
+            "IDC", "IDC", version=self.idc_version
+        )
+        self.clinical_data_dir = None
 
         self.indices_overview = {
             "index": {
                 "description": "Main index containing one row per DICOM series.",
                 "installed": True,
                 "url": None,
+                "file_path": idc_index_data.IDC_INDEX_PARQUET_FILEPATH,
             },
             "previous_versions_index": {
                 "description": "index containing one row per DICOM series from all previous IDC versions that are not in current version.",
                 "installed": True,
                 "url": None,
+                "file_path": idc_index_data.PRIOR_VERSIONS_INDEX_PARQUET_FILEPATH,
             },
             "sm_index": {
                 "description": "DICOM Slide Microscopy series-level index.",
                 "installed": False,
                 "url": f"{asset_endpoint_url}/sm_index.parquet",
+                "file_path": None,
             },
             "sm_instance_index": {
                 "description": "DICOM Slide Microscopy instance-level index.",
                 "installed": False,
                 "url": f"{asset_endpoint_url}/sm_instance_index.parquet",
+                "file_path": None,
             },
             "clinical_index": {
                 "description": "Index of clinical data accompanying the available images.",
                 "installed": False,
                 "url": f"{asset_endpoint_url}/clinical_index.parquet",
+                "file_path": None,
             },
         }
 
@@ -275,7 +291,7 @@ class IDCClient:
 
         return str(download_dir.resolve())
 
-    def fetch_index(self, index) -> None:
+    def fetch_index(self, index_name) -> None:
         """
         Downloads requested index and adds this index joined with the main index as respective class attribute.
 
@@ -283,20 +299,24 @@ class IDCClient:
             index (str): Name of the index to be downloaded.
         """
 
-        if index not in self.indices_overview:
-            logger.error(f"Index {index} is not available and can not be fetched.")
-        elif self.indices_overview[index]["installed"]:
+        if index_name not in self.indices_overview:
+            logger.error(f"Index {index_name} is not available and can not be fetched.")
+        elif self.indices_overview[index_name]["installed"]:
             logger.warning(
-                f"Index {index} already installed and will not be fetched again."
+                f"Index {index_name} already installed and will not be fetched again."
             )
         else:
-            response = requests.get(self.indices_overview[index]["url"], timeout=30)
+            logger.info("Fetching index %s", index_name)
+            response = requests.get(
+                self.indices_overview[index_name]["url"], timeout=30
+            )
             if response.status_code == 200:
                 filepath = os.path.join(
-                    idc_index_data.IDC_INDEX_PARQUET_FILEPATH.parents[0],
-                    f"{index}.parquet",
+                    self.indices_data_dir,
+                    f"{index_name}.parquet",
                 )
 
+                os.makedirs(os.path.dirname(filepath), exist_ok=True)
                 with open(filepath, mode="wb") as file:
                     file.write(response.content)
 
@@ -305,12 +325,41 @@ class IDCClient:
                 #    self.index[["series_aws_url", "SeriesInstanceUID"]],
                 #    on="SeriesInstanceUID", how="left"
                 # )
-                setattr(self.__class__, index, index_table)
-                self.indices_overview[index]["installed"] = True
+                setattr(self.__class__, index_name, index_table)
+                self.indices_overview[index_name]["installed"] = True
+                self.indices_overview[index_name]["file_path"] = filepath
 
             else:
                 logger.error(
-                    f"Failed to fetch index from URL {self.indices_overview[index]['url']}: {response.status_code}"
+                    f"Failed to fetch index from URL {self.indices_overview[index_name]['url']}: {response.status_code}"
+                )
+        # if clinical_index is requested, likely the user will need clinical data
+        # download it here, given that the size is small (<2MB as of IDC v19)
+        if index_name == "clinical_index":
+            logger.info(
+                "Since clinical_index was fetched, also installing corresponding tables."
+            )
+            # create clinical_data folder under self.idc_data_dir, if it does not exist
+            self.clinical_data_dir = os.path.join(self.idc_data_dir, "clinical_data")
+            idc_clinical_data_release_url = f"s3://idc-open-metadata/bigquery_export/idc_{self.idc_version}_clinical/*"
+            result = subprocess.run(
+                [
+                    self.s5cmdPath,
+                    "--no-sign-request",
+                    "cp",
+                    idc_clinical_data_release_url,
+                    self.clinical_data_dir,
+                ],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            if result.stderr and result.stdout.startswith("ERROR"):
+                logger.error("Failed to download IDC clinical data.")
+            else:
+                logger.info(
+                    "IDC clinical data downloaded successfully to %s",
+                    self.clinical_data_dir,
                 )
 
     def get_collections(self):
