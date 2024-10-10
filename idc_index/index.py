@@ -362,6 +362,29 @@ class IDCClient:
                     self.clinical_data_dir,
                 )
 
+    def get_clinical_table(self, table_name):
+        """
+        Returns the requested clinical table as a pandas DataFrame.
+
+        Args:
+            table_name (str): Name of the clinical table to be loaded.
+
+        Returns:
+            pandas.DataFrame: The requested clinical table.
+        """
+        if self.clinical_data_dir is None:
+            logger.error(
+                "Clinical data directory is not available. Please fetch clinical_index first."
+            )
+            return None
+
+        table_path = os.path.join(self.clinical_data_dir, table_name)
+        if not os.path.exists(table_path):
+            logger.error(f"Table {table_name} is not found in {table_path}.")
+            return None
+
+        return pd.read_parquet(table_path)
+
     def get_collections(self):
         """
         Returns the collections present in IDC
