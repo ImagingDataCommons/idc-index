@@ -563,6 +563,9 @@ class TestIDCClient(unittest.TestCase):
         assert i.indices_overview["clinical_index"]["installed"] is True
         assert len(os.listdir(i.clinical_data_dir)) > 0
 
+        nlst_clinical = i.get_clinical_table("nlst_clinical")
+        assert nlst_clinical is not None
+
 
 if __name__ == "__main__":
     unittest.main()
