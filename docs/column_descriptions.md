@@ -65,16 +65,18 @@ with slide microscopy data.
     was collected
   - `primaryAnatomicStructureModifier`: additional characteristics of the
     specimen, such as whether it is a tumor or normal tissue
+  - `admittingDiagnosis`: if available, diagnosis of the patient; populated
+    using the first item of the `AdmittingDiagnosesSequence` in DICOM SM series
   - `illuminationType`: specifies the type of illumination used when obtaining
     the image
 
 In case of `embeddingMedium`, `tissueFixative`, `staining_usingSubstance`,
-`primaryAnatomicStructure`, `primaryAnatomicStructureModifier` and
-`illuminationType` the attributes exist with suffix `_code_designator_value_str`
-and `_CodeMeaning`, which indicates whether the column contains
-CodeSchemeDesignator and CodeValue, or CodeMeaning. If this is new to you, a
-brief explanation on the three-value based coding scheme in DICOM can be found
-at https://learn.canceridc.dev/dicom/coding-schemes.
+`primaryAnatomicStructure`, `primaryAnatomicStructureModifier`,
+`admittingDiagnosis` and `illuminationType` the attributes exist with suffix
+`_code_designator_value_str` and `_CodeMeaning`, which indicates whether the
+column contains CodeSchemeDesignator and CodeValue, or CodeMeaning. If this is
+new to you, a brief explanation on the three-value based coding scheme in DICOM
+can be found at https://learn.canceridc.dev/dicom/coding-schemes.
 
 ## `sm_instance_index`
 
