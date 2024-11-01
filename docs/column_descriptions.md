@@ -116,3 +116,34 @@ the attributes exist with suffix `_code_designator_value_str` and
 and CodeValue, or CodeMeaning. If this is new to you, a brief explanation on the
 three-value based coding scheme in DICOM can be found at
 https://learn.canceridc.dev/dicom/coding-schemes.
+
+## `clinical_index`
+
+Many of the image collections available in IDC are accompanied by clinical data.
+Such clinical data is organized in one or more tables that are shared alongside
+the images.
+
+Each row in `clinical_index` corresponds to a column in a clinical table
+available in IDC. You can use this index to find collections that have a
+specific clinical attribute, compare availability of the clinical data across
+collections, identify patients that have specific clinical characteristics.
+
+Note that IDC does not perform any harmonization of the clinical data across
+collections, or any validation of the content of the tables. We share clinical
+data as it was provided by the submitter.
+
+provides the list of all of the columns across all of the clinical tables
+available in IDC. It contains the following items:
+
+- `collection_id`: identifier of the collection where the given clinical data
+  attribute is available
+- `short_table_name`: name of the clinical data table where the attribute is
+  encountered; the referenced table can be loaded into a Pandas DataFrame using
+  the `IDCClient.get_clinical_data()` call
+- `table_name`: fully resolved name of the table in IDC Google BigQuery public
+  dataset (only relevant if you would like to search using BigQuery)
+- `column`: name of the column that is available in the given clinical table
+- `colum_label`: label of the column (this field may contain more extensive
+  information describing a given column)
+- `values`: set of values defining the content of the column (relevant if the
+  column contains fixed list of values and not free text)
