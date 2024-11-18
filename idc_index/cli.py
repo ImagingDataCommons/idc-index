@@ -316,7 +316,7 @@ def download_from_manifest(
     default="info",
     help="Set the logging level for the CLI module.",
 )
-def download(generic_argument, download_dir, dir_template, log_level, quiet):
+def download(generic_argument, download_dir, dir_template, log_level):
     """Download content given the input parameter.
 
     Determine whether the input parameter corresponds to a file manifest or a list of collection_id, PatientID, StudyInstanceUID, or SeriesInstanceUID values, and download the corresponding files into the current directory. Default parameters will be used for organizing the downloaded files into folder hierarchy. Use `download_from_selection()` and `download_from_manifest()` functions if granular control over the download process is needed.
