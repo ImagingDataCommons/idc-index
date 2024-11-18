@@ -336,7 +336,9 @@ def download(generic_argument, download_dir, dir_template, log_level, quiet):
     if Path(generic_argument).is_file():
         # Parse the input parameters and pass them to IDC
         logger_cli.info("Detected manifest file, downloading from manifest.")
-        client.download_from_manifest(generic_argument, downloadDir=download_dir, dirTemplate=dir_template)
+        client.download_from_manifest(
+            generic_argument, downloadDir=download_dir, dirTemplate=dir_template
+        )
     # this is not a file manifest
     else:
         # Split the input string and filter out any empty values
@@ -359,7 +361,11 @@ def download(generic_argument, download_dir, dir_template, log_level, quiet):
                 )
             logger_cli.info(f"Identified matching {column_name}: {matched_ids}")
             client.download_from_selection(
-                **{kwarg_name: matched_ids, "downloadDir": download_dir, "dirTemplate": dir_template}
+                **{
+                    kwarg_name: matched_ids,
+                    "downloadDir": download_dir,
+                    "dirTemplate": dir_template,
+                }
             )
             return True
 
