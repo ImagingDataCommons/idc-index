@@ -297,6 +297,18 @@ def download_from_manifest(
     type=str,
 )
 @click.option(
+    "--download-dir",
+    required=False,
+    type=click.Path(),
+    help="Path to the directory to download the files to.",
+)
+@click.option(
+    "--dir-template",
+    type=str,
+    default=IDCClient.DOWNLOAD_HIERARCHY_DEFAULT,
+    help="Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to empty string (\"\") all files will be downloaded to the download directory with no subdirectories.",
+)
+@click.option(
     "--log-level",
     type=click.Choice(
         ["debug", "info", "warning", "error", "critical"], case_sensitive=False
@@ -304,7 +316,7 @@ def download_from_manifest(
     default="info",
     help="Set the logging level for the CLI module.",
 )
-def download(generic_argument, log_level):
+def download(generic_argument, download_dir, dir_template, log_level):
     """Download content given the input parameter.
 
     Determine whether the input parameter corresponds to a file manifest or a list of collection_id, PatientID, StudyInstanceUID, or SeriesInstanceUID values, and download the corresponding files into the current directory. Default parameters will be used for organizing the downloaded files into folder hierarchy. Use `download_from_selection()` and `download_from_manifest()` functions if granular control over the download process is needed.
@@ -316,12 +328,17 @@ def download(generic_argument, log_level):
 
     logger_cli.info(f"Downloading from IDC {client.get_idc_version()} index")
 
-    download_dir = Path.cwd()
+    if download_dir:
+        download_dir = Path(download_dir)
+    else:
+        download_dir = Path.cwd()
 
     if Path(generic_argument).is_file():
         # Parse the input parameters and pass them to IDC
         logger_cli.info("Detected manifest file, downloading from manifest.")
-        client.download_from_manifest(generic_argument, downloadDir=download_dir)
+        client.download_from_manifest(
+            generic_argument, downloadDir=download_dir, dirTemplate=dir_template
+        )
     # this is not a file manifest
     else:
         # Split the input string and filter out any empty values
@@ -344,7 +361,11 @@ def download(generic_argument, log_level):
                 )
             logger_cli.info(f"Identified matching {column_name}: {matched_ids}")
             client.download_from_selection(
-                **{kwarg_name: matched_ids, "downloadDir": download_dir}
+                **{
+                    kwarg_name: matched_ids,
+                    "downloadDir": download_dir,
+                    "dirTemplate": dir_template,
+                }
             )
             return True
 
