@@ -779,6 +779,11 @@ class IDCClient:
         # Rename the column
         manifest_df.columns = ["manifest_cp_cmd"]
 
+        # remove all rows that do not contain an S3 URL
+        manifest_df = manifest_df[
+            manifest_df["manifest_cp_cmd"].str.contains(r"s3://", na=False)
+        ]
+
         # create a copy of the index
         index_df_copy = self.index[
             [
@@ -916,7 +921,9 @@ class IDCClient:
                 REGEXP_EXTRACT(manifest_cp_cmd, '(?:.*?\\/){{3}}([^\\/?#]+)', 1) AS manifest_crdc_series_uuid,
                 REGEXP_REPLACE(regexp_replace(manifest_cp_cmd, 'cp ', ''), '\\s[^\\s]*$', '') AS s3_url,
             FROM
-                manifest_df )
+                manifest_df
+            WHERE
+                REGEXP_REPLACE(regexp_replace(manifest_cp_cmd, 'cp ', ''), '\\s[^\\s]*$', '') IS NOT NULL)
             SELECT
                 seriesInstanceuid,
                 index_crdc_series_uuid,
