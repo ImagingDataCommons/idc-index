@@ -779,6 +779,11 @@ class IDCClient:
         # Rename the column
         manifest_df.columns = ["manifest_cp_cmd"]
 
+        # remove all rows that do not contain an S3 URL
+        manifest_df = manifest_df[
+            manifest_df["manifest_cp_cmd"].str.contains(r"s3://", na=False)
+        ]
+
         # create a copy of the index
         index_df_copy = self.index[
             [
