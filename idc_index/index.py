@@ -836,7 +836,9 @@ class IDCClient:
                 REGEXP_EXTRACT(manifest_cp_cmd, '(?:.*?\\/){{3}}([^\\/?#]+)', 1) AS manifest_crdc_series_uuid,
                 REGEXP_EXTRACT(manifest_cp_cmd, 's3://\\S+') AS s3_url,
             FROM
-                manifest_df )
+                manifest_df
+            WHERE
+                REGEXP_EXTRACT(manifest_cp_cmd, 's3://\\S+') IS NOT NULL)
             SELECT
                 seriesInstanceuid,
                 index_crdc_series_uuid,
