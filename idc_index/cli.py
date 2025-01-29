@@ -18,6 +18,11 @@ logger_cli = logging.getLogger("cli")
 logger_cli.setLevel(logging.INFO)
 
 
+def _get_max_path_length():
+    # can make this more robust
+    return 260
+
+
 @click.group()
 def idc():
     """`idc` is a command line interface to the API functionality available in idc-index."""
@@ -333,7 +338,10 @@ def download(generic_argument, download_dir, dir_template, log_level):
     else:
         download_dir = Path.cwd()
 
-    if Path(generic_argument).is_file():
+    if (
+        len(generic_argument) < _get_max_path_length()
+        and Path(generic_argument).is_file()
+    ):
         # Parse the input parameters and pass them to IDC
         logger_cli.info("Detected manifest file, downloading from manifest.")
         client.download_from_manifest(
