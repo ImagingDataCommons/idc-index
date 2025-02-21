@@ -74,12 +74,12 @@ class IDCClient:
             self.index["series_aws_url"].str.split("/").str[3]
         )
 
-        self.previous_versions_index_path = (
+        self.prior_versions_index_path = (
             idc_index_data.PRIOR_VERSIONS_INDEX_PARQUET_FILEPATH
         )
         file_path = idc_index_data.PRIOR_VERSIONS_INDEX_PARQUET_FILEPATH
 
-        self.previous_versions_index = pd.read_parquet(file_path)
+        self.prior_versions_index = pd.read_parquet(file_path)
 
         # self.index = self.index.astype(str).replace("nan", "")
         self.index["series_size_MB"] = self.index["series_size_MB"].astype(float)
@@ -106,7 +106,7 @@ class IDCClient:
                 "url": None,
                 "file_path": idc_index_data.IDC_INDEX_PARQUET_FILEPATH,
             },
-            "previous_versions_index": {
+            "prior_versions_index": {
                 "description": "index containing one row per DICOM series from all previous IDC versions that are not in current version.",
                 "installed": True,
                 "url": None,
@@ -796,7 +796,7 @@ class IDCClient:
                 "StudyInstanceUID",
             ]
         ]
-        previous_versions_index_df_copy = self.previous_versions_index[
+        prior_versions_index_df_copy = self.prior_versions_index[
             [
                 "SeriesInstanceUID",
                 "series_aws_url",
@@ -903,7 +903,7 @@ class IDCClient:
                 series_size_MB,
                  {hierarchy} AS path,
             FROM
-                previous_versions_index_df_copy pvip
+                prior_versions_index_df_copy pvip
 
             ),
             index_temp AS (
@@ -1706,7 +1706,7 @@ Destination folder is not empty and sync size is less than total size.
                             "series_size_MB",
                         ]
                     ],
-                    self.previous_versions_index[
+                    self.prior_versions_index[
                         [
                             "PatientID",
                             "collection_id",
