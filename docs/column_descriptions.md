@@ -1,5 +1,13 @@
 # Metadata attributes in `idc-index`'s index tables
 
+`idc-index` is named this way because it wraps indices of IDC data: tables
+containing the most important metadata attributes describing the files available
+in IDC. The main metadata index is available in the `index` variable (which is a
+pandas `DataFrame`) of `IDCClient`. Additional index tables such as the
+`clinical_index` contain non-DICOM clinical data or slide microscopy specific
+tables (indicated by the prefix `sm`) include metadata attributes specific to
+slide microscopy images.
+
 ## `index`
 
 The following is the list of the columns included in `index`. You can use those
