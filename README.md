@@ -44,7 +44,7 @@ from idc_index import IDCClient
 client = IDCClient.client()
 ```
 
-You can use [IDC Portal](https://imaging.datacommons.cancer.gov/explore) to
+You can use [IDC Portal](https://imaging.datacommons.cancer.gov/explore/) to
 browse collections, cases, studies and series, copy their identifiers and
 download the corresponding files using `idc-index` helper functions.
 
@@ -80,17 +80,6 @@ client.download_from_selection(
     downloadDir=".",
 )
 ```
-
-## The `indices` of `idc-index`
-
-`idc-index` is named this way because it wraps indices of IDC data: tables
-containing the most important metadata attributes describing the files available
-in IDC. The main metadata index is available in the `index` variable (which is a
-pandas `DataFrame`) of `IDCClient`. Additional index tables such as the
-`clinical_index` contain non-DICOM clinical data or slide microscopy specific
-tables (indicated by the prefix `sm`) include metadata attributes specific to
-slide microscopy images. A description of available attributes for all indices
-can be found [here](column_descriptions).
 
 ## Tutorial
 
