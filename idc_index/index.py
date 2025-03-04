@@ -788,7 +788,8 @@ class IDCClient:
         index_df_copy = self.index[
             [
                 "SeriesInstanceUID",
-                "series_aws_url",
+                "aws_bucket",
+                "crdc_series_uuid",
                 "series_size_MB",
                 "PatientID",
                 "collection_id",
@@ -817,11 +818,9 @@ class IDCClient:
             hierarchy = f"CONCAT('{downloadDir}')"
 
         # Extract s3 url and crdc_series_uuid from the manifest copy commands
-        # Next, extract crdc_series_uuid from aws_series_url in the index and
+        # Next, construct aws_series_url in the index and
         # try to verify if every series in the manifest is present in the index
 
-        # TODO: need to remove the assumption that manifest commands will have 'cp'
-        #  and need to parse S3 URL directly
         # ruff: noqa
         sql = f"""
             PRAGMA disable_progress_bar;
@@ -829,10 +828,10 @@ class IDCClient:
             index_temp AS (
             SELECT
                 seriesInstanceUID,
-                series_aws_url,
+                CONCAT('s3://',aws_bucket,'/',crdc_series_uuid,'/*') AS series_aws_url,
                 series_size_MB,
                 {hierarchy} AS path,
-                REGEXP_EXTRACT(series_aws_url, '(?:.*?\\/){{3}}([^\\/?#]+)', 1) index_crdc_series_uuid
+                crdc_series_uuid AS index_crdc_series_uuid
             FROM
                 index_df_copy),
             manifest_temp AS (
@@ -891,7 +890,8 @@ class IDCClient:
             combined_index AS
             (SELECT
                  seriesInstanceUID,
-                series_aws_url,
+                CONCAT('s3://',aws_bucket,'/',crdc_series_uuid,'/*') AS series_aws_url,
+                crdc_series_uuid,
                 series_size_MB,
                 {hierarchy} AS path,
             FROM
@@ -910,9 +910,9 @@ class IDCClient:
             SELECT
                 seriesInstanceUID,
                 series_aws_url,
+                crdc_series_uuid AS index_crdc_series_uuid,
                 series_size_MB,
-                path,
-                REGEXP_EXTRACT(series_aws_url, '(?:.*?\\/){{3}}([^\\/?#]+)', 1) index_crdc_series_uuid
+                path
             FROM
                 combined_index),
             manifest_temp AS (
