@@ -788,7 +788,8 @@ class IDCClient:
         index_df_copy = self.index[
             [
                 "SeriesInstanceUID",
-                "series_aws_url",
+                "aws_bucket",
+                "crdc_series_uuid",
                 "series_size_MB",
                 "PatientID",
                 "collection_id",
