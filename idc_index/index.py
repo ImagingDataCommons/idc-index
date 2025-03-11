@@ -788,7 +788,8 @@ class IDCClient:
         index_df_copy = self.index[
             [
                 "SeriesInstanceUID",
-                "series_aws_url",
+                "aws_bucket",
+                "crdc_series_uuid",
                 "series_size_MB",
                 "PatientID",
                 "collection_id",
@@ -800,6 +801,7 @@ class IDCClient:
             [
                 "SeriesInstanceUID",
                 "series_aws_url",
+                "crdc_series_uuid",
                 "series_size_MB",
                 "PatientID",
                 "collection_id",
@@ -817,11 +819,9 @@ class IDCClient:
             hierarchy = f"CONCAT('{downloadDir}')"
 
         # Extract s3 url and crdc_series_uuid from the manifest copy commands
-        # Next, extract crdc_series_uuid from aws_series_url in the index and
+        # Next, construct aws_series_url in the index and
         # try to verify if every series in the manifest is present in the index
 
-        # TODO: need to remove the assumption that manifest commands will have 'cp'
-        #  and need to parse S3 URL directly
         # ruff: noqa
         sql = f"""
             PRAGMA disable_progress_bar;
@@ -829,10 +829,10 @@ class IDCClient:
             index_temp AS (
             SELECT
                 seriesInstanceUID,
-                series_aws_url,
+                CONCAT('s3://',aws_bucket,'/',crdc_series_uuid,'/*') AS series_aws_url,
                 series_size_MB,
                 {hierarchy} AS path,
-                REGEXP_EXTRACT(series_aws_url, '(?:.*?\\/){{3}}([^\\/?#]+)', 1) index_crdc_series_uuid
+                crdc_series_uuid AS index_crdc_series_uuid
             FROM
                 index_df_copy),
             manifest_temp AS (
@@ -885,15 +885,17 @@ class IDCClient:
             logger.debug(
                 "Checking if the requested data is available in other idc versions "
             )
+
             missing_series_sql = f"""
             PRAGMA disable_progress_bar;
             WITH
-            combined_index AS
+            index_temp AS
             (SELECT
-                 seriesInstanceUID,
-                series_aws_url,
+                seriesInstanceUID,
+                CONCAT('s3://',aws_bucket,'/',crdc_series_uuid,'/*') AS series_aws_url,
                 series_size_MB,
                 {hierarchy} AS path,
+                crdc_series_uuid AS index_crdc_series_uuid
             FROM
                 index_df_copy
             union by name
@@ -902,19 +904,11 @@ class IDCClient:
                 series_aws_url,
                 series_size_MB,
                  {hierarchy} AS path,
+                 crdc_series_uuid AS index_crdc_series_uuid
             FROM
                 prior_versions_index_df_copy pvip
 
             ),
-            index_temp AS (
-            SELECT
-                seriesInstanceUID,
-                series_aws_url,
-                series_size_MB,
-                path,
-                REGEXP_EXTRACT(series_aws_url, '(?:.*?\\/){{3}}([^\\/?#]+)', 1) index_crdc_series_uuid
-            FROM
-                combined_index),
             manifest_temp AS (
             SELECT
                 manifest_cp_cmd,
@@ -947,6 +941,7 @@ class IDCClient:
                 index_temp.index_crdc_series_uuid = manifest_temp.manifest_crdc_series_uuid
             """
             merged_df = duckdb.sql(missing_series_sql).df()
+            print(merged_df)
             if not all(merged_df["crdc_series_uuid_match"]):
                 missing_manifest_cp_cmds = merged_df.loc[
                     ~merged_df["crdc_series_uuid_match"], "manifest_cp_cmd"
@@ -1033,6 +1028,8 @@ class IDCClient:
                 merged_df["s5cmd_cmd"] = (
                     "cp " + merged_df["s3_url"] + " " + '"' + downloadDir + '"'
                 )
+
+            print(merged_df["s5cmd_cmd"])
 
             # Combine all commands into a single string with newline separators
             commands = "\n".join(merged_df["s5cmd_cmd"])
@@ -1702,6 +1699,7 @@ Destination folder is not empty and sync size is less than total size.
                             "StudyInstanceUID",
                             "SeriesInstanceUID",
                             "crdc_series_uuid",
+                            "aws_bucket",
                             "series_aws_url",
                             "series_size_MB",
                         ]
@@ -1714,6 +1712,7 @@ Destination folder is not empty and sync size is less than total size.
                             "StudyInstanceUID",
                             "SeriesInstanceUID",
                             "crdc_series_uuid",
+                            "aws_bucket",
                             "series_aws_url",
                             "series_size_MB",
                         ]
@@ -1785,8 +1784,8 @@ Destination folder is not empty and sync size is less than total size.
                     )
                 SELECT
                     series_aws_url,
-                    CONCAT(TRIM('*' FROM series_aws_url), crdc_instance_uuid, '.dcm') as instance_aws_url,
-                    REGEXP_EXTRACT(series_aws_url, '(?:.*?\\/){{3}}([^\\/?#]+)', 1) index_crdc_series_uuid,
+                    CONCAT('s3://', aws_bucket, '/', crdc_series_uuid,'/', crdc_instance_uuid, '.dcm') as instance_aws_url,
+                    crdc_series_uuid index_crdc_series_uuid,
                     {hierarchy} as path
                 FROM
                     temp
@@ -1805,8 +1804,8 @@ Destination folder is not empty and sync size is less than total size.
                             result_df
                     )
                 SELECT
-                    series_aws_url,
-                    REGEXP_EXTRACT(series_aws_url, '(?:.*?\\/){{3}}([^\\/?#]+)', 1) index_crdc_series_uuid,
+                    CONCAT('s3://',aws_bucket,'/',crdc_series_uuid,'/*') AS series_aws_url,
+                    crdc_series_uuid AS index_crdc_series_uuid,
                     series_size_MB,
                     {hierarchy} as path
                 FROM
