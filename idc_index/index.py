@@ -640,7 +640,7 @@ class IDCClient:
         Get the URL of the IDC viewer for the given series or study in IDC based on
         the provided SeriesInstanceUID or StudyInstanceUID. If StudyInstanceUID is not provided,
         it will be automatically deduced. If viewer_selector is not provided, default viewers
-        will be used (OHIF v2 or v3 for radiology modalities, and Slim for SM).
+        will be used (OHIF v3 for radiology modalities, and Slim for SM).
 
         This function will validate the provided SeriesInstanceUID or StudyInstanceUID against IDC
         index to ensure that the series or study is available in IDC.
@@ -653,7 +653,7 @@ class IDCClient:
                 available in IDC
 
             viewer_selector: string containing the name of the viewer to use. Must be one of the following:
-                ohif_v2, ohif_v3, or slim. If not provided, default viewers will be used.
+                ohif_v2, ohif_v3, or slim. If not provided, default viewers will be used: slim for studies that contain SM modality and ohif_v3 for radiology.
 
         Returns:
             string containing the IDC viewer URL for the requested selection
@@ -718,7 +718,7 @@ class IDCClient:
             if "SM" in modality:
                 viewer_selector = "slim"
             else:
-                viewer_selector = "ohif_v2"
+                viewer_selector = "ohif_v3"
 
         if viewer_selector == "ohif_v2":
             if seriesInstanceUID is None:
