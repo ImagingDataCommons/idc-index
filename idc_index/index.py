@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -150,6 +151,24 @@ class IDCClient:
         logger.debug(f"Found s5cmd executable: {self.s5cmdPath}")
         # ... and check it can be executed
         subprocess.check_call([self.s5cmdPath, "--help"], stdout=subprocess.DEVNULL)
+
+    @staticmethod
+    def _replace_aws_with_gcp_buckets(dataframe, column_name):
+        # mapping from AWS to GCS buckets is fixed
+        replacements = {
+            r"s3://idc-open-data-two/": r"s3://idc-open-idc1/",
+            r"s3://idc-open-data-cr/": r"s3://idc-open-cr/",
+            r"s3://idc-open-data/": r"s3://public-datasets-idc/",
+        }
+
+        # Function to apply replacements
+        def replace_url_parts(url):
+            for old, new in replacements.items():
+                url = re.sub(old, new, url)
+            return url
+
+        # Apply the replacements to the requested column
+        dataframe[column_name] = dataframe[column_name].apply(replace_url_parts)
 
     @staticmethod
     def _filter_dataframe_by_id(key, dataframe, _id):
@@ -590,7 +609,7 @@ class IDCClient:
 
         return response
 
-    def get_series_file_URLs(self, seriesInstanceUID):
+    def get_series_file_URLs(self, seriesInstanceUID, source_bucket_location="aws"):
         """
         Get the URLs of the files corresponding to the DICOM instances in a given SeriesInstanceUID.
 
@@ -603,13 +622,16 @@ class IDCClient:
         # Query to get the S3 URL
         s3url_query = f"""
         SELECT
-        series_aws_url
+        CONCAT('s3://',aws_bucket,'/',crdc_series_uuid,'/*') as series_aws_url
         FROM
         index
         WHERE
         SeriesInstanceUID='{seriesInstanceUID}'
         """
         s3url_query_df = self.sql_query(s3url_query)
+
+        if source_bucket_location == "gcp":
+            self._replace_aws_with_gcp_buckets(s3url_query_df, "series_aws_url")
         s3_url = s3url_query_df.series_aws_url[0]
 
         # Remove the last character from the S3 URL
@@ -788,7 +810,8 @@ class IDCClient:
         index_df_copy = self.index[
             [
                 "SeriesInstanceUID",
-                "series_aws_url",
+                "aws_bucket",
+                "crdc_series_uuid",
                 "series_size_MB",
                 "PatientID",
                 "collection_id",
@@ -799,7 +822,8 @@ class IDCClient:
         prior_versions_index_df_copy = self.prior_versions_index[
             [
                 "SeriesInstanceUID",
-                "series_aws_url",
+                "aws_bucket",
+                "crdc_series_uuid",
                 "series_size_MB",
                 "PatientID",
                 "collection_id",
@@ -817,11 +841,9 @@ class IDCClient:
             hierarchy = f"CONCAT('{downloadDir}')"
 
         # Extract s3 url and crdc_series_uuid from the manifest copy commands
-        # Next, extract crdc_series_uuid from aws_series_url in the index and
+        # Next, construct aws_series_url in the index and
         # try to verify if every series in the manifest is present in the index
 
-        # TODO: need to remove the assumption that manifest commands will have 'cp'
-        #  and need to parse S3 URL directly
         # ruff: noqa
         sql = f"""
             PRAGMA disable_progress_bar;
@@ -829,10 +851,10 @@ class IDCClient:
             index_temp AS (
             SELECT
                 seriesInstanceUID,
-                series_aws_url,
+                CONCAT('s3://',aws_bucket,'/',crdc_series_uuid,'/*') AS series_aws_url,
                 series_size_MB,
                 {hierarchy} AS path,
-                REGEXP_EXTRACT(series_aws_url, '(?:.*?\\/){{3}}([^\\/?#]+)', 1) index_crdc_series_uuid
+                crdc_series_uuid AS index_crdc_series_uuid
             FROM
                 index_df_copy),
             manifest_temp AS (
@@ -885,36 +907,30 @@ class IDCClient:
             logger.debug(
                 "Checking if the requested data is available in other idc versions "
             )
+
             missing_series_sql = f"""
             PRAGMA disable_progress_bar;
             WITH
-            combined_index AS
+            index_temp AS
             (SELECT
-                 seriesInstanceUID,
-                series_aws_url,
+                seriesInstanceUID,
+                CONCAT('s3://',aws_bucket,'/',crdc_series_uuid,'/*') AS series_aws_url,
                 series_size_MB,
                 {hierarchy} AS path,
+                crdc_series_uuid AS index_crdc_series_uuid
             FROM
                 index_df_copy
             union by name
             SELECT
                 seriesInstanceUID,
-                series_aws_url,
+                CONCAT('s3://',aws_bucket,'/',crdc_series_uuid,'/*') AS series_aws_url,
                 series_size_MB,
                  {hierarchy} AS path,
+                 crdc_series_uuid AS index_crdc_series_uuid
             FROM
                 prior_versions_index_df_copy pvip
 
             ),
-            index_temp AS (
-            SELECT
-                seriesInstanceUID,
-                series_aws_url,
-                series_size_MB,
-                path,
-                REGEXP_EXTRACT(series_aws_url, '(?:.*?\\/){{3}}([^\\/?#]+)', 1) index_crdc_series_uuid
-            FROM
-                combined_index),
             manifest_temp AS (
             SELECT
                 manifest_cp_cmd,
@@ -947,6 +963,7 @@ class IDCClient:
                 index_temp.index_crdc_series_uuid = manifest_temp.manifest_crdc_series_uuid
             """
             merged_df = duckdb.sql(missing_series_sql).df()
+            print(merged_df)
             if not all(merged_df["crdc_series_uuid_match"]):
                 missing_manifest_cp_cmds = merged_df.loc[
                     ~merged_df["crdc_series_uuid_match"], "manifest_cp_cmd"
@@ -1033,6 +1050,8 @@ class IDCClient:
                 merged_df["s5cmd_cmd"] = (
                     "cp " + merged_df["s3_url"] + " " + '"' + downloadDir + '"'
                 )
+
+            print(merged_df["s5cmd_cmd"])
 
             # Combine all commands into a single string with newline separators
             commands = "\n".join(merged_df["s5cmd_cmd"])
@@ -1651,6 +1670,7 @@ Destination folder is not empty and sync size is less than total size.
         show_progress_bar=True,
         use_s5cmd_sync=False,
         dirTemplate=DOWNLOAD_HIERARCHY_DEFAULT,
+        source_bucket_location="aws",
     ):
         """Download the files corresponding to the selection. The filtering will be applied in sequence (but does it matter?) by first selecting the collection(s), followed by
         patient(s), study(studies) and series. If no filtering is applied, all the files will be downloaded.
@@ -1668,8 +1688,11 @@ Destination folder is not empty and sync size is less than total size.
             show_progress_bar (bool): If True, tracks the progress of download
             use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
             dirTemplate (str): Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
-
+            source_bucket_location: string selecting the provider of the bucket from which the files will be downloaded, allowing to select between Google ('gcs') and AWS ('aws') storage. Defaults to 'aws'.
         """
+
+        if source_bucket_location not in ["aws", "gcs"]:
+            raise ValueError("source_bucket_location must be either 'aws' or 'gcs'")
 
         downloadDir = self._check_create_directory(downloadDir)
 
@@ -1702,7 +1725,7 @@ Destination folder is not empty and sync size is less than total size.
                             "StudyInstanceUID",
                             "SeriesInstanceUID",
                             "crdc_series_uuid",
-                            "series_aws_url",
+                            "aws_bucket",
                             "series_size_MB",
                         ]
                     ],
@@ -1714,7 +1737,7 @@ Destination folder is not empty and sync size is less than total size.
                             "StudyInstanceUID",
                             "SeriesInstanceUID",
                             "crdc_series_uuid",
-                            "series_aws_url",
+                            "aws_bucket",
                             "series_size_MB",
                         ]
                     ],
@@ -1784,9 +1807,9 @@ Destination folder is not empty and sync size is less than total size.
                             result_df
                     )
                 SELECT
-                    series_aws_url,
-                    CONCAT(TRIM('*' FROM series_aws_url), crdc_instance_uuid, '.dcm') as instance_aws_url,
-                    REGEXP_EXTRACT(series_aws_url, '(?:.*?\\/){{3}}([^\\/?#]+)', 1) index_crdc_series_uuid,
+                    CONCAT('s3://', aws_bucket, '/', crdc_series_uuid,'/*') AS series_aws_url,
+                    CONCAT('s3://', aws_bucket, '/', crdc_series_uuid,'/', crdc_instance_uuid, '.dcm') as instance_aws_url,
+                    crdc_series_uuid index_crdc_series_uuid,
                     {hierarchy} as path
                 FROM
                     temp
@@ -1805,8 +1828,8 @@ Destination folder is not empty and sync size is less than total size.
                             result_df
                     )
                 SELECT
-                    series_aws_url,
-                    REGEXP_EXTRACT(series_aws_url, '(?:.*?\\/){{3}}([^\\/?#]+)', 1) index_crdc_series_uuid,
+                    CONCAT('s3://',aws_bucket,'/',crdc_series_uuid,'/*') AS series_aws_url,
+                    crdc_series_uuid AS index_crdc_series_uuid,
                     series_size_MB,
                     {hierarchy} as path
                 FROM
@@ -1848,6 +1871,9 @@ Destination folder is not empty and sync size is less than total size.
                     "cp " + result_df[url_column] + ' "' + downloadDir + '"'
                 )
 
+            if source_bucket_location == "gcs":
+                self._replace_aws_with_gcp_buckets(result_df, "s5cmd_cmd")
+
             # Combine all commands into a single string with newline separators
             commands = "\n".join(result_df["s5cmd_cmd"])
             manifest_file.write(commands)
@@ -1867,8 +1893,15 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             s5cmd_sync_helper_df = result_df[
                 ["index_crdc_series_uuid", "s5cmd_cmd", "series_size_MB", "path"]
             ]
+        endpoint_url = None
+        if source_bucket_location == "aws":
+            endpoint_url = aws_endpoint_url
+        elif source_bucket_location == "gcs":
+            endpoint_url = gcp_endpoint_url
+        else:
+            raise ValueError("source_bucket_location must be either 'aws' or 'gcs'")
         self._s5cmd_run(
-            endpoint_to_use=aws_endpoint_url,
+            endpoint_to_use=endpoint_url,
             manifest_file=Path(manifest_file.name),
             total_size=total_size,
             downloadDir=downloadDir,
@@ -1889,6 +1922,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         show_progress_bar=True,
         use_s5cmd_sync=False,
         dirTemplate=DOWNLOAD_HIERARCHY_DEFAULT,
+        source_bucket_location="aws",
     ) -> None:
         """
         Download the files corresponding to the seriesInstanceUID to the specified directory.
@@ -1901,7 +1935,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             show_progress_bar (bool): If True, tracks the progress of download
             use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
             dirTemplate (str): Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
-
+            source_bucket_location: string selecting the provider of the bucket from which the files will be downloaded, allowing to select between Google ('gcs') and AWS ('aws') storage. Defaults to 'aws'.
         Returns: None
 
         Raises:
@@ -1916,6 +1950,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             show_progress_bar=show_progress_bar,
             use_s5cmd_sync=use_s5cmd_sync,
             dirTemplate=dirTemplate,
+            source_bucket_location=source_bucket_location,
         )
 
     def download_dicom_series(
@@ -1927,6 +1962,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         show_progress_bar=True,
         use_s5cmd_sync=False,
         dirTemplate=DOWNLOAD_HIERARCHY_DEFAULT,
+        source_bucket_location="aws",
     ) -> None:
         """
         Download the files corresponding to the seriesInstanceUID to the specified directory.
@@ -1939,7 +1975,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             show_progress_bar (bool): If True, tracks the progress of download
             use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
             dirTemplate (str): Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
-
+            source_bucket_location: string selecting the provider of the bucket from which the files will be downloaded, allowing to select between Google ('gcs') and AWS ('aws') storage. Defaults to 'aws'.
         Returns: None
 
         Raises:
@@ -1954,6 +1990,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             show_progress_bar=show_progress_bar,
             use_s5cmd_sync=use_s5cmd_sync,
             dirTemplate=dirTemplate,
+            source_bucket_location=source_bucket_location,
         )
 
     def download_dicom_studies(
@@ -1965,6 +2002,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         show_progress_bar=True,
         use_s5cmd_sync=False,
         dirTemplate=DOWNLOAD_HIERARCHY_DEFAULT,
+        source_bucket_location="aws",
     ) -> None:
         """
         Download the files corresponding to the studyInstanceUID to the specified directory.
@@ -1977,7 +2015,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             show_progress_bar (bool): If True, tracks the progress of download
             use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
             dirTemplate (str): Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
-
+            source_bucket_location: string selecting the provider of the bucket from which the files will be downloaded, allowing to select between Google ('gcs') and AWS ('aws') storage. Defaults to 'aws'.
         Returns: None
 
         Raises:
@@ -1992,6 +2030,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             show_progress_bar=show_progress_bar,
             use_s5cmd_sync=use_s5cmd_sync,
             dirTemplate=dirTemplate,
+            source_bucket_location=source_bucket_location,
         )
 
     def download_dicom_patients(
@@ -2003,6 +2042,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         show_progress_bar=True,
         use_s5cmd_sync=False,
         dirTemplate=DOWNLOAD_HIERARCHY_DEFAULT,
+        source_bucket_location="aws",
     ) -> None:
         """
         Download the files corresponding to the studyInstanceUID to the specified directory.
@@ -2015,6 +2055,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             show_progress_bar (bool): If True, tracks the progress of download
             use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
             dirTemplate (str): Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
+            source_bucket_location: string selecting the provider of the bucket from which the files will be downloaded, allowing to select between Google ('gcs') and AWS ('aws') storage. Defaults to 'aws'.
 
         Returns: None
 
@@ -2030,6 +2071,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             show_progress_bar=show_progress_bar,
             use_s5cmd_sync=use_s5cmd_sync,
             dirTemplate=dirTemplate,
+            source_bucket_location=source_bucket_location,
         )
 
     def download_collection(
@@ -2041,6 +2083,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         show_progress_bar=True,
         use_s5cmd_sync=False,
         dirTemplate=DOWNLOAD_HIERARCHY_DEFAULT,
+        source_bucket_location="aws",
     ) -> None:
         """
         Download the files corresponding to the studyInstanceUID to the specified directory.
@@ -2053,6 +2096,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             show_progress_bar (bool): If True, tracks the progress of download
             use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
             dirTemplate (str): Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
+            source_bucket_location: string selecting the provider of the bucket from which the files will be downloaded, allowing to select between Google ('gcs') and AWS ('aws') storage. Defaults to 'aws'.
 
         Returns: None
 
@@ -2068,6 +2112,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             show_progress_bar=show_progress_bar,
             use_s5cmd_sync=use_s5cmd_sync,
             dirTemplate=dirTemplate,
+            source_bucket_location=source_bucket_location,
         )
 
     def sql_query(self, sql_query):

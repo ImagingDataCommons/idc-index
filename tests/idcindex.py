@@ -200,6 +200,27 @@ class TestIDCClient(unittest.TestCase):
 
             self.assertEqual(sum([len(files) for r, d, files in os.walk(temp_dir)]), 1)
 
+    def test_download_dicom_series_gcs(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            self.client.download_dicom_series(
+                seriesInstanceUID="1.3.6.1.4.1.14519.5.2.1.7695.1700.153974929648969296590126728101",
+                downloadDir=temp_dir,
+                source_bucket_location="gcs",
+            )
+            self.assertEqual(sum([len(files) for r, d, files in os.walk(temp_dir)]), 3)
+
+    def test_download_dicom_instance_gcs(self):
+        i = IDCClient()
+        i.fetch_index("sm_instance_index")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            self.client.download_dicom_instance(
+                sopInstanceUID="1.3.6.1.4.1.5962.99.1.528744472.1087975700.1641206284312.14.0",
+                downloadDir=temp_dir,
+                source_bucket_location="gcs",
+            )
+
+            self.assertEqual(sum([len(files) for r, d, files in os.walk(temp_dir)]), 1)
+
     def test_download_with_template(self):
         dirTemplateValues = [
             None,
