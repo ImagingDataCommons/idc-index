@@ -158,7 +158,9 @@ class IDCClient:
         replacements = {
             r"s3://idc-open-data-two/": r"s3://idc-open-idc1/",
             r"s3://idc-open-data-cr/": r"s3://idc-open-cr/",
-            r"s3://idc-open-data/": r"s3://public-datasets-idc/",
+            # as of IDC v20, we use a new bucket that has the same name as AWS
+            # for `idc-open-data` - no need to replace
+            # r"s3://idc-open-data/": r"s3://public-datasets-idc/",
         }
 
         # Function to apply replacements
@@ -309,6 +311,15 @@ class IDCClient:
         download_dir.mkdir(parents=True, exist_ok=True)
 
         return str(download_dir.resolve())
+
+    def _check_disk_size_and_warn(self, download_dir, disk_size_needed):
+        disk_free_space_MB = psutil.disk_usage(download_dir).free / (1000 * 1000)
+        logger.info("Disk size needed: " + self._format_size(disk_size_needed))
+        logger.info("Disk size available: " + self._format_size(disk_free_space_MB))
+        if disk_free_space_MB < disk_size_needed:
+            logger.error("Not enough free space on disk to download the files.")
+            return False
+        return True
 
     def fetch_index(self, index_name) -> None:
         """
@@ -977,44 +988,57 @@ class IDCClient:
             else:
                 logger.info("All of the identifiers from manifest have been resolved!")
 
+        # `idc-open-data` bucket is present in both AWS and GCP, this is why we skip checking endpoint
+        # for the URLs that contain `idc-open-data`
+        provider_specific_urls = merged_df[
+            ~merged_df["s3_url"].str.contains("/idc-open-data/")
+        ]
+
         if validate_manifest:
             # Check if there is more than one endpoint
-            if len(merged_df["endpoint"].unique()) > 1:
+            if len(provider_specific_urls["endpoint"].unique()) > 1:
+                logger.error("A mix of endpoint s3_urls encountered!")
+                for endpoint in merged_df["endpoint"].unique():
+                    sample_s3_url = merged_df[
+                        merged_df["endpoint"] == endpoint
+                    ].s3_url.values[0]
+                    logger.error(f"  Endpoint {endpoint} s3_url {sample_s3_url}")
                 raise ValueError(
                     "Either GCS bucket path is invalid or manifest has a mix of GCS and AWS urls. "
                 )
-
-            if (
-                len(merged_df["endpoint"].unique()) == 1
-                and merged_df["endpoint"].values[0] == "aws"
-            ):
+            elif provider_specific_urls.empty:
+                # if all URLs are from idc-open-data, default to AWS
                 endpoint_to_use = aws_endpoint_url
-
-            if (
-                len(merged_df["endpoint"].unique()) == 1
-                and merged_df["endpoint"].values[0] == "unknown"
-            ):
-                cmd = [
-                    self.s5cmdPath,
-                    "--no-sign-request",
-                    "--endpoint-url",
-                    gcp_endpoint_url,
-                    "ls",
-                    merged_df.s3_url.values[0],
-                ]
-                process = subprocess.run(
-                    cmd, capture_output=True, text=True, check=False
-                )
-                if process.stderr and process.stdout.startswith("ERROR"):
-                    logger.debug(
-                        "Folder not available in GCP. Manifest appears to be invalid."
+            else:  # provider_specific_urls["endpoint"].unique()) == 1
+                if provider_specific_urls["endpoint"].values[0] == "aws":
+                    logging.debug("Detected AWS as the endpoint to use")
+                    endpoint_to_use = aws_endpoint_url
+                else:  # unknown / gcp
+                    logging.debug("Will use GCS endpoint")
+                    cmd = [
+                        self.s5cmdPath,
+                        "--no-sign-request",
+                        "--endpoint-url",
+                        gcp_endpoint_url,
+                        "ls",
+                        merged_df.s3_url.values[0],
+                    ]
+                    process = subprocess.run(
+                        cmd, capture_output=True, text=True, check=False
                     )
-                    if validate_manifest:
-                        raise ValueError
-                else:
-                    endpoint_to_use = gcp_endpoint_url
+                    if process.stderr and process.stdout.startswith("ERROR"):
+                        logger.debug(
+                            "Folder not available in GCP. Manifest appears to be invalid."
+                        )
+                        if validate_manifest:
+                            raise ValueError
+                    else:
+                        endpoint_to_use = gcp_endpoint_url
 
-        elif merged_df["endpoint"].values[0] == "aws":
+        elif (
+            provider_specific_urls.empty
+            or provider_specific_urls["endpoint"].values[0] == "aws"
+        ):
             endpoint_to_use = aws_endpoint_url
         else:
             # TODO: here we assume that the endpoint is GCP; we could check at least the first URL to be sure,
@@ -1417,7 +1441,7 @@ Destination folder is not empty and sync size is less than total size.
 
             # fedorov: did consider-using-with, and decided against it to keep the code more readable
             stderr_log_file = tempfile.NamedTemporaryFile(delete=False)  # pylint: disable=consider-using-with
-
+            logging.debug("Running download command: " + str(cmd))
             with subprocess.Popen(
                 cmd,
                 stdout=stdout,
@@ -1522,7 +1546,8 @@ Destination folder is not empty and sync size is less than total size.
         )
 
         total_size_rounded = round(total_size, 2)
-        logger.info("Total size: " + self._format_size(total_size_rounded))
+        if not self._check_disk_size_and_warn(downloadDir, total_size):
+            return
 
         self._s5cmd_run(
             endpoint_to_use=endpoint_to_use,
@@ -1760,28 +1785,10 @@ Destination folder is not empty and sync size is less than total size.
             total_size = round(result_df["series_size_MB"].sum(), 2)
         else:
             total_size_bytes = round(result_df["instance_size"].sum(), 2)
-            logger.info(
-                "Total size of files to download: "
-                + self._format_size(total_size_bytes, size_in_bytes=True)
-            )
             total_size = total_size_bytes / (10**6)
 
-        disk_free_space_MB = psutil.disk_usage(downloadDir).free / (1000 * 1000)
-        if disk_free_space_MB < total_size:
-            logger.error("Not enough free space on disk to download the files.")
-            logger.error(
-                "Total size of files to download: " + self._format_size(total_size)
-            )
-            logger.error(
-                "Total free space on disk: " + self._format_size(disk_free_space_MB)
-            )
+        if not self._check_disk_size_and_warn(downloadDir, total_size):
             return
-
-        logger.info(
-            "Total free space on disk: "
-            + str(psutil.disk_usage(downloadDir).free / (1000 * 1000 * 1000))
-            + " GB"
-        )
 
         if dry_run:
             logger.info(
