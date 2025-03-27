@@ -630,27 +630,37 @@ class IDCClient:
         Returns:
             list of strings containing the AWS S3 URLs of the files corresponding to the SeriesInstanceUID
         """
-        # Query to get the S3 URL
-        s3url_query = f"""
-        SELECT
-        CONCAT('s3://',aws_bucket,'/',crdc_series_uuid,'/*') as series_aws_url
-        FROM
-        index
-        WHERE
-        SeriesInstanceUID='{seriesInstanceUID}'
-        """
-        s3url_query_df = self.sql_query(s3url_query)
+        if seriesInstanceUID not in self.index["SeriesInstanceUID"].values:
+            raise ValueError("SeriesInstanceUID not found in IDC index.")
 
+        selected_series_df = self.index[
+            self.index["SeriesInstanceUID"] == seriesInstanceUID
+        ].copy()
+        selected_series_df["series_aws_url"] = (
+            "s3://"
+            + selected_series_df["aws_bucket"]
+            + "/"
+            + selected_series_df["crdc_series_uuid"]
+            + "/"
+        )
+
+        endpoint = aws_endpoint_url
         if source_bucket_location == "gcp":
-            self._replace_aws_with_gcp_buckets(s3url_query_df, "series_aws_url")
-        s3_url = s3url_query_df.series_aws_url[0]
+            self._replace_aws_with_gcp_buckets(selected_series_df, "series_aws_url")
+            endpoint = gcp_endpoint_url
 
-        # Remove the last character from the S3 URL
-        s3_url = s3_url[:-1]
+        s3_url = selected_series_df["series_aws_url"].values[0]
 
         # Run the s5cmd ls command and capture its output
         result = subprocess.run(
-            [self.s5cmdPath, "--no-sign-request", "ls", s3_url],
+            [
+                self.s5cmdPath,
+                "--endpoint-url",
+                endpoint,
+                "--no-sign-request",
+                "ls",
+                s3_url,
+            ],
             stdout=subprocess.PIPE,
             check=False,
         )
@@ -974,7 +984,6 @@ class IDCClient:
                 index_temp.index_crdc_series_uuid = manifest_temp.manifest_crdc_series_uuid
             """
             merged_df = duckdb.sql(missing_series_sql).df()
-            print(merged_df)
             if not all(merged_df["crdc_series_uuid_match"]):
                 missing_manifest_cp_cmds = merged_df.loc[
                     ~merged_df["crdc_series_uuid_match"], "manifest_cp_cmd"
@@ -1592,18 +1601,8 @@ Destination folder is not empty and sync size is less than total size.
         index_copy["crdc_series_uuid"] = index_copy["series_aws_url"].str.extract(
             uuid_pattern, expand=False
         )
-        query = """
-        SELECT
-          SeriesInstanceUID
-        FROM
-          index_copy
-        JOIN
-          manifest_df
-        ON
-          index_copy.crdc_series_uuid = manifest_df.crdc_series_uuid
-        """
 
-        result_df = self.sql_query(query)
+        result_df = pd.merge(manifest_df, index_copy, on="crdc_series_uuid", how="left")
 
         return self.citations_from_selection(
             seriesInstanceUID=result_df["SeriesInstanceUID"].tolist(),
@@ -1722,11 +1721,13 @@ Destination folder is not empty and sync size is less than total size.
         downloadDir = self._check_create_directory(downloadDir)
 
         # If SOPInstanceUID(s) are given, we need to join the main index with the instance-level index
+        sm_instance_index = None
         if sopInstanceUID:
             if hasattr(
                 self, "sm_instance_index"
             ):  # check if instance-level index is installed
                 download_df = self.sm_instance_index
+                sm_instance_index = self.sm_instance_index
             else:
                 logger.error(
                     "Instance-level access not possible because instance-level index not installed."
@@ -1844,7 +1845,8 @@ Destination folder is not empty and sync size is less than total size.
                 JOIN
                     index using (seriesInstanceUID)
                 """
-        result_df = self.sql_query(sql)
+        index = self.index
+        result_df = duckdb.query(sql).df()
         # Download the files and make temporary file to store the list of files to download
 
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as manifest_file:
@@ -2135,14 +2137,15 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             duckdb.Error: any exception that duckdb.query() raises
         """
 
-        index = self.index
-
         logger.debug("Executing SQL query: " + sql_query)
         # TODO: find a more elegant way to automate the following:  https://www.perplexity.ai/search/write-python-code-that-iterate-XY9ppywbQFSRnOpgbwx_uQ
+        index = self.index
         if hasattr(self, "sm_index"):
             sm_index = self.sm_index
         if hasattr(self, "sm_instance_index"):
             sm_instance_index = self.sm_instance_index
         if hasattr(self, "clinical_index"):
             clinical_index = self.clinical_index
+        if hasattr(self, "prior_versions_index"):
+            prior_versions_index = self.prior_versions_index
         return duckdb.query(sql_query).to_df()
