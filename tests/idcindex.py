@@ -587,6 +587,16 @@ class TestIDCClient(unittest.TestCase):
         nlst_clinical = i.get_clinical_table("nlst_clinical")
         assert nlst_clinical is not None
 
+    def test_series_files_URLs(self):
+        c = IDCClient()
+        seriesInstanceUID = (
+            "1.3.6.1.4.1.14519.5.2.1.3671.4754.228015946741563785297552112143"
+        )
+        files_aws = c.get_series_file_URLs(seriesInstanceUID, "aws")
+        files_gcp = c.get_series_file_URLs(seriesInstanceUID, "gcp")
+        assert len(files_aws) > 0
+        assert len(files_gcp) == len(files_aws)
+
 
 if __name__ == "__main__":
     unittest.main()

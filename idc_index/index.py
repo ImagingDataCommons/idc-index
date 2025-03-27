@@ -630,27 +630,37 @@ class IDCClient:
         Returns:
             list of strings containing the AWS S3 URLs of the files corresponding to the SeriesInstanceUID
         """
-        # Query to get the S3 URL
-        s3url_query = f"""
-        SELECT
-        CONCAT('s3://',aws_bucket,'/',crdc_series_uuid,'/*') as series_aws_url
-        FROM
-        index
-        WHERE
-        SeriesInstanceUID='{seriesInstanceUID}'
-        """
-        s3url_query_df = self.sql_query(s3url_query)
+        if seriesInstanceUID not in self.index["SeriesInstanceUID"].values:
+            raise ValueError("SeriesInstanceUID not found in IDC index.")
 
+        selected_series_df = self.index[
+            self.index["SeriesInstanceUID"] == seriesInstanceUID
+        ].copy()
+        selected_series_df["series_aws_url"] = (
+            "s3://"
+            + selected_series_df["aws_bucket"]
+            + "/"
+            + selected_series_df["crdc_series_uuid"]
+            + "/"
+        )
+
+        endpoint = aws_endpoint_url
         if source_bucket_location == "gcp":
-            self._replace_aws_with_gcp_buckets(s3url_query_df, "series_aws_url")
-        s3_url = s3url_query_df.series_aws_url[0]
+            self._replace_aws_with_gcp_buckets(selected_series_df, "series_aws_url")
+            endpoint = gcp_endpoint_url
 
-        # Remove the last character from the S3 URL
-        s3_url = s3_url[:-1]
+        s3_url = selected_series_df["series_aws_url"].values[0]
 
         # Run the s5cmd ls command and capture its output
         result = subprocess.run(
-            [self.s5cmdPath, "--no-sign-request", "ls", s3_url],
+            [
+                self.s5cmdPath,
+                "--endpoint-url",
+                endpoint,
+                "--no-sign-request",
+                "ls",
+                s3_url,
+            ],
             stdout=subprocess.PIPE,
             check=False,
         )
@@ -1592,18 +1602,8 @@ Destination folder is not empty and sync size is less than total size.
         index_copy["crdc_series_uuid"] = index_copy["series_aws_url"].str.extract(
             uuid_pattern, expand=False
         )
-        query = """
-        SELECT
-          SeriesInstanceUID
-        FROM
-          index_copy
-        JOIN
-          manifest_df
-        ON
-          index_copy.crdc_series_uuid = manifest_df.crdc_series_uuid
-        """
 
-        result_df = self.sql_query(query)
+        result_df = pd.merge(manifest_df, index_copy, on="crdc_series_uuid", how="left")
 
         return self.citations_from_selection(
             seriesInstanceUID=result_df["SeriesInstanceUID"].tolist(),
@@ -1844,7 +1844,7 @@ Destination folder is not empty and sync size is less than total size.
                 JOIN
                     index using (seriesInstanceUID)
                 """
-        result_df = self.sql_query(sql)
+        result_df = self.sql_query(sql, result_df=result_df)
         # Download the files and make temporary file to store the list of files to download
 
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as manifest_file:
@@ -2122,7 +2122,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             source_bucket_location=source_bucket_location,
         )
 
-    def sql_query(self, sql_query):
+    def sql_query(self, sql_query, **kwargs):
         """Execute SQL query against the table in the index using duckdb.
 
         Args:
@@ -2134,7 +2134,11 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         Raises:
             duckdb.Error: any exception that duckdb.query() raises
         """
-
+        # TODO:
+        #  review all of the queries passed to this function, and ensure that
+        #  they all follow the same naming for the temporary tables;
+        #  check that we never need more than one extra temporary table
+        temp_df = dict.get(kwargs, "temp_df", None)
         index = self.index
 
         logger.debug("Executing SQL query: " + sql_query)
