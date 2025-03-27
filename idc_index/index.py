@@ -984,7 +984,6 @@ class IDCClient:
                 index_temp.index_crdc_series_uuid = manifest_temp.manifest_crdc_series_uuid
             """
             merged_df = duckdb.sql(missing_series_sql).df()
-            print(merged_df)
             if not all(merged_df["crdc_series_uuid_match"]):
                 missing_manifest_cp_cmds = merged_df.loc[
                     ~merged_df["crdc_series_uuid_match"], "manifest_cp_cmd"
@@ -1722,11 +1721,13 @@ Destination folder is not empty and sync size is less than total size.
         downloadDir = self._check_create_directory(downloadDir)
 
         # If SOPInstanceUID(s) are given, we need to join the main index with the instance-level index
+        sm_instance_index = None
         if sopInstanceUID:
             if hasattr(
                 self, "sm_instance_index"
             ):  # check if instance-level index is installed
                 download_df = self.sm_instance_index
+                sm_instance_index = self.sm_instance_index
             else:
                 logger.error(
                     "Instance-level access not possible because instance-level index not installed."
@@ -1844,7 +1845,8 @@ Destination folder is not empty and sync size is less than total size.
                 JOIN
                     index using (seriesInstanceUID)
                 """
-        result_df = self.sql_query(sql, result_df=result_df)
+        index = self.index
+        result_df = duckdb.query(sql).df()
         # Download the files and make temporary file to store the list of files to download
 
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as manifest_file:
@@ -2122,7 +2124,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             source_bucket_location=source_bucket_location,
         )
 
-    def sql_query(self, sql_query, **kwargs):
+    def sql_query(self, sql_query):
         """Execute SQL query against the table in the index using duckdb.
 
         Args:
@@ -2134,19 +2136,16 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         Raises:
             duckdb.Error: any exception that duckdb.query() raises
         """
-        # TODO:
-        #  review all of the queries passed to this function, and ensure that
-        #  they all follow the same naming for the temporary tables;
-        #  check that we never need more than one extra temporary table
-        temp_df = dict.get(kwargs, "temp_df", None)
-        index = self.index
 
         logger.debug("Executing SQL query: " + sql_query)
         # TODO: find a more elegant way to automate the following:  https://www.perplexity.ai/search/write-python-code-that-iterate-XY9ppywbQFSRnOpgbwx_uQ
+        index = self.index
         if hasattr(self, "sm_index"):
             sm_index = self.sm_index
         if hasattr(self, "sm_instance_index"):
             sm_instance_index = self.sm_instance_index
         if hasattr(self, "clinical_index"):
             clinical_index = self.clinical_index
+        if hasattr(self, "prior_versions_index"):
+            prior_versions_index = self.prior_versions_index
         return duckdb.query(sql_query).to_df()
