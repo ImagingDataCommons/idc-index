@@ -1084,8 +1084,6 @@ class IDCClient:
                     "cp " + merged_df["s3_url"] + " " + '"' + downloadDir + '"'
                 )
 
-            print(merged_df["s5cmd_cmd"])
-
             # Combine all commands into a single string with newline separators
             commands = "\n".join(merged_df["s5cmd_cmd"])
 
