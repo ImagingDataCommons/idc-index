@@ -676,6 +676,48 @@ class IDCClient:
 
         return file_names
 
+    def get_instance_file_URL(self, sopInstanceUID, source_bucket_location="aws"):
+        """
+        Get the bucket URL of the file corresponding to a given SOPInstanceUID.
+
+        This function will only return the URL for the Slide Microscopy (SM) instances,
+        which are maintained in the `sm_instance_index` table.
+
+        Args:
+            sopInstanceUID: string containing the value of DICOM SOPInstanceUID
+            source_bucket_location: string containing the source bucket location, either "aws" or "gcp"
+
+        Returns:
+            string containing the bucket URL of the file corresponding to the SOPInstanceUID,
+            or None if the SOPInstanceUID is not recognized
+        """
+
+        # sm_instance_index is required to complete this operation - install it!
+        self.fetch_index("sm_instance_index")
+
+        if sopInstanceUID not in self.sm_instance_index["SOPInstanceUID"].values:
+            raise ValueError("SOPInstanceUID not found in IDC sm_instance_index.")
+
+        # merge with the main index to get series_aws_url
+        selected_instance_df = self.sm_instance_index[
+            self.sm_instance_index["SOPInstanceUID"] == sopInstanceUID
+        ].copy()[["SeriesInstanceUID", "SOPInstanceUID", "crdc_instance_uuid"]]
+        selected_instance_df = pd.merge(
+            selected_instance_df,
+            self.index,
+            on="SeriesInstanceUID",
+            how="left",
+        )
+
+        if source_bucket_location == "gcp":
+            # replace AWS with the GCP bucket
+            self._replace_aws_with_gcp_buckets(selected_instance_df, "series_aws_url")
+
+        # instance files are named using crdc_instance_uuid
+        series_url = selected_instance_df.iloc[0]["series_aws_url"][:-1]
+        instance_uuid = selected_instance_df.iloc[0]["crdc_instance_uuid"]
+        return series_url + instance_uuid + ".dcm"
+
     def get_viewer_URL(
         self, seriesInstanceUID=None, studyInstanceUID=None, viewer_selector=None
     ):
