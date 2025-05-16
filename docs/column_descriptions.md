@@ -105,8 +105,8 @@ includes DICOM instances of the slide microscopy modality.
     obtained
   - `staining_usingSubstance`: describes staining steps the specimen underwent
     before the image was obtained
-  - `max_TotalPixelMatrixColumns`: width of the image at the maximum resolution
-  - `max_TotalMatrixRows`: height of the image at the maximum resolution
+  - `TotalPixelMatrixColumns`: width of the image
+  - `TotalMatrixRows`: height of the image
   - `PixelSpacing_0`: pixel spacing in mm
   - `ImageType`: specifies further characteristics of the image in a list,
     including as the third value whether it is a VOLUME, LABEL, OVERVIEW or
