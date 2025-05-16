@@ -133,6 +133,11 @@ class IDCClient:
             },
         }
 
+        # these will point to the dataframes containing the respective indices, once installed
+        self.sm_index = None
+        self.sm_instance_index = None
+        self.clinical_index = None
+
         # Lookup s5cmd
         self.s5cmdPath = shutil.which("s5cmd")
         if self.s5cmdPath is None:
@@ -355,7 +360,9 @@ class IDCClient:
                 #    self.index[["series_aws_url", "SeriesInstanceUID"]],
                 #    on="SeriesInstanceUID", how="left"
                 # )
-                setattr(self.__class__, index_name, index_table)
+                # TODO: consider switching to class variable!
+                # setattr(self.__class__, index_name, index_table)
+                setattr(self, index_name, index_table)
                 self.indices_overview[index_name]["installed"] = True
                 self.indices_overview[index_name]["file_path"] = filepath
 
@@ -675,6 +682,54 @@ class IDCClient:
         ]
 
         return file_names
+
+    def get_instance_file_URL(self, sopInstanceUID, source_bucket_location="aws"):
+        """
+        Get the bucket URL of the file corresponding to a given SOPInstanceUID.
+
+        This function will only return the URL for the Slide Microscopy (SM) instances,
+        which are maintained in the `sm_instance_index` table.
+
+        Args:
+            sopInstanceUID: string containing the value of DICOM SOPInstanceUID
+            source_bucket_location: string containing the source bucket location, either "aws" or "gcp"
+
+        Returns:
+            string containing the bucket URL of the file corresponding to the SOPInstanceUID,
+            or None if the SOPInstanceUID is not recognized
+        """
+
+        # sm_instance_index is required to complete this operation - install it!
+        self.fetch_index("sm_instance_index")
+
+        if self.sm_instance_index is None:
+            logger.error(
+                "sm_instance_index could not be installed. Please install it first using fetch_index."
+            )
+            return None
+
+        if sopInstanceUID not in self.sm_instance_index["SOPInstanceUID"].values:  # pylint: disable=unsubscriptable-object
+            raise ValueError("SOPInstanceUID not found in IDC sm_instance_index.")
+
+        # merge with the main index to get series_aws_url
+        selected_instance_df = self.sm_instance_index[  # pylint: disable=unsubscriptable-object
+            self.sm_instance_index["SOPInstanceUID"] == sopInstanceUID  # pylint: disable=unsubscriptable-object
+        ].copy()[["SeriesInstanceUID", "SOPInstanceUID", "crdc_instance_uuid"]]
+        selected_instance_df = pd.merge(
+            selected_instance_df,
+            self.index,
+            on="SeriesInstanceUID",
+            how="left",
+        )
+
+        if source_bucket_location == "gcp":
+            # replace AWS with the GCP bucket
+            self._replace_aws_with_gcp_buckets(selected_instance_df, "series_aws_url")
+
+        # instance files are named using crdc_instance_uuid
+        series_url = selected_instance_df.iloc[0]["series_aws_url"][:-1]
+        instance_uuid = selected_instance_df.iloc[0]["crdc_instance_uuid"]
+        return series_url + instance_uuid + ".dcm"
 
     def get_viewer_URL(
         self, seriesInstanceUID=None, studyInstanceUID=None, viewer_selector=None
@@ -1721,8 +1776,8 @@ Destination folder is not empty and sync size is less than total size.
         # If SOPInstanceUID(s) are given, we need to join the main index with the instance-level index
         sm_instance_index = None
         if sopInstanceUID:
-            if hasattr(
-                self, "sm_instance_index"
+            if (
+                self.sm_instance_index is not None
             ):  # check if instance-level index is installed
                 download_df = self.sm_instance_index
                 sm_instance_index = self.sm_instance_index
@@ -2138,12 +2193,12 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         logger.debug("Executing SQL query: " + sql_query)
         # TODO: find a more elegant way to automate the following:  https://www.perplexity.ai/search/write-python-code-that-iterate-XY9ppywbQFSRnOpgbwx_uQ
         index = self.index
-        if hasattr(self, "sm_index"):
+        if self.sm_index is not None:
             sm_index = self.sm_index
-        if hasattr(self, "sm_instance_index"):
+        if self.sm_instance_index is not None:
             sm_instance_index = self.sm_instance_index
-        if hasattr(self, "clinical_index"):
+        if self.clinical_index is not None:
             clinical_index = self.clinical_index
-        if hasattr(self, "prior_versions_index"):
+        if self.prior_versions_index is not None:
             prior_versions_index = self.prior_versions_index
         return duckdb.query(sql_query).to_df()
