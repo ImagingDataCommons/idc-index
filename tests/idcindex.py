@@ -582,8 +582,8 @@ class TestIDCClient(unittest.TestCase):
         assert i.indices_overview["clinical_index"]["installed"] is True
         assert len(os.listdir(i.clinical_data_dir)) > 0
 
-        nlst_clinical = i.get_clinical_table("nlst_clinical")
-        assert nlst_clinical is not None
+        nlst_canc = i.get_clinical_table("nlst_canc")
+        assert nlst_canc is not None
 
     def test_series_files_URLs(self):
         c = IDCClient()
