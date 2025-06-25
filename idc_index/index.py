@@ -315,7 +315,9 @@ class IDCClient:
         download_dir = Path(download_dir)
         download_dir.mkdir(parents=True, exist_ok=True)
 
-        return str(download_dir.resolve())
+        download_dir = str(download_dir.resolve()).replace("'", "''")
+
+        return download_dir
 
     def _check_disk_size_and_warn(self, download_dir, disk_size_needed):
         disk_free_space_MB = psutil.disk_usage(download_dir).free / (1000 * 1000)
