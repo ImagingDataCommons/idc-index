@@ -697,7 +697,7 @@ class IDCClient:
 
         Args:
             sopInstanceUID: string containing the value of DICOM SOPInstanceUID
-            source_bucket_location: string containing the source bucket location, either "aws" or "gcp"
+            source_bucket_location: string containing the source bucket location, either "aws" or "gcs"
 
         Returns:
             string containing the bucket URL of the file corresponding to the SOPInstanceUID,
