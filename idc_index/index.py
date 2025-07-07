@@ -632,7 +632,8 @@ class IDCClient:
         Get the URLs of the files corresponding to the DICOM instances in a given SeriesInstanceUID.
 
         Args:
-            SeriesInstanceUID: string containing the value of DICOM SeriesInstanceUID to filter by
+            seriesInstanceUID: string containing the value of DICOM SeriesInstanceUID to filter by
+            source_bucket_location: string containing the source bucket location, either "aws" or "gcs"
 
         Returns:
             list of strings containing the AWS S3 URLs of the files corresponding to the SeriesInstanceUID
@@ -652,9 +653,13 @@ class IDCClient:
         )
 
         endpoint = aws_endpoint_url
-        if source_bucket_location == "gcp":
+        if source_bucket_location == "gcs":
             self._replace_aws_with_gcp_buckets(selected_series_df, "series_aws_url")
             endpoint = gcp_endpoint_url
+        elif source_bucket_location != "aws":
+            raise ValueError(
+                "Argument 'source_bucket_location' must be either 'gcs' or 'aws'."
+            )
 
         s3_url = selected_series_df["series_aws_url"].values[0]
 
@@ -692,7 +697,7 @@ class IDCClient:
 
         Args:
             sopInstanceUID: string containing the value of DICOM SOPInstanceUID
-            source_bucket_location: string containing the source bucket location, either "aws" or "gcp"
+            source_bucket_location: string containing the source bucket location, either "aws" or "gcs"
 
         Returns:
             string containing the bucket URL of the file corresponding to the SOPInstanceUID,
@@ -722,9 +727,13 @@ class IDCClient:
             how="left",
         )
 
-        if source_bucket_location == "gcp":
+        if source_bucket_location == "gcs":
             # replace AWS with the GCP bucket
             self._replace_aws_with_gcp_buckets(selected_instance_df, "series_aws_url")
+        elif source_bucket_location != "aws":
+            raise ValueError(
+                "Argument 'source_bucket_location' must be either 'gcs' or 'aws'."
+            )
 
         # instance files are named using crdc_instance_uuid
         series_url = selected_instance_df.iloc[0]["series_aws_url"][:-1]

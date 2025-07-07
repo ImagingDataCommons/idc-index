@@ -591,7 +591,7 @@ class TestIDCClient(unittest.TestCase):
             "1.3.6.1.4.1.14519.5.2.1.3671.4754.228015946741563785297552112143"
         )
         files_aws = c.get_series_file_URLs(seriesInstanceUID, "aws")
-        files_gcp = c.get_series_file_URLs(seriesInstanceUID, "gcp")
+        files_gcp = c.get_series_file_URLs(seriesInstanceUID, "gcs")
         assert len(files_aws) > 0
         assert len(files_gcp) == len(files_aws)
 
@@ -600,7 +600,7 @@ class TestIDCClient(unittest.TestCase):
         sopInstanceUID = "1.3.6.1.4.1.5962.99.1.1900325859.924065538.1719887277027.10.0"
         file_url = "s3://idc-open-data/763fe058-7d25-4ba7-9b29-fd3d6c41dc4b/210f0529-c767-4795-9acf-bad2f4877427.dcm"
         files_aws = c.get_instance_file_URL(sopInstanceUID, "aws")
-        files_gcp = c.get_instance_file_URL(sopInstanceUID, "gcp")
+        files_gcp = c.get_instance_file_URL(sopInstanceUID, "gcs")
         assert files_aws == files_gcp == file_url
 
 
