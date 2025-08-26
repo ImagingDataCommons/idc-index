@@ -11,6 +11,7 @@ import tempfile
 import time
 from importlib.metadata import distribution, version
 from pathlib import Path
+from typing import Callable
 
 import duckdb
 import idc_index_data
@@ -1223,6 +1224,7 @@ class IDCClient:
         process: subprocess.Popen,
         show_progress_bar: bool = True,
         list_of_directories=None,
+        progress_callback: Callable[[float, float, str, str], None] = None,
     ):
         logger.debug("Inputs received for tracking download:")
         logger.debug(f"size_MB: {size_MB}")
@@ -1247,12 +1249,14 @@ class IDCClient:
                 IDCClient._format_size(size_MB),
             )
 
-            pbar = tqdm(
-                total=total_size_to_be_downloaded_bytes,
-                unit="B",
-                unit_scale=True,
-                desc="Downloading data",
-            )
+            pbar = None
+            if progress_callback is None:
+                pbar = tqdm(
+                    total=total_size_to_be_downloaded_bytes,
+                    unit="B",
+                    unit_scale=True,
+                    desc="Downloading data",
+                )
 
             while True:
                 time.sleep(0.5)
@@ -1260,15 +1264,28 @@ class IDCClient:
                 for directory in list_of_directories:
                     downloaded_bytes += IDCClient._get_dir_sum_file_size(directory)
                 downloaded_bytes -= initial_size_bytes
-                pbar.n = min(
-                    downloaded_bytes, total_size_to_be_downloaded_bytes
-                )  # Prevent the progress bar from exceeding 100%
-                pbar.refresh()
+
+                if not pbar is None:
+                    pbar.n = min(
+                        downloaded_bytes, total_size_to_be_downloaded_bytes
+                    )  # Prevent the progress bar from exceeding 100%
+                    pbar.refresh()
+
+                if not progress_callback is None:
+                    progress_callback(
+                        min(downloaded_bytes, total_size_to_be_downloaded_bytes),
+                        total_size_to_be_downloaded_bytes,
+                        "B",
+                        "Downloading data",
+                    )
+
                 if process.poll() is not None:
                     break
             # Wait for the process to finish
             _, stderr = process.communicate()
-            pbar.close()
+
+            if not pbar is None:
+                pbar.close()
 
         else:
             while process.poll() is None:
@@ -1371,6 +1388,7 @@ class IDCClient:
         dirTemplate,
         list_of_directories,
         s5cmd_sync_helper_df,
+        progress_callback=None,
     ):
         """
         Executes the s5cmd command to sync files from a given endpoint to a local directory.
@@ -1484,6 +1502,7 @@ Destination folder is not empty and sync size is less than total size.
                             process,
                             show_progress_bar,
                             list_of_directories,
+                            progress_callback,
                         )
                     else:
                         self._track_download_progress(
@@ -1492,6 +1511,7 @@ Destination folder is not empty and sync size is less than total size.
                             process,
                             show_progress_bar,
                             list_of_directories,
+                            progress_callback,
                         )
             else:
                 logger.info(
@@ -1525,6 +1545,7 @@ Destination folder is not empty and sync size is less than total size.
                     process,
                     show_progress_bar,
                     list_of_directories,
+                    progress_callback,
                 )
 
                 stderr_log_file.close()
@@ -1579,6 +1600,7 @@ Destination folder is not empty and sync size is less than total size.
         show_progress_bar: bool = True,
         use_s5cmd_sync: bool = False,
         dirTemplate=DOWNLOAD_HIERARCHY_DEFAULT,
+        progress_callback: Callable[[float, float, str, str], None] = None,
     ) -> None:
         """
         Download the manifest file. In a series of steps, the manifest file
@@ -1594,6 +1616,7 @@ Destination folder is not empty and sync size is less than total size.
             show_progress_bar (bool): If True, tracks the progress of download
             use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
             dirTemplate (str): Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
+            progress_callback: Optional; A callback function that takes four parameters: downloaded_bytes (float), total_bytes (float), unit (str), description (str). This function will be called periodically if show_progress_bar is True to report download progress. If None, a default progress bar will be displayed using tqdm.
 
         Raises:
             ValueError: If the download directory does not exist.
@@ -1631,6 +1654,7 @@ Destination folder is not empty and sync size is less than total size.
             dirTemplate=dirTemplate,
             list_of_directories=list_of_directories,
             s5cmd_sync_helper_df=validation_result_df,
+            progress_callback=progress_callback,
         )
 
     def citations_from_manifest(
