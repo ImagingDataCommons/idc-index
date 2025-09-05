@@ -41,7 +41,7 @@ dependencies = [
   "psutil",
   "pyarrow",
   "requests",
-  "s5cmd",
+  "s5cmd>=0.3.2",
   "sphinx-click",
   "tqdm"
 ]
