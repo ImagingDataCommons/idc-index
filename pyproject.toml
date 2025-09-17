@@ -184,7 +184,7 @@ ignore = [
   "SIM117",   # Use a single with statement with multiple contexts instead of nested with statements
   "T201",     # print found
 ]
-isort.required-imports = ["from __future__ import annotations"]
+
 # Uncomment if using a _compat.typing backport
 # typing-modules = ["idc_index._compat.typing"]
 
