@@ -15,7 +15,6 @@ to select cohorts and subsetting data. `index` is series-based, i.e, it has one
 row per DICOM series.
 
 - non-DICOM attributes assigned/curated by IDC:
-
   - `collection_id`: short string with the identifier of the collection the
     series belongs to
   - `analysis_result_id`: this string is not empty if the specific series is
@@ -94,7 +93,6 @@ The following is the list of the columns included in `sm_instance_index`.
 includes DICOM instances of the slide microscopy modality.
 
 - DICOM attributes extracted from the files:
-
   - `SOPInstanceUID`: unique identifier of the DICOM instance: one DICOM
     instance = one level/label/thumbnail image of the slide
   - `SeriesInstanceUID`: unique identifier of the DICOM series: one DICOM series

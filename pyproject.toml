@@ -176,7 +176,6 @@ ignore = [
   "G004",     # Logging statement uses f-string
   "PD011",    # Use .to_numpy() instead of .values
   "PD015",    # Use `.merge` method instead of `pd.merge` function.
-  "PD901",    # Avoid using the generic variable name df for DataFrames
   "PLR5501",  # Checks for else blocks that consist of a single if statement.
   "PT009",    # Use a regular assert instead of unittest-style {assertion}
   "PTH100",   # os.path.abspath() should be replaced by Path.resolve()
@@ -187,9 +186,11 @@ ignore = [
   "PTH119",   # os.path.basename() should be replaced by Path.name
   "PTH120",   # os.path.dirname() should be replaced by Path.parent
   "PTH123",   # open() should be replaced by Path.open()
+  "PTH208",   # Checks for uses of os.listdir.
   "RET504",   # Unnecessary assignment to {name} before return statement
   "RET506",   # Unnecessary {branch} after raise statement
   "RUF013",   # PEP 484 prohibits implicit `Optional`
+  "RUF059",   # Unpacked variable `stderr` is never used
   "SIM102",   # Use a single if statement instead of nested if statements
   "SIM105",   # Use `contextlib.suppress(FileNotFoundError)` instead of `try`-`except`-`pass`
   "SIM108",   # Use ternary operator {contents} instead of if-else-block
