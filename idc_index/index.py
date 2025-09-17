@@ -1243,13 +1243,13 @@ class IDCClient:
                     downloaded_bytes += IDCClient._get_dir_sum_file_size(directory)
                 downloaded_bytes -= initial_size_bytes
 
-                if not pbar is None:
+                if pbar is not None:
                     pbar.n = min(
                         downloaded_bytes, total_size_to_be_downloaded_bytes
                     )  # Prevent the progress bar from exceeding 100%
                     pbar.refresh()
 
-                if not progress_callback is None:
+                if progress_callback is not None:
                     progress_callback(
                         min(downloaded_bytes, total_size_to_be_downloaded_bytes),
                         total_size_to_be_downloaded_bytes,
@@ -1262,7 +1262,7 @@ class IDCClient:
             # Wait for the process to finish
             _, stderr = process.communicate()
 
-            if not pbar is None:
+            if pbar is not None:
                 pbar.close()
 
         else:
@@ -1909,7 +1909,7 @@ Destination folder is not empty and sync size is less than total size.
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as manifest_file:
             # Determine column containing the URL for instance / series-level access
             if sopInstanceUID:
-                if not "instance_aws_url" in result_df:
+                if "instance_aws_url" not in result_df:
                     result_df["instance_aws_url"] = (
                         result_df["series_aws_url"].replace("/*", "/")
                         + result_df["crdc_instance_uuid"]
