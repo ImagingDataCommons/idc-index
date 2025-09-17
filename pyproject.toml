@@ -1,6 +1,5 @@
 [build-system]
 requires = ["hatchling","hatch-vcs"]
-
 build-backend = "hatchling.build"
 
 [project]
@@ -72,7 +71,6 @@ Homepage = "https://github.com/ImagingDataCommons/idc-index"
 Discussions = "https://discourse.canceridc.dev/"
 Changelog = "https://github.com/ImagingDataCommons/idc-index/releases"
 
-
 [tool.hatch]
 version.source = "vcs"
 build.hooks.vcs.version-file = "idc_index/_version.py"
@@ -80,7 +78,6 @@ build.hooks.vcs.version-file = "idc_index/_version.py"
 [tool.hatch.envs.default]
 features = ["test"]
 scripts.test = "pytest {args}"
-
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -100,7 +97,6 @@ python_files = [
   "*_test.py",
   "test_*.py",
 ]
-
 
 [tool.coverage]
 run.source = ["idc_index"]
@@ -123,7 +119,6 @@ disallow_incomplete_defs = false
 module = "idc_index.*"
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
-
 
 [tool.ruff]
 src = ["idc_index"]
