@@ -128,28 +128,21 @@ disallow_incomplete_defs = true
 [tool.ruff]
 src = ["idc_index"]
 extend-exclude = ["./CONTRIBUTING.md"]
-
-lint = { 
-  extend-select = [
-    "B", "I", "ARG", "C4", "D", "EM", "ICN", "G", "PGH", "PIE",
-    "PL", "PT", "PTH", "RET", "RUF", "SIM", "T20", "UP", "YTT",
-    "EXE", "NPY", "PD"
-  ],
-  ignore = [
-    "PLR09", "PLR2004", "ISC001",
-    "B007", "B904", "E722", "EM101", "F841", "G003", "G004",
-    "PD011", "PD901", "PT009", "PTH100", "PTH103", "PTH107",
-    "PTH110", "PTH118", "PTH119", "PTH120", "PTH123", "RET504",
-    "RET506", "SIM102", "SIM108", "SIM117", "T201"
-  ],
-  isort = { required-imports = ["from __future__ import annotations"] },
-  per-file-ignores = {
-    "docs/conf.py" = ["D"],
-    "tests/**" = ["D", "T20"],
-    "noxfile.py" = ["D", "T20"]
-  },
-  pydocstyle = { convention = "google" }
-}
+extend-select = [
+  "B", "I", "ARG", "C4", "D", "EM", "ICN", "G", "PGH", "PIE",
+  "PL", "PT", "PTH", "RET", "RUF", "SIM", "T20", "UP", "YTT",
+  "EXE", "NPY", "PD"
+]
+ignore = [
+  "PLR09", "PLR2004", "ISC001",
+  "B007", "B904", "E722", "EM101", "F841", "G003", "G004",
+  "PD011", "PD901", "PT009", "PTH100", "PTH103", "PTH107",
+  "PTH110", "PTH118", "PTH119", "PTH120", "PTH123", "RET504",
+  "RET506", "SIM102", "SIM108", "SIM117", "T201"
+]
+isort-required-imports = ["from __future__ import annotations"]
+per-file-ignores = { "docs/conf.py" = ["D"], "tests/**" = ["D", "T20"], "noxfile.py" = ["D", "T20"] }
+pydocstyle-convention = "google"
 
 [tool.pylint]
 py-version = "3.8"
