@@ -908,7 +908,6 @@ class IDCClient:
         # Next, construct aws_series_url in the index and
         # try to verify if every series in the manifest is present in the index
 
-        # ruff: noqa
         sql = f"""
             PRAGMA disable_progress_bar;
             WITH
@@ -952,7 +951,6 @@ class IDCClient:
             ON
                 index_temp.index_crdc_series_uuid = manifest_temp.manifest_crdc_series_uuid
         """
-        # ruff: noqa: end
         merged_df = duckdb.query(sql).df()
 
         endpoint_to_use = None
@@ -1308,7 +1306,6 @@ class IDCClient:
         result_df = s5cmd_sync_helper_df
 
         # TODO: need to remove the assumption that manifest commands will have 'cp'
-        # ruff: noqa
         sql = """
             PRAGMA disable_progress_bar;
             WITH
@@ -1337,7 +1334,6 @@ class IDCClient:
             ON
                 index_temp.index_crdc_series_uuid = sync_temp.sync_crdc_instance_uuid
         """
-        # ruff: noqa: end
         synced_df = duckdb.query(sql).df()
         sync_size = synced_df["series_size_MB"].sum()
         sync_size_rounded = round(sync_size, 2)

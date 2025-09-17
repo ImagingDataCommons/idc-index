@@ -160,14 +160,25 @@ ignore = [
   "ISC001",   # Conflicts with formatter
   # Exceptions below are specific to idc-index
   "B007",     # Loop control variable {name} not used within loop body
+  "B009",     # Do not call `getattr` with a constant attribute value.
+  "B010",     # Do not call `setattr` with a constant attribute value.
   "B904",     # Checks for raise statements in exception handlers that lack a from clause.
+  "D100",     # Missing docstring in public module
+  "D101",     # Missing docstring in public class
+  "D102",     # Missing docstring in public method
+  "D107",     # Missing docstring in `__init__`"
+  "D417",     # Missing argument description in the docstring
+  "D202",     # Checks for docstrings on functions that are separated by one or more blank lines from the function body.
+  "D205",     # 1 blank line required between summary line and description
   "E722",     # Do not use bare except
   "EM101",    # Exception must not use a string literal, assign to variable first
   "F841",     # Local variable {name} is assigned to but never used
   "G003",     # Logging statement uses +
   "G004",     # Logging statement uses f-string
   "PD011",    # Use .to_numpy() instead of .values
+  "PD015",    # Use `.merge` method instead of `pd.merge` function.
   "PD901",    # Avoid using the generic variable name df for DataFrames
+  "PLR5501",  # Checks for else blocks that consist of a single if statement.
   "PT009",    # Use a regular assert instead of unittest-style {assertion}
   "PTH100",   # os.path.abspath() should be replaced by Path.resolve()
   "PTH103",   # os.makedirs() should be replaced by Path.mkdir(parents=True)
@@ -179,9 +190,13 @@ ignore = [
   "PTH123",   # open() should be replaced by Path.open()
   "RET504",   # Unnecessary assignment to {name} before return statement
   "RET506",   # Unnecessary {branch} after raise statement
+  "RUF013",   # PEP 484 prohibits implicit `Optional`
   "SIM102",   # Use a single if statement instead of nested if statements
+  "SIM105",   # Use `contextlib.suppress(FileNotFoundError)` instead of `try`-`except`-`pass`
   "SIM108",   # Use ternary operator {contents} instead of if-else-block
+  "SIM115",   # Use a context manager for opening files
   "SIM117",   # Use a single with statement with multiple contexts instead of nested with statements
+  "SIM300",   # Yoda condition detected
   "T201",     # print found
 ]
 
