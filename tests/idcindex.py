@@ -598,7 +598,7 @@ class TestIDCClient(unittest.TestCase):
     def test_instance_file_URLs(self):
         c = IDCClient()
         sopInstanceUID = "1.3.6.1.4.1.5962.99.1.1900325859.924065538.1719887277027.10.0"
-        file_url = "s3://idc-open-data/763fe058-7d25-4ba7-9b29-fd3d6c41dc4b/210f0529-c767-4795-9acf-bad2f4877427.dcm"
+        file_url = "s3://idc-open-data/c48ad852-a8ae-4cfa-9deb-221e4c469b9b/bb7bdd9b-b75f-491c-a34c-3a6799429a28.dcm"
         files_aws = c.get_instance_file_URL(sopInstanceUID, "aws")
         files_gcp = c.get_instance_file_URL(sopInstanceUID, "gcs")
         assert files_aws == files_gcp == file_url

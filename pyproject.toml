@@ -34,7 +34,7 @@ dynamic = ["version"]
 dependencies = [
   "click",
   'duckdb>=0.10.0,<=1.2.1',
-  "idc-index-data==21.0.0",
+  "idc-index-data==22.0.0",
   "packaging",
   "pandas<=2.2.4",
   "platformdirs",
@@ -54,6 +54,7 @@ test = [
 dev = [
   "pytest >=6",
   "pytest-cov >=3",
+  "ruff ==0.12.11"
 ]
 docs = [
   "sphinx>=7.0",
@@ -132,7 +133,6 @@ extend-exclude = ["./CONTRIBUTING.md"]
 [tool.ruff.lint]
 extend-select = [
   "B",        # flake8-bugbear
-  "I",        # isort
   "ARG",      # flake8-unused-arguments
   "C4",       # flake8-comprehensions
   "D",        # pydocstyle
@@ -184,7 +184,7 @@ ignore = [
   "SIM117",   # Use a single with statement with multiple contexts instead of nested with statements
   "T201",     # print found
 ]
-isort.required-imports = ["from __future__ import annotations"]
+
 # Uncomment if using a _compat.typing backport
 # typing-modules = ["idc_index._compat.typing"]
 
