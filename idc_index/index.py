@@ -334,7 +334,6 @@ class IDCClient:
         Args:
             index (str): Name of the index to be downloaded.
         """
-
         if index_name not in self.indices_overview:
             logger.error(f"Index {index_name} is not available and can not be fetched.")
         elif self.indices_overview[index_name]["installed"]:
@@ -466,7 +465,6 @@ class IDCClient:
         Raises:
             ValueError: If `outputFormat` is not one of 'dict', 'df', 'list'.
         """
-
         if not isinstance(collection_id, str) and not isinstance(collection_id, list):
             raise TypeError("collection_id must be a string or list of strings")
 
@@ -518,7 +516,6 @@ class IDCClient:
             ValueError: If `outputFormat` is not one of 'dict', 'df', 'list'.
             ValueError: If any of the `patientId` does not exist.
         """
-
         if not isinstance(patientId, str) and not isinstance(patientId, list):
             raise TypeError("patientId must be a string or list of strings")
 
@@ -571,7 +568,6 @@ class IDCClient:
             ValueError: If `outputFormat` is not one of 'dict', 'df', 'list'.
             ValueError: If any of the `studyInstanceUID` does not exist.
         """
-
         if not isinstance(studyInstanceUID, str) and not isinstance(
             studyInstanceUID, list
         ):
@@ -704,7 +700,6 @@ class IDCClient:
             string containing the bucket URL of the file corresponding to the SOPInstanceUID,
             or None if the SOPInstanceUID is not recognized
         """
-
         # sm_instance_index is required to complete this operation - install it!
         self.fetch_index("sm_instance_index")
 
@@ -766,7 +761,6 @@ class IDCClient:
         Returns:
             string containing the IDC viewer URL for the requested selection
         """
-
         if seriesInstanceUID is None and studyInstanceUID is None:
             raise ValueError(
                 "Either SeriesInstanceUID or StudyInstanceUID, or both, must be provided."
@@ -1621,7 +1615,6 @@ Destination folder is not empty and sync size is less than total size.
         Raises:
             ValueError: If the download directory does not exist.
         """
-
         downloadDir = self._check_create_directory(downloadDir)
 
         # validate the manifest
@@ -1671,7 +1664,6 @@ Destination folder is not empty and sync size is less than total size.
         Returns:
             List of citations in the requested format.
         """
-
         manifest_df = pd.read_csv(
             manifestFile,
             comment="#",
@@ -1715,7 +1707,6 @@ Destination folder is not empty and sync size is less than total size.
         Returns:
             List of citations in the requested format.
         """
-
         result_df = self._safe_filter_by_selection(
             self.index,
             collection_id=collection_id,
@@ -1800,7 +1791,6 @@ Destination folder is not empty and sync size is less than total size.
             dirTemplate (str): Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
             source_bucket_location: string selecting the provider of the bucket from which the files will be downloaded, allowing to select between Google ('gcs') and AWS ('aws') storage. Defaults to 'aws'.
         """
-
         if source_bucket_location not in ["aws", "gcs"]:
             raise ValueError("source_bucket_location must be either 'aws' or 'gcs'")
 
@@ -2222,7 +2212,6 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         Raises:
             duckdb.Error: any exception that duckdb.query() raises
         """
-
         logger.debug("Executing SQL query: " + sql_query)
         # TODO: find a more elegant way to automate the following:  https://www.perplexity.ai/search/write-python-code-that-iterate-XY9ppywbQFSRnOpgbwx_uQ
         index = self.index

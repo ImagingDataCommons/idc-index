@@ -2,6 +2,7 @@
 
 This module provides command-line interface (CLI) commands to interact with the Imaging Data Commons (IDC) data.
 """
+
 from __future__ import annotations
 
 import logging
