@@ -77,6 +77,11 @@ repos:
         entry: PyBind|Numpy|Cmake|CCache|Github|PyTest
         exclude: .pre-commit-config.yaml
 
+  - repo: https://github.com/henryiii/validate-pyproject-schema-store
+    rev: "2025.09.15"
+    hooks:
+      - id: validate-pyproject
+
   - repo: https://github.com/python-jsonschema/check-jsonschema
     rev: "0.33.3"
     hooks:
