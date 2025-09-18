@@ -302,17 +302,13 @@ class IDCClient:
 
     @staticmethod
     def get_idc_version():
-        """
-        Returns the version of IDC data used in idc-index
-        """
+        """Returns the version of IDC data used in idc-index."""
         idc_version = Version(idc_index_data.__version__).major
         return f"v{idc_version}"
 
     @staticmethod
     def _check_create_directory(download_dir):
-        """
-        Mimic behavior of s5cmd and create the download directory if it does not exist
-        """
+        """Mimic behavior of s5cmd and create the download directory if it does not exist."""
         download_dir = Path(download_dir)
         download_dir.mkdir(parents=True, exist_ok=True)
 
@@ -328,13 +324,11 @@ class IDCClient:
         return True
 
     def fetch_index(self, index_name) -> None:
-        """
-        Downloads requested index and adds this index joined with the main index as respective class attribute.
+        """Downloads requested index and adds this index joined with the main index as respective class attribute.
 
         Args:
             index (str): Name of the index to be downloaded.
         """
-
         if index_name not in self.indices_overview:
             logger.error(f"Index {index_name} is not available and can not be fetched.")
         elif self.indices_overview[index_name]["installed"]:
@@ -401,8 +395,7 @@ class IDCClient:
                 )
 
     def get_clinical_table(self, table_name):
-        """
-        Returns the requested clinical table as a pandas DataFrame.
+        """Returns the requested clinical table as a pandas DataFrame.
 
         Args:
             table_name (str): Name of the clinical table to be loaded.
@@ -424,15 +417,12 @@ class IDCClient:
         return pd.read_parquet(table_path)
 
     def get_collections(self):
-        """
-        Returns the collections present in IDC
-        """
+        """Returns the collections present in IDC."""
         unique_collections = self.index["collection_id"].unique()
         return unique_collections.tolist()
 
     def get_series_size(self, seriesInstanceUID):
-        """
-        Gets cumulative size (MB) of the DICOM instances in a given SeriesInstanceUID.
+        """Gets cumulative size (MB) of the DICOM instances in a given SeriesInstanceUID.
 
         Args:
             seriesInstanceUID (str): The DICOM SeriesInstanceUID.
@@ -450,8 +440,7 @@ class IDCClient:
         return resp
 
     def get_patients(self, collection_id, outputFormat="dict"):
-        """
-        Gets the patients in a collection.
+        """Gets the patients in a collection.
 
         Args:
             collection_id (str or list[str]): The collection id or list of collection ids. This should be in lower case separated by underscores.
@@ -466,7 +455,6 @@ class IDCClient:
         Raises:
             ValueError: If `outputFormat` is not one of 'dict', 'df', 'list'.
         """
-
         if not isinstance(collection_id, str) and not isinstance(collection_id, list):
             raise TypeError("collection_id must be a string or list of strings")
 
@@ -502,8 +490,7 @@ class IDCClient:
         return response
 
     def get_dicom_studies(self, patientId, outputFormat="dict"):
-        """
-        Returns Studies for a given patient or list of patients.
+        """Returns Studies for a given patient or list of patients.
 
         Args:
             patientId (str or list of str): The patient Id or a list of patient Ids.
@@ -518,7 +505,6 @@ class IDCClient:
             ValueError: If `outputFormat` is not one of 'dict', 'df', 'list'.
             ValueError: If any of the `patientId` does not exist.
         """
-
         if not isinstance(patientId, str) and not isinstance(patientId, list):
             raise TypeError("patientId must be a string or list of strings")
 
@@ -555,8 +541,7 @@ class IDCClient:
         return response
 
     def get_dicom_series(self, studyInstanceUID, outputFormat="dict"):
-        """
-        Returns Series for a given study or list of studies.
+        """Returns Series for a given study or list of studies.
 
         Args:
             studyInstanceUID (str or list of str): The DICOM StudyInstanceUID or a list of StudyInstanceUIDs.
@@ -571,7 +556,6 @@ class IDCClient:
             ValueError: If `outputFormat` is not one of 'dict', 'df', 'list'.
             ValueError: If any of the `studyInstanceUID` does not exist.
         """
-
         if not isinstance(studyInstanceUID, str) and not isinstance(
             studyInstanceUID, list
         ):
@@ -629,8 +613,7 @@ class IDCClient:
         return response
 
     def get_series_file_URLs(self, seriesInstanceUID, source_bucket_location="aws"):
-        """
-        Get the URLs of the files corresponding to the DICOM instances in a given SeriesInstanceUID.
+        """Get the URLs of the files corresponding to the DICOM instances in a given SeriesInstanceUID.
 
         Args:
             seriesInstanceUID: string containing the value of DICOM SeriesInstanceUID to filter by
@@ -690,8 +673,7 @@ class IDCClient:
         return file_names
 
     def get_instance_file_URL(self, sopInstanceUID, source_bucket_location="aws"):
-        """
-        Get the bucket URL of the file corresponding to a given SOPInstanceUID.
+        """Get the bucket URL of the file corresponding to a given SOPInstanceUID.
 
         This function will only return the URL for the Slide Microscopy (SM) instances,
         which are maintained in the `sm_instance_index` table.
@@ -704,7 +686,6 @@ class IDCClient:
             string containing the bucket URL of the file corresponding to the SOPInstanceUID,
             or None if the SOPInstanceUID is not recognized
         """
-
         # sm_instance_index is required to complete this operation - install it!
         self.fetch_index("sm_instance_index")
 
@@ -744,8 +725,7 @@ class IDCClient:
     def get_viewer_URL(
         self, seriesInstanceUID=None, studyInstanceUID=None, viewer_selector=None
     ):
-        """
-        Get the URL of the IDC viewer for the given series or study in IDC based on
+        """Get the URL of the IDC viewer for the given series or study in IDC based on
         the provided SeriesInstanceUID or StudyInstanceUID. If StudyInstanceUID is not provided,
         it will be automatically deduced. If viewer_selector is not provided, default viewers
         will be used (OHIF v3 for radiology modalities, and Slim for SM).
@@ -766,7 +746,6 @@ class IDCClient:
         Returns:
             string containing the IDC viewer URL for the requested selection
         """
-
         if seriesInstanceUID is None and studyInstanceUID is None:
             raise ValueError(
                 "Either SeriesInstanceUID or StudyInstanceUID, or both, must be provided."
@@ -857,8 +836,7 @@ class IDCClient:
         use_s5cmd_sync,
         dirTemplate,
     ) -> tuple[float, str, Path]:
-        """
-        Validates the manifest file by checking the URLs in the manifest
+        """Validates the manifest file by checking the URLs in the manifest.
 
         Args:
             manifestFile (str): The path to the manifest file.
@@ -930,7 +908,6 @@ class IDCClient:
         # Next, construct aws_series_url in the index and
         # try to verify if every series in the manifest is present in the index
 
-        # ruff: noqa
         sql = f"""
             PRAGMA disable_progress_bar;
             WITH
@@ -974,7 +951,6 @@ class IDCClient:
             ON
                 index_temp.index_crdc_series_uuid = manifest_temp.manifest_crdc_series_uuid
         """
-        # ruff: noqa: end
         merged_df = duckdb.query(sql).df()
 
         endpoint_to_use = None
@@ -1265,13 +1241,13 @@ class IDCClient:
                     downloaded_bytes += IDCClient._get_dir_sum_file_size(directory)
                 downloaded_bytes -= initial_size_bytes
 
-                if not pbar is None:
+                if pbar is not None:
                     pbar.n = min(
                         downloaded_bytes, total_size_to_be_downloaded_bytes
                     )  # Prevent the progress bar from exceeding 100%
                     pbar.refresh()
 
-                if not progress_callback is None:
+                if progress_callback is not None:
                     progress_callback(
                         min(downloaded_bytes, total_size_to_be_downloaded_bytes),
                         total_size_to_be_downloaded_bytes,
@@ -1284,7 +1260,7 @@ class IDCClient:
             # Wait for the process to finish
             _, stderr = process.communicate()
 
-            if not pbar is None:
+            if pbar is not None:
                 pbar.close()
 
         else:
@@ -1309,8 +1285,7 @@ class IDCClient:
     def _parse_s5cmd_sync_output_and_generate_synced_manifest(
         self, stdout, s5cmd_sync_helper_df
     ) -> Path:
-        """
-        Parse the output of s5cmd sync --dry-run to extract distinct folders and generate a synced manifest.
+        """Parse the output of s5cmd sync --dry-run to extract distinct folders and generate a synced manifest.
 
         Args:
             output (str): The output of s5cmd sync --dry-run command.
@@ -1331,7 +1306,6 @@ class IDCClient:
         result_df = s5cmd_sync_helper_df
 
         # TODO: need to remove the assumption that manifest commands will have 'cp'
-        # ruff: noqa
         sql = """
             PRAGMA disable_progress_bar;
             WITH
@@ -1360,7 +1334,6 @@ class IDCClient:
             ON
                 index_temp.index_crdc_series_uuid = sync_temp.sync_crdc_instance_uuid
         """
-        # ruff: noqa: end
         synced_df = duckdb.query(sql).df()
         sync_size = synced_df["series_size_MB"].sum()
         sync_size_rounded = round(sync_size, 2)
@@ -1390,8 +1363,7 @@ class IDCClient:
         s5cmd_sync_helper_df,
         progress_callback=None,
     ):
-        """
-        Executes the s5cmd command to sync files from a given endpoint to a local directory.
+        """Executes the s5cmd command to sync files from a given endpoint to a local directory.
 
         This function first performs a dry run of the s5cmd command to check which files need to be downloaded.
         If there are files to be downloaded, it generates a new manifest file with the files to be synced and
@@ -1602,8 +1574,7 @@ Destination folder is not empty and sync size is less than total size.
         dirTemplate=DOWNLOAD_HIERARCHY_DEFAULT,
         progress_callback: Callable[[float, float, str, str], None] = None,
     ) -> None:
-        """
-        Download the manifest file. In a series of steps, the manifest file
+        """Download the manifest file. In a series of steps, the manifest file
         is first validated to ensure every line contains a valid urls. It then
         gets the total size to be downloaded and runs download process on one
         process and download progress on another process.
@@ -1621,7 +1592,6 @@ Destination folder is not empty and sync size is less than total size.
         Raises:
             ValueError: If the download directory does not exist.
         """
-
         downloadDir = self._check_create_directory(downloadDir)
 
         # validate the manifest
@@ -1671,7 +1641,6 @@ Destination folder is not empty and sync size is less than total size.
         Returns:
             List of citations in the requested format.
         """
-
         manifest_df = pd.read_csv(
             manifestFile,
             comment="#",
@@ -1715,7 +1684,6 @@ Destination folder is not empty and sync size is less than total size.
         Returns:
             List of citations in the requested format.
         """
-
         result_df = self._safe_filter_by_selection(
             self.index,
             collection_id=collection_id,
@@ -1800,7 +1768,6 @@ Destination folder is not empty and sync size is less than total size.
             dirTemplate (str): Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
             source_bucket_location: string selecting the provider of the bucket from which the files will be downloaded, allowing to select between Google ('gcs') and AWS ('aws') storage. Defaults to 'aws'.
         """
-
         if source_bucket_location not in ["aws", "gcs"]:
             raise ValueError("source_bucket_location must be either 'aws' or 'gcs'")
 
@@ -1938,7 +1905,7 @@ Destination folder is not empty and sync size is less than total size.
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as manifest_file:
             # Determine column containing the URL for instance / series-level access
             if sopInstanceUID:
-                if not "instance_aws_url" in result_df:
+                if "instance_aws_url" not in result_df:
                     result_df["instance_aws_url"] = (
                         result_df["series_aws_url"].replace("/*", "/")
                         + result_df["crdc_instance_uuid"]
@@ -2019,8 +1986,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         dirTemplate=DOWNLOAD_HIERARCHY_DEFAULT,
         source_bucket_location="aws",
     ) -> None:
-        """
-        Download the files corresponding to the seriesInstanceUID to the specified directory.
+        """Download the files corresponding to the seriesInstanceUID to the specified directory.
 
         Args:
             sopInstanceUID: string or list of strings containing the values of DICOM SOPInstanceUID to filter by
@@ -2059,8 +2025,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         dirTemplate=DOWNLOAD_HIERARCHY_DEFAULT,
         source_bucket_location="aws",
     ) -> None:
-        """
-        Download the files corresponding to the seriesInstanceUID to the specified directory.
+        """Download the files corresponding to the seriesInstanceUID to the specified directory.
 
         Args:
             seriesInstanceUID: string or list of strings containing the values of DICOM SeriesInstanceUID to filter by
@@ -2099,8 +2064,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         dirTemplate=DOWNLOAD_HIERARCHY_DEFAULT,
         source_bucket_location="aws",
     ) -> None:
-        """
-        Download the files corresponding to the studyInstanceUID to the specified directory.
+        """Download the files corresponding to the studyInstanceUID to the specified directory.
 
         Args:
             studyInstanceUID: string or list of strings containing the values of DICOM studyInstanceUID to filter by
@@ -2139,8 +2103,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         dirTemplate=DOWNLOAD_HIERARCHY_DEFAULT,
         source_bucket_location="aws",
     ) -> None:
-        """
-        Download the files corresponding to the studyInstanceUID to the specified directory.
+        """Download the files corresponding to the studyInstanceUID to the specified directory.
 
         Args:
             patientId: string or list of strings containing the values of DICOM patientId to filter by
@@ -2180,8 +2143,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         dirTemplate=DOWNLOAD_HIERARCHY_DEFAULT,
         source_bucket_location="aws",
     ) -> None:
-        """
-        Download the files corresponding to the studyInstanceUID to the specified directory.
+        """Download the files corresponding to the studyInstanceUID to the specified directory.
 
         Args:
             collection_id: string or list of strings containing the values of DICOM patientId to filter by
@@ -2222,7 +2184,6 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         Raises:
             duckdb.Error: any exception that duckdb.query() raises
         """
-
         logger.debug("Executing SQL query: " + sql_query)
         # TODO: find a more elegant way to automate the following:  https://www.perplexity.ai/search/write-python-code-that-iterate-XY9ppywbQFSRnOpgbwx_uQ
         index = self.index
