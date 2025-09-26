@@ -786,19 +786,19 @@ class IDCClient:
             """
             query_result = self.sql_query(query)
             studyInstanceUID = query_result.StudyInstanceUID[0]
-            modality = query_result.Modality[0]
 
         else:
             query = f"""
             SELECT
-                DISTINCT(Modality)
+                DISTINCT(Modality) AS Modality
             FROM
                 index
             WHERE
                 StudyInstanceUID='{studyInstanceUID}'
             """
             query_result = self.sql_query(query)
-            modality = query_result.Modality[0]
+
+        modality = query_result.Modality.values
 
         viewer_url = None
         if viewer_selector is None:
