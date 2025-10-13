@@ -1986,7 +1986,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         dirTemplate=DOWNLOAD_HIERARCHY_DEFAULT,
         source_bucket_location="aws",
     ) -> None:
-        """Download the files corresponding to the seriesInstanceUID to the specified directory.
+        """Download the files corresponding to the sopInstanceUID to the specified directory.
 
         Args:
             sopInstanceUID: string or list of strings containing the values of DICOM SOPInstanceUID to filter by
