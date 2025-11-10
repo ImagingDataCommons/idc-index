@@ -9,9 +9,9 @@ import shutil
 import subprocess
 import tempfile
 import time
+from collections.abc import Callable
 from importlib.metadata import distribution, version
 from pathlib import Path
-from typing import Callable
 
 import duckdb
 import idc_index_data
