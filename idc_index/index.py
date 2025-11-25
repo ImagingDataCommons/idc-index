@@ -338,7 +338,7 @@ class IDCClient:
 
         return str(download_dir.resolve())
 
-    def _check_disk_size_and_warn(self, download_dir, disk_size_needed):
+    def _validate_disk_space(self, download_dir, disk_size_needed):
         """Check if there is sufficient disk space for the download.
 
         Args:
@@ -1648,7 +1648,7 @@ Destination folder is not empty and sync size is less than total size.
         )
 
         total_size_rounded = round(total_size, 2)
-        self._check_disk_size_and_warn(downloadDir, total_size)
+        self._validate_disk_space(downloadDir, total_size)
 
         self._s5cmd_run(
             endpoint_to_use=endpoint_to_use,
@@ -1878,7 +1878,7 @@ Destination folder is not empty and sync size is less than total size.
             total_size_bytes = round(result_df["instance_size"].sum(), 2)
             total_size = total_size_bytes / (10**6)
 
-        self._check_disk_size_and_warn(downloadDir, total_size)
+        self._validate_disk_space(downloadDir, total_size)
 
         if dry_run:
             logger.info(
