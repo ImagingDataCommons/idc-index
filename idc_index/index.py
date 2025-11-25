@@ -30,6 +30,30 @@ logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+class IDCClientInsufficientDiskSpaceError(Exception):
+    """Exception raised when there is insufficient disk space for download."""
+
+    def __init__(
+        self, disk_space_needed: str, disk_space_available: str, message: str = None
+    ):
+        """Initialize the exception.
+
+        Args:
+            disk_space_needed: Human-readable string of disk space needed.
+            disk_space_available: Human-readable string of disk space available.
+            message: Optional custom message. If not provided, a default message is used.
+        """
+        self.disk_space_needed = disk_space_needed
+        self.disk_space_available = disk_space_available
+        if message is None:
+            message = (
+                f"Insufficient disk space. "
+                f"Need {disk_space_needed}, but only {disk_space_available} available."
+            )
+        self.message = message
+        super().__init__(self.message)
+
+
 class IDCClient:
     # Default download hierarchy template
     DOWNLOAD_HIERARCHY_DEFAULT = (
@@ -315,13 +339,26 @@ class IDCClient:
         return str(download_dir.resolve())
 
     def _check_disk_size_and_warn(self, download_dir, disk_size_needed):
+        """Check if there is sufficient disk space for the download.
+
+        Args:
+            download_dir: The directory where files will be downloaded.
+            disk_size_needed: The size needed in MB.
+
+        Raises:
+            IDCClientInsufficientDiskSpaceError: If there is not enough disk space.
+        """
         disk_free_space_MB = psutil.disk_usage(download_dir).free / (1000 * 1000)
-        logger.info("Disk size needed: " + self._format_size(disk_size_needed))
-        logger.info("Disk size available: " + self._format_size(disk_free_space_MB))
+        disk_size_needed_str = self._format_size(disk_size_needed)
+        disk_free_space_str = self._format_size(disk_free_space_MB)
+        logger.info("Disk size needed: " + disk_size_needed_str)
+        logger.info("Disk size available: " + disk_free_space_str)
         if disk_free_space_MB < disk_size_needed:
             logger.error("Not enough free space on disk to download the files.")
-            return False
-        return True
+            raise IDCClientInsufficientDiskSpaceError(
+                disk_space_needed=disk_size_needed_str,
+                disk_space_available=disk_free_space_str,
+            )
 
     def fetch_index(self, index_name) -> None:
         """Downloads requested index and adds this index joined with the main index as respective class attribute.
@@ -1591,6 +1628,7 @@ Destination folder is not empty and sync size is less than total size.
 
         Raises:
             ValueError: If the download directory does not exist.
+            IDCClientInsufficientDiskSpaceError: If there is not enough disk space.
         """
         downloadDir = self._check_create_directory(downloadDir)
 
@@ -1610,8 +1648,7 @@ Destination folder is not empty and sync size is less than total size.
         )
 
         total_size_rounded = round(total_size, 2)
-        if not self._check_disk_size_and_warn(downloadDir, total_size):
-            return
+        self._check_disk_size_and_warn(downloadDir, total_size)
 
         self._s5cmd_run(
             endpoint_to_use=endpoint_to_use,
@@ -1841,8 +1878,7 @@ Destination folder is not empty and sync size is less than total size.
             total_size_bytes = round(result_df["instance_size"].sum(), 2)
             total_size = total_size_bytes / (10**6)
 
-        if not self._check_disk_size_and_warn(downloadDir, total_size):
-            return
+        self._check_disk_size_and_warn(downloadDir, total_size)
 
         if dry_run:
             logger.info(

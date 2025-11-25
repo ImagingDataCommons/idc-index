@@ -9,6 +9,7 @@ from ._version import version as __version__
 
 __all__ = ["__version__"]
 
-from .index import IDCClient
+from .index import IDCClient, IDCClientInsufficientDiskSpaceError
 
 _ = IDCClient
+_ = IDCClientInsufficientDiskSpaceError
