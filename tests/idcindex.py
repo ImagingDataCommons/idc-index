@@ -654,7 +654,7 @@ class TestInsufficientDiskSpaceException(unittest.TestCase):
         """Test that CLI handles the exception without crashing."""
         # Mock the disk check to simulate insufficient space (1000 bytes = ~0.001 MB)
         mock_usage = self._create_mock_disk_usage(free_bytes=1000)
-        runner = CliRunner(mix_stderr=False)
+        runner = CliRunner()
         with patch("psutil.disk_usage", return_value=mock_usage):
             result = runner.invoke(
                 cli.download_from_selection,
