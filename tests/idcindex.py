@@ -6,12 +6,13 @@ import tempfile
 import unittest
 from itertools import product
 from pathlib import Path
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
 import requests
 from click.testing import CliRunner
-from idc_index import IDCClient, cli
+from idc_index import IDCClient, IDCClientInsufficientDiskSpaceError, cli
 
 # Run tests using the following command from the root of the repository:
 # python -m unittest -vv tests/idcindex.py
@@ -602,6 +603,72 @@ class TestIDCClient(unittest.TestCase):
         files_aws = c.get_instance_file_URL(sopInstanceUID, "aws")
         files_gcp = c.get_instance_file_URL(sopInstanceUID, "gcs")
         assert files_aws == files_gcp == file_url
+
+
+class TestInsufficientDiskSpaceException(unittest.TestCase):
+    def setUp(self):
+        self.client = IDCClient()
+
+    @staticmethod
+    def _create_mock_disk_usage(free_bytes=1000):
+        """Create a mock disk usage object with the specified free space."""
+        return type("DiskUsage", (), {"free": free_bytes})()
+
+    def test_exception_attributes(self):
+        """Test that the exception has the correct attributes."""
+        exc = IDCClientInsufficientDiskSpaceError(
+            disk_space_needed="10 GB",
+            disk_space_available="5 GB",
+        )
+        assert exc.disk_space_needed == "10 GB"
+        assert exc.disk_space_available == "5 GB"
+        assert "10 GB" in str(exc)
+        assert "5 GB" in str(exc)
+        assert "Insufficient disk space" in str(exc)
+
+    def test_exception_custom_message(self):
+        """Test that a custom message can be provided."""
+        custom_msg = "Custom error message"
+        exc = IDCClientInsufficientDiskSpaceError(
+            disk_space_needed="10 GB",
+            disk_space_available="5 GB",
+            message=custom_msg,
+        )
+        assert exc.message == custom_msg
+        assert str(exc) == custom_msg
+
+    def test_exception_raised_on_insufficient_space(self):
+        """Test that exception is raised when disk space is insufficient."""
+        # Mock the disk check to simulate insufficient space (1000 bytes = ~0.001 MB)
+        mock_usage = self._create_mock_disk_usage(free_bytes=1000)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch("psutil.disk_usage", return_value=mock_usage):
+                with pytest.raises(IDCClientInsufficientDiskSpaceError) as exc_info:
+                    self.client.download_from_selection(
+                        downloadDir=temp_dir,
+                        seriesInstanceUID="1.3.6.1.4.1.14519.5.2.1.7695.1700.153974929648969296590126728101",
+                    )
+                assert "Insufficient disk space" in str(exc_info.value)
+
+    def test_cli_handles_insufficient_space_gracefully(self):
+        """Test that CLI handles the exception without crashing."""
+        # Mock the disk check to simulate insufficient space (1000 bytes = ~0.001 MB)
+        mock_usage = self._create_mock_disk_usage(free_bytes=1000)
+        runner = CliRunner()
+        with patch("psutil.disk_usage", return_value=mock_usage):
+            result = runner.invoke(
+                cli.download_from_selection,
+                [
+                    "--download-dir",
+                    "/tmp",
+                    "--study-instance-uid",
+                    "1.3.6.1.4.1.14519.5.2.1.7695.1700.114861588187429958687900856462",
+                ],
+            )
+            # The CLI should not crash (exit code 0) - the error is logged
+            assert result.exit_code == 0
+            # The exception was raised, handled, and logged (not re-raised)
+            assert result.exception is None
 
 
 if __name__ == "__main__":

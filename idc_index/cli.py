@@ -11,7 +11,7 @@ from pathlib import Path
 import click
 
 from . import index
-from .index import IDCClient
+from .index import IDCClient, IDCClientInsufficientDiskSpaceError
 
 # Set up logging for the CLI module
 logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.DEBUG)
@@ -190,19 +190,22 @@ def download_from_selection(
     logger_cli.debug(f"use_s5cmd_sync: {use_s5cmd_sync}")
     logger_cli.debug(f"dirTemplate: {dir_template}")
 
-    client.download_from_selection(
-        download_dir,
-        dry_run=dry_run,
-        collection_id=collection_id,
-        patientId=patient_id,
-        studyInstanceUID=study_instance_uid,
-        seriesInstanceUID=series_instance_uid,
-        crdc_series_uuid=crdc_series_uuid,
-        quiet=quiet,
-        show_progress_bar=show_progress_bar,
-        use_s5cmd_sync=use_s5cmd_sync,
-        dirTemplate=dir_template,
-    )
+    try:
+        client.download_from_selection(
+            download_dir,
+            dry_run=dry_run,
+            collection_id=collection_id,
+            patientId=patient_id,
+            studyInstanceUID=study_instance_uid,
+            seriesInstanceUID=series_instance_uid,
+            crdc_series_uuid=crdc_series_uuid,
+            quiet=quiet,
+            show_progress_bar=show_progress_bar,
+            use_s5cmd_sync=use_s5cmd_sync,
+            dirTemplate=dir_template,
+        )
+    except IDCClientInsufficientDiskSpaceError as e:
+        logger_cli.error(e.message)
 
 
 @idc.command()
@@ -286,15 +289,18 @@ def download_from_manifest(
     logger_cli.debug(f"dirTemplate: {dir_template}")
 
     # Call IDCClient's download_from_manifest method with the provided parameters
-    client.download_from_manifest(
-        manifestFile=manifest_file,
-        downloadDir=download_dir,
-        quiet=quiet,
-        validate_manifest=validate_manifest,
-        show_progress_bar=show_progress_bar,
-        use_s5cmd_sync=use_s5cmd_sync,
-        dirTemplate=dir_template,
-    )
+    try:
+        client.download_from_manifest(
+            manifestFile=manifest_file,
+            downloadDir=download_dir,
+            quiet=quiet,
+            validate_manifest=validate_manifest,
+            show_progress_bar=show_progress_bar,
+            use_s5cmd_sync=use_s5cmd_sync,
+            dirTemplate=dir_template,
+        )
+    except IDCClientInsufficientDiskSpaceError as e:
+        logger_cli.error(e.message)
 
 
 @idc.command()
@@ -339,65 +345,68 @@ def download(generic_argument, download_dir, dir_template, log_level):
     else:
         download_dir = Path.cwd()
 
-    if (
-        len(generic_argument) < _get_max_path_length()
-        and Path(generic_argument).is_file()
-    ):
-        # Parse the input parameters and pass them to IDC
-        logger_cli.info("Detected manifest file, downloading from manifest.")
-        client.download_from_manifest(
-            generic_argument, downloadDir=download_dir, dirTemplate=dir_template
-        )
-    # this is not a file manifest
-    else:
-        # Split the input string and filter out any empty values
-        item_ids = [item for item in generic_argument.split(",") if item]
+    try:
+        if (
+            len(generic_argument) < _get_max_path_length()
+            and Path(generic_argument).is_file()
+        ):
+            # Parse the input parameters and pass them to IDC
+            logger_cli.info("Detected manifest file, downloading from manifest.")
+            client.download_from_manifest(
+                generic_argument, downloadDir=download_dir, dirTemplate=dir_template
+            )
+        # this is not a file manifest
+        else:
+            # Split the input string and filter out any empty values
+            item_ids = [item for item in generic_argument.split(",") if item]
 
-        if not item_ids:
-            logger_cli.error("No valid IDs provided.")
+            if not item_ids:
+                logger_cli.error("No valid IDs provided.")
 
-        index_df = client.index
+            index_df = client.index
 
-        def check_and_download(column_name, item_ids, download_dir, kwarg_name):
-            matches = index_df[column_name].isin(item_ids)
-            matched_ids = index_df[column_name][matches].unique().tolist()
-            if not matched_ids:
-                return False
-            unmatched_ids = list(set(item_ids) - set(matched_ids))
-            if unmatched_ids:
-                logger_cli.debug(
-                    f"Partial match for {column_name}: matched {matched_ids}, unmatched {unmatched_ids}"
+            def check_and_download(column_name, item_ids, download_dir, kwarg_name):
+                matches = index_df[column_name].isin(item_ids)
+                matched_ids = index_df[column_name][matches].unique().tolist()
+                if not matched_ids:
+                    return False
+                unmatched_ids = list(set(item_ids) - set(matched_ids))
+                if unmatched_ids:
+                    logger_cli.debug(
+                        f"Partial match for {column_name}: matched {matched_ids}, unmatched {unmatched_ids}"
+                    )
+                logger_cli.info(f"Identified matching {column_name}: {matched_ids}")
+                client.download_from_selection(
+                    **{
+                        kwarg_name: matched_ids,
+                        "downloadDir": download_dir,
+                        "dirTemplate": dir_template,
+                    }
                 )
-            logger_cli.info(f"Identified matching {column_name}: {matched_ids}")
-            client.download_from_selection(
-                **{
-                    kwarg_name: matched_ids,
-                    "downloadDir": download_dir,
-                    "dirTemplate": dir_template,
-                }
-            )
-            return True
+                return True
 
-        matches_found = 0
-        matches_found += check_and_download(
-            "collection_id", item_ids, download_dir, "collection_id"
-        )
-        matches_found += check_and_download(
-            "PatientID", item_ids, download_dir, "patientId"
-        )
-        matches_found += check_and_download(
-            "StudyInstanceUID", item_ids, download_dir, "studyInstanceUID"
-        )
-        matches_found += check_and_download(
-            "SeriesInstanceUID", item_ids, download_dir, "seriesInstanceUID"
-        )
-        matches_found += check_and_download(
-            "crdc_series_uuid", item_ids, download_dir, "crdc_series_uuid"
-        )
-        if not matches_found:
-            logger_cli.error(
-                "None of the values passed matched any of the identifiers: collection_id, PatientID, StudyInstanceUID, SeriesInstanceUID, crdc_series_uuid."
+            matches_found = 0
+            matches_found += check_and_download(
+                "collection_id", item_ids, download_dir, "collection_id"
             )
+            matches_found += check_and_download(
+                "PatientID", item_ids, download_dir, "patientId"
+            )
+            matches_found += check_and_download(
+                "StudyInstanceUID", item_ids, download_dir, "studyInstanceUID"
+            )
+            matches_found += check_and_download(
+                "SeriesInstanceUID", item_ids, download_dir, "seriesInstanceUID"
+            )
+            matches_found += check_and_download(
+                "crdc_series_uuid", item_ids, download_dir, "crdc_series_uuid"
+            )
+            if not matches_found:
+                logger_cli.error(
+                    "None of the values passed matched any of the identifiers: collection_id, PatientID, StudyInstanceUID, SeriesInstanceUID, crdc_series_uuid."
+                )
+    except IDCClientInsufficientDiskSpaceError as e:
+        logger_cli.error(e.message)
 
 
 if __name__ == "__main__":
