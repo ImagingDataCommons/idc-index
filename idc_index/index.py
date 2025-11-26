@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -11,6 +12,7 @@ import tempfile
 import time
 from collections.abc import Callable
 from importlib.metadata import distribution, version
+from importlib.resources import files
 from pathlib import Path
 
 import duckdb
@@ -21,6 +23,12 @@ import psutil
 import requests
 from packaging.version import Version
 from tqdm import tqdm
+
+from .indices_util import (
+    fetch_indices_from_github,
+    load_indices_cache,
+    save_indices_cache,
+)
 
 aws_endpoint_url = "https://s3.amazonaws.com"
 gcp_endpoint_url = "https://storage.googleapis.com"
@@ -86,32 +94,42 @@ class IDCClient:
         return cls._client
 
     def __init__(self):
+        start_time = time.time()
+
         # Read main index file
+        logger.debug("Starting IDCClient initialization")
         file_path = idc_index_data.IDC_INDEX_PARQUET_FILEPATH
         logger.debug(f"Reading index file v{idc_index_data.__version__}")
         self.index = pd.read_parquet(file_path)
+        logger.debug(f"Index file loaded in {time.time() - start_time:.3f}s")
 
         # initialize crdc_series_uuid for the index
         # TODO: in the future, after https://github.com/ImagingDataCommons/idc-index/pull/113
         # is merged (to minimize disruption), it will make more sense to change
         # idc-index-data to separate bucket from crdc_series_uuid, add support for GCP,
         # and consequently simplify the code here
+        step_start = time.time()
         self.index["crdc_series_uuid"] = (
             self.index["series_aws_url"].str.split("/").str[3]
         )
+        logger.debug(f"crdc_series_uuid initialized in {time.time() - step_start:.3f}s")
 
+        step_start = time.time()
         self.prior_versions_index_path = (
             idc_index_data.PRIOR_VERSIONS_INDEX_PARQUET_FILEPATH
         )
         file_path = idc_index_data.PRIOR_VERSIONS_INDEX_PARQUET_FILEPATH
 
         self.prior_versions_index = pd.read_parquet(file_path)
+        logger.debug(f"Prior versions index loaded in {time.time() - step_start:.3f}s")
 
         # self.index = self.index.astype(str).replace("nan", "")
+        step_start = time.time()
         self.index["series_size_MB"] = self.index["series_size_MB"].astype(float)
         self.collection_summary = self.index.groupby("collection_id").agg(
             {"Modality": pd.Series.unique, "series_size_MB": "sum"}
         )
+        logger.debug(f"Collection summary computed in {time.time() - step_start:.3f}s")
 
         self.idc_version = f"v{Version(idc_index_data.__version__).major}"
 
@@ -125,38 +143,10 @@ class IDCClient:
         )
         self.clinical_data_dir = None
 
-        self.indices_overview = {
-            "index": {
-                "description": "Main index containing one row per DICOM series.",
-                "installed": True,
-                "url": None,
-                "file_path": idc_index_data.IDC_INDEX_PARQUET_FILEPATH,
-            },
-            "prior_versions_index": {
-                "description": "index containing one row per DICOM series from all previous IDC versions that are not in current version.",
-                "installed": True,
-                "url": None,
-                "file_path": idc_index_data.PRIOR_VERSIONS_INDEX_PARQUET_FILEPATH,
-            },
-            "sm_index": {
-                "description": "DICOM Slide Microscopy series-level index.",
-                "installed": False,
-                "url": f"{asset_endpoint_url}/sm_index.parquet",
-                "file_path": None,
-            },
-            "sm_instance_index": {
-                "description": "DICOM Slide Microscopy instance-level index.",
-                "installed": False,
-                "url": f"{asset_endpoint_url}/sm_instance_index.parquet",
-                "file_path": None,
-            },
-            "clinical_index": {
-                "description": "Index of clinical data accompanying the available images.",
-                "installed": False,
-                "url": f"{asset_endpoint_url}/clinical_index.parquet",
-                "file_path": None,
-            },
-        }
+        # Discover available indices from GitHub releases with caching
+        step_start = time.time()
+        self.indices_overview = self._discover_available_indices()
+        logger.debug(f"Indices discovered in {time.time() - step_start:.3f}s")
 
         # these will point to the dataframes containing the respective indices, once installed
         self.sm_index = None
@@ -164,6 +154,7 @@ class IDCClient:
         self.clinical_index = None
 
         # Lookup s5cmd
+        step_start = time.time()
         self.s5cmdPath = shutil.which("s5cmd")
         if self.s5cmdPath is None:
             # Workaround to support environment without a properly setup PATH
@@ -181,6 +172,93 @@ class IDCClient:
         logger.debug(f"Found s5cmd executable: {self.s5cmdPath}")
         # ... and check it can be executed
         subprocess.check_call([self.s5cmdPath, "--help"], stdout=subprocess.DEVNULL)
+        logger.debug(f"s5cmd validated in {time.time() - step_start:.3f}s")
+
+        logger.debug(
+            f"IDCClient initialization completed in {time.time() - start_time:.3f}s"
+        )
+
+    def _discover_available_indices(self, force_refresh=False):
+        """Discovers available indices from bundled cache or GitHub releases.
+
+        First tries to load from bundled cache file, then from user cache directory.
+        Falls back to GitHub API if cache is missing, stale, or force_refresh is True.
+
+        Args:
+            force_refresh (bool): If True, forces a fresh discovery ignoring all caches.
+
+        Returns:
+            dict: Dictionary of available indices with metadata including descriptions.
+        """
+        # imports are placed at top-level to satisfy linters; kept here for clarity reference
+
+        user_cache_file = os.path.join(self.indices_data_dir, "indices_cache.json")
+
+        # Define pre-installed indices
+        pre_installed_indices = {
+            "idc_index": {
+                "description": "Main index containing one row per DICOM series.",
+                "installed": True,
+                "url": None,
+                "file_path": str(idc_index_data.IDC_INDEX_PARQUET_FILEPATH),
+            },
+            "prior_versions_index": {
+                "description": "index containing one row per DICOM series from all previous IDC versions that are not in current version.",
+                "installed": True,
+                "url": None,
+                "file_path": str(idc_index_data.PRIOR_VERSIONS_INDEX_PARQUET_FILEPATH),
+            },
+        }
+
+        if not force_refresh:
+            # Try bundled cache first
+            try:
+                bundled_cache_path = files("idc_index").joinpath("indices_cache.json")
+                if bundled_cache_path.is_file():
+                    cache_data = load_indices_cache(str(bundled_cache_path))
+                    if (
+                        cache_data
+                        and cache_data.get("version") == idc_index_data.__version__
+                    ):
+                        logger.debug(
+                            f"Using bundled cache for version {idc_index_data.__version__}"
+                        )
+                        return cache_data["indices"]
+                    if cache_data:
+                        logger.warning(
+                            "Bundled cache version mismatch: "
+                            f"{cache_data.get('version')} != {idc_index_data.__version__}. "
+                            "Will attempt to fetch fresh data from GitHub."
+                        )
+            except Exception as e:
+                logger.debug(f"Could not load bundled cache: {e}")
+
+            # Try user cache
+            cache_data = load_indices_cache(user_cache_file)
+            if cache_data:
+                if cache_data.get("version") == idc_index_data.__version__:
+                    logger.debug(
+                        f"Using user cache for version {idc_index_data.__version__}"
+                    )
+                    return cache_data["indices"]
+                logger.warning(
+                    "User cache version mismatch: "
+                    f"{cache_data.get('version')} != {idc_index_data.__version__}. "
+                    "Fetching fresh data from GitHub."
+                )
+
+        # Fetch from GitHub (either forced or cache miss/stale)
+        logger.info("Fetching indices from GitHub releases...")
+        indices = fetch_indices_from_github(
+            idc_index_data.__version__,
+            asset_endpoint_url,
+            pre_installed_indices,
+        )
+
+        # Save to user cache
+        save_indices_cache(user_cache_file, idc_index_data.__version__, indices)
+
+        return indices
 
     @staticmethod
     def _replace_aws_with_gcp_buckets(dataframe, column_name):
@@ -398,6 +476,28 @@ class IDCClient:
                 self.indices_overview[index_name]["installed"] = True
                 self.indices_overview[index_name]["file_path"] = filepath
 
+                # Also try to fetch and cache the JSON schema if not already present
+                if "table_description" not in self.indices_overview[index_name]:
+                    json_url = f"{asset_endpoint_url}/{index_name}.json"
+                    json_filepath = os.path.join(
+                        self.indices_data_dir, f"{index_name}.json"
+                    )
+                    try:
+                        schema_response = requests.get(json_url, timeout=30)
+                        if schema_response.status_code == 200:
+                            with open(json_filepath, "w") as f:
+                                f.write(schema_response.text)
+                            schema_data = schema_response.json()
+                            self.indices_overview[index_name]["table_description"] = (
+                                schema_data.get("table_description")
+                            )
+                            self.indices_overview[index_name]["columns"] = (
+                                schema_data.get("columns", [])
+                            )
+                            logger.debug(f"Fetched and cached schema for {index_name}")
+                    except Exception as e:
+                        logger.debug(f"Could not fetch schema for {index_name}: {e}")
+
             else:
                 logger.error(
                     f"Failed to fetch index from URL {self.indices_overview[index_name]['url']}: {response.status_code}"
@@ -457,6 +557,97 @@ class IDCClient:
         """Returns the collections present in IDC."""
         unique_collections = self.index["collection_id"].unique()
         return unique_collections.tolist()
+
+    def get_index_schema(self, index_name):
+        """Returns the full schema for a requested index including column descriptions.
+
+        Args:
+            index_name (str): Name of the index (e.g., 'sm_index', 'clinical_index').
+
+        Returns:
+            dict: Dictionary containing 'table_description' (str) and 'columns' (list of dicts
+                with 'name', 'type', 'mode', 'description' fields).
+
+        Raises:
+            ValueError: If index_name is not recognized.
+        """
+        if index_name not in self.indices_overview:
+            msg = (
+                "Index '"
+                + str(index_name)
+                + "' not found. Available indices: "
+                + str(list(self.indices_overview.keys()))
+            )
+            raise ValueError(msg)
+
+        # Check if schema is already loaded
+        if "table_description" in self.indices_overview[index_name]:
+            return {
+                "table_description": self.indices_overview[index_name].get(
+                    "table_description"
+                ),
+                "columns": self.indices_overview[index_name].get("columns", []),
+            }
+
+        # Try to fetch schema from cached JSON file or download it
+        json_filepath = os.path.join(self.indices_data_dir, f"{index_name}.json")
+
+        # Check if JSON file exists locally
+        if os.path.exists(json_filepath):
+            try:
+                with open(json_filepath) as f:
+                    schema_data = json.load(f)
+                    self.indices_overview[index_name]["table_description"] = (
+                        schema_data.get("table_description")
+                    )
+                    self.indices_overview[index_name]["columns"] = schema_data.get(
+                        "columns", []
+                    )
+                    return {
+                        "table_description": schema_data.get("table_description"),
+                        "columns": schema_data.get("columns", []),
+                    }
+            except Exception as e:
+                logger.warning(f"Failed to read cached schema for {index_name}: {e}")
+
+        # Try to download schema from GitHub
+        json_url = f"{asset_endpoint_url}/{index_name}.json"
+        try:
+            logger.debug(f"Fetching schema from {json_url}")
+            response = requests.get(json_url, timeout=30)
+            if response.status_code == 200:
+                schema_data = response.json()
+
+                # Cache it locally
+                os.makedirs(self.indices_data_dir, exist_ok=True)
+                with open(json_filepath, "w") as f:
+                    json.dump(schema_data, f, indent=2)
+
+                # Update indices_overview
+                self.indices_overview[index_name]["table_description"] = (
+                    schema_data.get("table_description")
+                )
+                self.indices_overview[index_name]["columns"] = schema_data.get(
+                    "columns", []
+                )
+
+                return {
+                    "table_description": schema_data.get("table_description"),
+                    "columns": schema_data.get("columns", []),
+                }
+            logger.warning(
+                f"Failed to fetch schema from {json_url}: {response.status_code}"
+            )
+            return {
+                "table_description": f"Schema not available for {index_name}",
+                "columns": [],
+            }
+        except Exception as e:
+            logger.warning(f"Error fetching schema for {index_name}: {e}")
+            return {
+                "table_description": f"Schema not available for {index_name}",
+                "columns": [],
+            }
 
     def get_series_size(self, seriesInstanceUID):
         """Gets cumulative size (MB) of the DICOM instances in a given SeriesInstanceUID.

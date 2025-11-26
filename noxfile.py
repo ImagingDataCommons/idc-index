@@ -2,13 +2,42 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 import nox
 
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    try:
+        import tomli as tomllib
+    except ImportError:
+        # If tomli is not available, install it in the current environment
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "tomli"])
+        import tomli as tomllib
+
 DIR = Path(__file__).parent.resolve()
 
 nox.options.sessions = ["lint", "pylint", "tests"]
+
+
+def get_runtime_dependencies() -> list[str]:
+    """Extract runtime dependencies from pyproject.toml."""
+    pyproject_path = DIR / "pyproject.toml"
+    with open(pyproject_path, "rb") as f:
+        pyproject = tomllib.load(f)
+
+    return pyproject.get("project", {}).get("dependencies", [])
+
+
+def generate_cache(session: nox.Session) -> None:
+    """Generate bundled indices cache (required for package build)."""
+    # Install all runtime dependencies needed for the generator script
+    dependencies = get_runtime_dependencies()
+    session.install(*dependencies)
+    session.run("python", "scripts/generate_indices_cache.py")
 
 
 @nox.session
@@ -29,6 +58,10 @@ def pylint(session: nox.Session) -> None:
     """
     # This needs to be installed into the package environment, and is slower
     # than a pre-commit check
+
+    # Generate bundled cache before installing package (required for build)
+    generate_cache(session)
+
     session.install(".", "pylint")
     session.run("pylint", "idc_index", *session.posargs)
 
@@ -38,6 +71,9 @@ def tests(session: nox.Session) -> None:
     """
     Run the unit and regular tests.
     """
+    # Generate bundled cache before installing package (required for build)
+    generate_cache(session)
+
     session.install(".[test]")
     session.run("pytest", *session.posargs)
 
@@ -59,6 +95,9 @@ def docs(session: nox.Session) -> None:
         session.error("Must not specify non-HTML builder with --serve")
 
     extra_installs = ["sphinx-autobuild"] if args.serve else []
+
+    # Generate bundled cache before installing package (required for build)
+    generate_cache(session)
 
     session.install("-e.[docs]", *extra_installs)
     session.chdir("docs")
@@ -112,6 +151,9 @@ def build(session: nox.Session) -> None:
     build_path = DIR.joinpath("build")
     if build_path.exists():
         shutil.rmtree(build_path)
+
+    # Generate bundled cache before building package (required for build)
+    generate_cache(session)
 
     session.install("build")
     session.run("python", "-m", "build")

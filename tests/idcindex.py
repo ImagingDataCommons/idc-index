@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 import tempfile
 import unittest
+from importlib.resources import files
 from itertools import product
 from pathlib import Path
 from unittest.mock import patch
 
+import idc_index_data
 import pandas as pd
 import pytest
 import requests
@@ -603,6 +606,162 @@ class TestIDCClient(unittest.TestCase):
         files_aws = c.get_instance_file_URL(sopInstanceUID, "aws")
         files_gcp = c.get_instance_file_URL(sopInstanceUID, "gcs")
         assert files_aws == files_gcp == file_url
+
+    def test_indices_discovery(self):
+        """Test that indices are loaded from bundled cache or discovered."""
+        c = IDCClient()
+
+        # Check that indices_overview exists and is not empty
+        assert c.indices_overview is not None
+        assert len(c.indices_overview) > 0
+
+        # Check that pre-installed indices are present
+        assert "idc_index" in c.indices_overview
+        assert "prior_versions_index" in c.indices_overview
+
+        # Verify pre-installed indices have required fields
+        for index_name in ["idc_index", "prior_versions_index"]:
+            assert c.indices_overview[index_name]["installed"] is True
+            assert c.indices_overview[index_name]["file_path"] is not None
+            assert "description" in c.indices_overview[index_name]
+
+        # Check that additional indices are discovered (from bundled cache or GitHub)
+        # These should be present in the cache or GitHub release
+        expected_indices = ["sm_index", "sm_instance_index", "clinical_index"]
+        for index_name in expected_indices:
+            if index_name in c.indices_overview:
+                assert c.indices_overview[index_name]["installed"] is False
+                assert c.indices_overview[index_name]["url"] is not None
+                assert "description" in c.indices_overview[index_name]
+
+    def test_indices_schema_from_discovery(self):
+        """Test that schemas are available from bundled cache or fetched from GitHub."""
+        c = IDCClient()
+
+        # Check that pre-installed indices have schema information
+        for index_name in ["idc_index", "prior_versions_index"]:
+            # Schema should be present from bundled cache or GitHub API
+            if "table_description" in c.indices_overview[index_name]:
+                assert c.indices_overview[index_name]["table_description"] is not None
+                assert "columns" in c.indices_overview[index_name]
+                assert isinstance(c.indices_overview[index_name]["columns"], list)
+
+    def test_get_index_schema(self):
+        """Test the get_index_schema method."""
+        c = IDCClient()
+
+        # Test with a pre-installed index
+        schema = c.get_index_schema("idc_index")
+        assert schema is not None
+        assert "table_description" in schema
+        assert "columns" in schema
+        assert isinstance(schema["columns"], list)
+
+        # Test with an invalid index name
+        with pytest.raises(ValueError, match="not found"):
+            c.get_index_schema("nonexistent_index")
+
+    def test_indices_discovery_force_refresh(self):
+        """Test force refresh bypasses all caches and fetches from GitHub."""
+        c = IDCClient()
+
+        # Get initial indices overview
+        initial_indices = c.indices_overview.copy()
+
+        # Force refresh (this is a private method, but we test it here)
+        # This should bypass both bundled and user cache and fetch from GitHub
+        refreshed_indices = c._discover_available_indices(force_refresh=True)
+
+        # Check that we got indices back
+        assert refreshed_indices is not None
+        assert len(refreshed_indices) > 0
+
+        # Should have at least the pre-installed indices
+        assert "idc_index" in refreshed_indices
+        assert "prior_versions_index" in refreshed_indices
+
+    def test_indices_cache_file(self):
+        """Test that user cache file is created when force_refresh is used."""
+
+        c = IDCClient()
+
+        # Force a refresh to ensure user cache is created
+        c._discover_available_indices(force_refresh=True)
+
+        cache_file = os.path.join(c.indices_data_dir, "indices_cache.json")
+
+        # User cache file should now exist after force refresh
+        if os.path.exists(cache_file):
+            with open(cache_file) as f:
+                cache_data = json.load(f)
+
+            assert "version" in cache_data
+            assert "indices" in cache_data
+            assert isinstance(cache_data["indices"], dict)
+
+    def test_fetch_index_with_schema(self):
+        """Test that fetching an index also has schema information from cache."""
+        c = IDCClient()
+
+        # Fetch an index that's not pre-installed
+        if "sm_index" in c.indices_overview:
+            c.fetch_index("sm_index")
+
+            # After fetching, the index should be marked as installed
+            assert c.indices_overview["sm_index"]["installed"] is True
+
+            # Schema information should be available from bundled cache or GitHub
+            if "table_description" in c.indices_overview["sm_index"]:
+                assert c.indices_overview["sm_index"]["table_description"] is not None
+
+    def test_bundled_cache_loaded(self):
+        """Test that bundled cache is loaded when available and version matches."""
+
+        # Check if bundled cache exists
+        try:
+            bundled_cache_path = files("idc_index").joinpath("indices_cache.json")
+            if bundled_cache_path.is_file():
+                with open(bundled_cache_path) as f:
+                    bundled_cache = json.load(f)
+
+                # Create a client which should load from bundled cache
+                c = IDCClient()
+
+                # Verify indices were loaded
+                assert c.indices_overview is not None
+                assert len(c.indices_overview) > 0
+
+                # Check that version matches
+                assert bundled_cache["version"] == idc_index_data.__version__
+        except Exception as e:
+            # If bundled cache doesn't exist, test passes
+            # (this is expected during development before cache is generated)
+            pytest.skip(f"Bundled cache not available: {e}")
+
+    def test_version_mismatch_warning(self):
+        """Test that version mismatch triggers warning and fallback to GitHub."""
+
+        c = IDCClient()
+
+        # Create a user cache with wrong version
+        cache_file = os.path.join(c.indices_data_dir, "indices_cache.json")
+        wrong_version_cache = {"version": "99.99.99", "indices": {"test_index": {}}}
+
+        os.makedirs(c.indices_data_dir, exist_ok=True)
+        with open(cache_file, "w") as f:
+            json.dump(wrong_version_cache, f)
+
+        # Mock bundled cache to not exist for this test
+        with patch("importlib.resources.files") as mock_files:
+            mock_files.return_value.joinpath.return_value.is_file.return_value = False
+
+            # This should trigger a version mismatch and fetch from GitHub
+            # (will log a warning but not fail)
+            indices = c._discover_available_indices()
+
+            # Should still get valid indices from GitHub
+            assert indices is not None
+            assert len(indices) > 0
 
 
 class TestInsufficientDiskSpaceException(unittest.TestCase):

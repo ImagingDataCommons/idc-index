@@ -27,6 +27,38 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Read idc-index-data version from pyproject.toml
+        run: |
+          python - <<'PY' > /tmp/idc_ver.env
+          import tomllib, re
+          with open('pyproject.toml','rb') as f:
+              data = tomllib.load(f)
+          ver = None
+          for d in data['project']['dependencies']:
+              m = re.match(r'idc-index-data==(.+)', d)
+              if m:
+                  ver = m.group(1)
+                  break
+          assert ver, 'idc-index-data version not found in pyproject.toml'
+          print(f'IDC_INDEX_DATA_VERSION={ver}')
+          PY
+          cat /tmp/idc_ver.env >> $GITHUB_ENV
+
+      - name: Preinstall idc-index-data for cache generation
+        env:
+          IDC_INDEX_DATA_VERSION: ${{ env.IDC_INDEX_DATA_VERSION }}
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "idc-index-data==${IDC_INDEX_DATA_VERSION}"
+
+      - name: Generate bundled indices cache
+        run: |
+          python scripts/generate_indices_cache.py
+
       - uses: hynek/build-and-inspect-python-package@v2
 
   publish:
