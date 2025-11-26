@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -25,6 +26,7 @@ from tqdm import tqdm
 aws_endpoint_url = "https://s3.amazonaws.com"
 gcp_endpoint_url = "https://storage.googleapis.com"
 asset_endpoint_url = f"https://github.com/ImagingDataCommons/idc-index-data/releases/download/{idc_index_data.__version__}"
+github_api_url = f"https://api.github.com/repos/ImagingDataCommons/idc-index-data/releases/tags/{idc_index_data.__version__}"
 
 logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -125,43 +127,11 @@ class IDCClient:
         )
         self.clinical_data_dir = None
 
-        self.indices_overview = {
-            "index": {
-                "description": "Main index containing one row per DICOM series.",
-                "installed": True,
-                "url": None,
-                "file_path": idc_index_data.IDC_INDEX_PARQUET_FILEPATH,
-            },
-            "prior_versions_index": {
-                "description": "index containing one row per DICOM series from all previous IDC versions that are not in current version.",
-                "installed": True,
-                "url": None,
-                "file_path": idc_index_data.PRIOR_VERSIONS_INDEX_PARQUET_FILEPATH,
-            },
-            "sm_index": {
-                "description": "DICOM Slide Microscopy series-level index.",
-                "installed": False,
-                "url": f"{asset_endpoint_url}/sm_index.parquet",
-                "file_path": None,
-            },
-            "sm_instance_index": {
-                "description": "DICOM Slide Microscopy instance-level index.",
-                "installed": False,
-                "url": f"{asset_endpoint_url}/sm_instance_index.parquet",
-                "file_path": None,
-            },
-            "clinical_index": {
-                "description": "Index of clinical data accompanying the available images.",
-                "installed": False,
-                "url": f"{asset_endpoint_url}/clinical_index.parquet",
-                "file_path": None,
-            },
-        }
+        # Cache for index schemas fetched from release assets
+        self._index_schemas: dict = {}
 
-        # these will point to the dataframes containing the respective indices, once installed
-        self.sm_index = None
-        self.sm_instance_index = None
-        self.clinical_index = None
+        # Initialize indices overview with automatic discovery
+        self.indices_overview = self._discover_available_indices()
 
         # Lookup s5cmd
         self.s5cmdPath = shutil.which("s5cmd")
@@ -181,6 +151,237 @@ class IDCClient:
         logger.debug(f"Found s5cmd executable: {self.s5cmdPath}")
         # ... and check it can be executed
         subprocess.check_call([self.s5cmdPath, "--help"], stdout=subprocess.DEVNULL)
+
+    def _discover_available_indices(self, refresh: bool = False) -> dict:
+        """Discover available index tables from the idc-index-data GitHub release assets.
+
+        This method attempts to discover available index parquet files by first trying
+        the GitHub releases API, and falling back to a known list of indices if the API
+        is unavailable. In either case, it populates descriptions from the accompanying
+        JSON schema files.
+
+        Args:
+            refresh: If True, forces a refresh of the cached index list. If False,
+                returns the cached list if available.
+
+        Returns:
+            dict: A dictionary of available indices with their descriptions, URLs,
+                installation status, and file paths.
+        """
+        # Return cached data if available and refresh is not requested
+        if (
+            not refresh
+            and hasattr(self, "indices_overview")
+            and self.indices_overview is not None
+        ):
+            return self.indices_overview
+
+        # Start with the indices that are bundled with the package
+        indices = {
+            "index": {
+                "description": "Main index containing one row per DICOM series.",
+                "installed": True,
+                "url": None,
+                "file_path": idc_index_data.IDC_INDEX_PARQUET_FILEPATH,
+            },
+            "prior_versions_index": {
+                "description": "Index containing one row per DICOM series from all previous IDC versions that are not in current version.",
+                "installed": True,
+                "url": None,
+                "file_path": idc_index_data.PRIOR_VERSIONS_INDEX_PARQUET_FILEPATH,
+            },
+        }
+
+        # Known remote indices that may be available in releases
+        known_remote_indices = [
+            "sm_index",
+            "sm_instance_index",
+            "clinical_index",
+            "collections_index",
+            "analysis_results_index",
+        ]
+
+        # Try to discover additional indices from the GitHub release API
+        discovered_from_api = False
+        try:
+            response = requests.get(github_api_url, timeout=30)
+            if response.status_code == 200:
+                release_data = response.json()
+                assets = release_data.get("assets", [])
+
+                # Find all parquet files in the release assets
+                parquet_assets = {
+                    a["name"]: a["browser_download_url"]
+                    for a in assets
+                    if a["name"].endswith(".parquet")
+                }
+
+                # Find all json schema files in the release assets
+                json_assets = {
+                    a["name"]: a["browser_download_url"]
+                    for a in assets
+                    if a["name"].endswith(".json")
+                }
+
+                discovered_from_api = True
+
+                # Update descriptions for bundled indices if available
+                for bundled_name, schema_filename in [
+                    ("index", "idc_index.json"),
+                    ("prior_versions_index", "prior_versions_index.json"),
+                ]:
+                    if schema_filename in json_assets:
+                        schema = self._fetch_index_schema_from_url(
+                            json_assets[schema_filename]
+                        )
+                        if schema and "table_description" in schema:
+                            indices[bundled_name]["description"] = schema[
+                                "table_description"
+                            ]
+
+                # Process discovered parquet files
+                for parquet_name, parquet_url in parquet_assets.items():
+                    # Extract index name from filename
+                    index_name = parquet_name.replace(".parquet", "")
+
+                    # Skip bundled indices
+                    if index_name in ("idc_index", "prior_versions_index"):
+                        continue
+
+                    # Determine description from schema file
+                    description = ""
+                    schema_name = f"{index_name}.json"
+                    if schema_name in json_assets:
+                        schema = self._fetch_index_schema_from_url(
+                            json_assets[schema_name]
+                        )
+                        if schema:
+                            description = schema.get("table_description", "")
+
+                    # Check if the index is already installed locally
+                    local_path = os.path.join(
+                        self.indices_data_dir, f"{index_name}.parquet"
+                    )
+                    installed = os.path.exists(local_path)
+                    file_path = local_path if installed else None
+
+                    indices[index_name] = {
+                        "description": description,
+                        "installed": installed,
+                        "url": parquet_url,
+                        "file_path": file_path,
+                    }
+
+            else:
+                logger.debug(
+                    f"GitHub API returned status {response.status_code}. "
+                    "Using known index list with schema discovery."
+                )
+        except requests.exceptions.RequestException as e:
+            logger.debug(f"GitHub API request failed: {e}. Using known index list.")
+
+        # If API discovery failed, use known list and try to fetch schemas directly
+        if not discovered_from_api:
+            for index_name in known_remote_indices:
+                # Try to fetch the schema directly
+                schema_url = f"{asset_endpoint_url}/{index_name}.json"
+                parquet_url = f"{asset_endpoint_url}/{index_name}.parquet"
+
+                description = ""
+                schema = self._fetch_index_schema_from_url(schema_url)
+                if schema:
+                    description = schema.get("table_description", "")
+
+                # Check if the index is already installed locally
+                local_path = os.path.join(
+                    self.indices_data_dir, f"{index_name}.parquet"
+                )
+                installed = os.path.exists(local_path)
+                file_path = local_path if installed else None
+
+                indices[index_name] = {
+                    "description": description,
+                    "installed": installed,
+                    "url": parquet_url,
+                    "file_path": file_path,
+                }
+
+            # Also try to update bundled index descriptions
+            for bundled_name, schema_filename in [
+                ("index", "idc_index.json"),
+                ("prior_versions_index", "prior_versions_index.json"),
+            ]:
+                schema_url = f"{asset_endpoint_url}/{schema_filename}"
+                schema = self._fetch_index_schema_from_url(schema_url)
+                if schema and "table_description" in schema:
+                    indices[bundled_name]["description"] = schema["table_description"]
+
+        return indices
+
+    def _fetch_index_schema_from_url(self, url: str) -> dict | None:
+        """Fetch an index schema JSON from a URL.
+
+        Args:
+            url: The URL to fetch the schema from.
+
+        Returns:
+            dict or None: The parsed schema dictionary, or None if fetching fails.
+        """
+        try:
+            response = requests.get(url, timeout=30)
+            if response.status_code == 200:
+                return response.json()
+        except (requests.exceptions.RequestException, json.JSONDecodeError) as e:
+            logger.debug(f"Failed to fetch schema from {url}: {e}")
+        return None
+
+    def refresh_indices_overview(self) -> dict:
+        """Refresh the list of available indices by re-querying the GitHub release.
+
+        This method forces a refresh of the indices_overview dictionary by querying
+        the GitHub releases API again, even if a cached version is available.
+
+        Returns:
+            dict: The refreshed indices_overview dictionary.
+        """
+        self.indices_overview = self._discover_available_indices(refresh=True)
+        return self.indices_overview
+
+    def get_index_schema(self, index_name: str, refresh: bool = False) -> dict | None:
+        """Get the full schema for an index, including column definitions.
+
+        This method fetches the JSON schema file for the specified index from the
+        idc-index-data release assets. The schema includes table_description and
+        column definitions with name, type, mode, and description.
+
+        Args:
+            index_name: The name of the index to get the schema for.
+            refresh: If True, forces a refresh of the cached schema.
+
+        Returns:
+            dict or None: The schema dictionary containing 'table_description' and
+                'columns', or None if the schema could not be fetched.
+        """
+        if index_name not in self.indices_overview:
+            logger.error(f"Index {index_name} is not available.")
+            return None
+
+        # Return cached schema if available and refresh is not requested
+        if not refresh and index_name in self._index_schemas:
+            return self._index_schemas[index_name]
+
+        # Construct the schema URL
+        schema_url = f"{asset_endpoint_url}/{index_name}.json"
+
+        # Special handling for the main index - it uses idc_index.json
+        if index_name == "index":
+            schema_url = f"{asset_endpoint_url}/idc_index.json"
+
+        schema = self._fetch_index_schema_from_url(schema_url)
+        if schema:
+            self._index_schemas[index_name] = schema
+
+        return schema
 
     @staticmethod
     def _replace_aws_with_gcp_buckets(dataframe, column_name):
@@ -368,10 +569,30 @@ class IDCClient:
         """
         if index_name not in self.indices_overview:
             logger.error(f"Index {index_name} is not available and can not be fetched.")
-        elif self.indices_overview[index_name]["installed"]:
-            logger.warning(
-                f"Index {index_name} already installed and will not be fetched again."
-            )
+            return
+        if self.indices_overview[index_name]["installed"]:
+            # Index is already installed, load it from disk if not already loaded
+            if not hasattr(self, index_name) or getattr(self, index_name) is None:
+                filepath = self.indices_overview[index_name]["file_path"]
+                if filepath and os.path.exists(filepath):
+                    logger.info(
+                        f"Index {index_name} already installed, loading from {filepath}"
+                    )
+                    index_table = pd.read_parquet(filepath)
+                    setattr(self, index_name, index_table)
+                else:
+                    logger.warning(
+                        f"Index {index_name} marked as installed but file not found. Re-downloading."
+                    )
+                    # Reset installed status and re-fetch
+                    self.indices_overview[index_name]["installed"] = False
+                    self.indices_overview[index_name]["file_path"] = None
+                    self.fetch_index(index_name)
+                    return
+            else:
+                logger.warning(
+                    f"Index {index_name} already installed and will not be fetched again."
+                )
         else:
             logger.info("Fetching index %s", index_name)
             response = requests.get(

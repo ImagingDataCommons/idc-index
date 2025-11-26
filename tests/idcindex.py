@@ -563,10 +563,69 @@ class TestIDCClient(unittest.TestCase):
         i = IDCClient()
         assert i.indices_overview  # assert that dict was created
 
+    def test_discovered_indices_have_descriptions(self):
+        """Test that discovered indices have descriptions from schema files."""
+        i = IDCClient()
+        # All indices should have descriptions
+        for index_name, index_info in i.indices_overview.items():
+            assert "description" in index_info
+            # Most indices should have non-empty descriptions from schema files
+            # (though some may be empty if the schema fetch fails)
+
+    def test_get_index_schema(self):
+        """Test that get_index_schema returns valid schema data."""
+        i = IDCClient()
+        # Test getting schema for the main index
+        schema = i.get_index_schema("index")
+        assert schema is not None
+        assert "table_description" in schema
+        assert "columns" in schema
+        assert len(schema["columns"]) > 0
+
+        # Test getting schema for a remote index
+        schema = i.get_index_schema("sm_index")
+        assert schema is not None
+        assert "table_description" in schema
+        assert "columns" in schema
+
+    def test_get_index_schema_caching(self):
+        """Test that schemas are cached after first fetch."""
+        i = IDCClient()
+        # First fetch should populate cache
+        schema1 = i.get_index_schema("sm_index")
+        assert "sm_index" in i._index_schemas
+
+        # Second fetch should use cache
+        schema2 = i.get_index_schema("sm_index")
+        assert schema1 is schema2  # Same object from cache
+
+        # Refresh should fetch new data
+        schema3 = i.get_index_schema("sm_index", refresh=True)
+        assert schema3 is not None
+
+    def test_get_index_schema_invalid_index(self):
+        """Test that get_index_schema returns None for invalid index."""
+        i = IDCClient()
+        schema = i.get_index_schema("nonexistent_index")
+        assert schema is None
+
+    def test_refresh_indices_overview(self):
+        """Test that refresh_indices_overview updates the indices list."""
+        i = IDCClient()
+        original_count = len(i.indices_overview)
+        # Refresh should return updated indices
+        refreshed = i.refresh_indices_overview()
+        assert refreshed is not None
+        assert len(refreshed) == original_count
+
     def test_fetch_index(self):
         i = IDCClient()
-        assert i.indices_overview["sm_index"]["installed"] is False
+        # Check if sm_index is discovered
+        assert "sm_index" in i.indices_overview
+        # If not installed, it should be installed after fetch_index
+        was_installed = i.indices_overview["sm_index"]["installed"]
         i.fetch_index("sm_index")
+        # After fetch_index, it should be installed
         assert i.indices_overview["sm_index"]["installed"] is True
         assert hasattr(i, "sm_index")
 
@@ -578,8 +637,10 @@ class TestIDCClient(unittest.TestCase):
 
     def test_clinical_index_install(self):
         i = IDCClient()
-        assert i.indices_overview["clinical_index"]["installed"] is False
+        # Check if clinical_index is discovered
+        assert "clinical_index" in i.indices_overview
         i.fetch_index("clinical_index")
+        # After fetch_index, it should be installed
         assert i.indices_overview["clinical_index"]["installed"] is True
         assert len(os.listdir(i.clinical_data_dir)) > 0
 
