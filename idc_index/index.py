@@ -590,16 +590,18 @@ class IDCClient:
                     logger.warning(
                         f"Index {index_name} marked as installed but file not found. Re-downloading."
                     )
-                    # Reset installed status and re-fetch
+                    # Reset installed status to allow download
                     self.indices_overview[index_name]["installed"] = False
                     self.indices_overview[index_name]["file_path"] = None
-                    self.fetch_index(index_name)
-                    return
+                    # Fall through to the download logic below instead of recursive call
             else:
                 logger.warning(
                     f"Index {index_name} already installed and will not be fetched again."
                 )
-        else:
+                return
+
+        # Download the index if not installed
+        if not self.indices_overview[index_name]["installed"]:
             logger.info("Fetching index %s", index_name)
             response = requests.get(
                 self.indices_overview[index_name]["url"], timeout=30

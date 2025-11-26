@@ -622,8 +622,6 @@ class TestIDCClient(unittest.TestCase):
         i = IDCClient()
         # Check if sm_index is discovered
         assert "sm_index" in i.indices_overview
-        # If not installed, it should be installed after fetch_index
-        was_installed = i.indices_overview["sm_index"]["installed"]
         i.fetch_index("sm_index")
         # After fetch_index, it should be installed
         assert i.indices_overview["sm_index"]["installed"] is True
