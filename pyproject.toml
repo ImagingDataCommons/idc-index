@@ -79,6 +79,11 @@ build.hooks.vcs.version-file = "idc_index/_version.py"
 features = ["test"]
 scripts.test = "pytest {args}"
 
+[tool.hatch.build.targets.wheel]
+packages = ["idc_index"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"idc_index/indices_cache.json" = "idc_index/indices_cache.json"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -239,4 +244,5 @@ messages_control.disable = [
   "undefined-loop-variable",
   "unspecified-encoding",
   "unused-variable",
+  "broad-exception-caught",
 ]
