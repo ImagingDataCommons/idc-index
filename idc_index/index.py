@@ -133,6 +133,12 @@ class IDCClient:
         # Initialize indices overview with automatic discovery
         self.indices_overview = self._discover_available_indices()
 
+        # These will point to the dataframes containing the respective indices, once installed
+        # Initialize as None to allow checking before they are fetched
+        self.sm_index = None
+        self.sm_instance_index = None
+        self.clinical_index = None
+
         # Lookup s5cmd
         self.s5cmdPath = shutil.which("s5cmd")
         if self.s5cmdPath is None:
