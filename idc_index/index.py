@@ -161,10 +161,9 @@ class IDCClient:
     def _discover_available_indices(self, refresh: bool = False) -> dict:
         """Discover available index tables from the idc-index-data GitHub release assets.
 
-        This method attempts to discover available index parquet files by first trying
-        the GitHub releases API, and falling back to a known list of indices if the API
-        is unavailable. In either case, it populates descriptions from the accompanying
-        JSON schema files.
+        This method discovers available index parquet files by querying the GitHub
+        releases API to dynamically find all available indices. Descriptions are
+        populated from the accompanying JSON schema files.
 
         Args:
             refresh: If True, forces a refresh of the cached index list. If False,
@@ -182,33 +181,21 @@ class IDCClient:
         ):
             return self.indices_overview
 
-        # Start with the indices that are bundled with the package
-        indices = {
-            "index": {
-                "description": "Main index containing one row per DICOM series.",
-                "installed": True,
-                "url": None,
+        # Mapping of asset filenames to canonical index names for bundled indices
+        bundled_indices = {
+            "idc_index": {
+                "canonical_name": "index",
                 "file_path": idc_index_data.IDC_INDEX_PARQUET_FILEPATH,
             },
             "prior_versions_index": {
-                "description": "Index containing one row per DICOM series from all previous IDC versions that are not in current version.",
-                "installed": True,
-                "url": None,
+                "canonical_name": "prior_versions_index",
                 "file_path": idc_index_data.PRIOR_VERSIONS_INDEX_PARQUET_FILEPATH,
             },
         }
 
-        # Known remote indices that may be available in releases
-        known_remote_indices = [
-            "sm_index",
-            "sm_instance_index",
-            "clinical_index",
-            "collections_index",
-            "analysis_results_index",
-        ]
+        indices = {}
 
-        # Try to discover additional indices from the GitHub release API
-        discovered_from_api = False
+        # Discover indices from the GitHub release API
         try:
             response = requests.get(github_api_url, timeout=30)
             if response.status_code == 200:
@@ -229,34 +216,30 @@ class IDCClient:
                     if a["name"].endswith(".json")
                 }
 
-                discovered_from_api = True
-
-                # Update descriptions for bundled indices if available
-                for bundled_name, schema_filename in [
-                    ("index", "idc_index.json"),
-                    ("prior_versions_index", "prior_versions_index.json"),
-                ]:
-                    if schema_filename in json_assets:
-                        schema = self._fetch_index_schema_from_url(
-                            json_assets[schema_filename]
-                        )
-                        if schema and "table_description" in schema:
-                            indices[bundled_name]["description"] = schema[
-                                "table_description"
-                            ]
-
-                # Process discovered parquet files
+                # Process all discovered parquet files
                 for parquet_name, parquet_url in parquet_assets.items():
-                    # Extract index name from filename
-                    index_name = parquet_name.replace(".parquet", "")
+                    # Extract index name from filename (e.g., "sm_index.parquet" -> "sm_index")
+                    asset_index_name = parquet_name.replace(".parquet", "")
 
-                    # Skip bundled indices
-                    if index_name in ("idc_index", "prior_versions_index"):
-                        continue
+                    # Check if this is a bundled index
+                    if asset_index_name in bundled_indices:
+                        bundled_info = bundled_indices[asset_index_name]
+                        index_name = bundled_info["canonical_name"]
+                        installed = True
+                        file_path = bundled_info["file_path"]
+                        url = None  # Bundled indices don't need URL
+                    else:
+                        index_name = asset_index_name
+                        local_path = os.path.join(
+                            self.indices_data_dir, f"{index_name}.parquet"
+                        )
+                        installed = os.path.exists(local_path)
+                        file_path = local_path if installed else None
+                        url = parquet_url
 
                     # Determine description from schema file
                     description = ""
-                    schema_name = f"{index_name}.json"
+                    schema_name = f"{asset_index_name}.json"
                     if schema_name in json_assets:
                         schema = self._fetch_index_schema_from_url(
                             json_assets[schema_name]
@@ -264,63 +247,37 @@ class IDCClient:
                         if schema:
                             description = schema.get("table_description", "")
 
-                    # Check if the index is already installed locally
-                    local_path = os.path.join(
-                        self.indices_data_dir, f"{index_name}.parquet"
-                    )
-                    installed = os.path.exists(local_path)
-                    file_path = local_path if installed else None
-
                     indices[index_name] = {
                         "description": description,
                         "installed": installed,
-                        "url": parquet_url,
+                        "url": url,
                         "file_path": file_path,
                     }
 
             else:
-                logger.debug(
+                logger.warning(
                     f"GitHub API returned status {response.status_code}. "
-                    "Using known index list with schema discovery."
+                    "Unable to discover available indices."
                 )
         except requests.exceptions.RequestException as e:
-            logger.debug(f"GitHub API request failed: {e}. Using known index list.")
+            logger.warning(f"GitHub API request failed: {e}. Unable to discover available indices.")
 
-        # If API discovery failed, use known list and try to fetch schemas directly
-        if not discovered_from_api:
-            for index_name in known_remote_indices:
-                # Try to fetch the schema directly
-                schema_url = f"{asset_endpoint_url}/{index_name}.json"
-                parquet_url = f"{asset_endpoint_url}/{index_name}.parquet"
-
-                description = ""
-                schema = self._fetch_index_schema_from_url(schema_url)
-                if schema:
-                    description = schema.get("table_description", "")
-
-                # Check if the index is already installed locally
-                local_path = os.path.join(
-                    self.indices_data_dir, f"{index_name}.parquet"
-                )
-                installed = os.path.exists(local_path)
-                file_path = local_path if installed else None
-
-                indices[index_name] = {
-                    "description": description,
-                    "installed": installed,
-                    "url": parquet_url,
-                    "file_path": file_path,
-                }
-
-            # Also try to update bundled index descriptions
-            for bundled_name, schema_filename in [
-                ("index", "idc_index.json"),
-                ("prior_versions_index", "prior_versions_index.json"),
-            ]:
-                schema_url = f"{asset_endpoint_url}/{schema_filename}"
-                schema = self._fetch_index_schema_from_url(schema_url)
-                if schema and "table_description" in schema:
-                    indices[bundled_name]["description"] = schema["table_description"]
+        # If no indices were discovered, add at least the bundled indices with default descriptions
+        if not indices:
+            indices = {
+                "index": {
+                    "description": "Main index containing one row per DICOM series.",
+                    "installed": True,
+                    "url": None,
+                    "file_path": idc_index_data.IDC_INDEX_PARQUET_FILEPATH,
+                },
+                "prior_versions_index": {
+                    "description": "Index containing one row per DICOM series from all previous IDC versions that are not in current version.",
+                    "installed": True,
+                    "url": None,
+                    "file_path": idc_index_data.PRIOR_VERSIONS_INDEX_PARQUET_FILEPATH,
+                },
+            }
 
         return indices
 
