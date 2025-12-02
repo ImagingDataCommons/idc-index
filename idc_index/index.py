@@ -170,7 +170,7 @@ class IDCClient:
         refresh is requested.
 
         Args:
-            refresh: If True, forces a refresh of the cached index list and schemas. 
+            refresh: If True, forces a refresh of the cached index list and schemas.
                 If False, loads from disk cache if available.
 
         Returns:
@@ -293,10 +293,12 @@ class IDCClient:
                     "description": "Index containing one row per DICOM series from all previous IDC versions that are not in current version.",
                     "installed": True,
                     "url": None,
-                    "file_path": str(idc_index_data.PRIOR_VERSIONS_INDEX_PARQUET_FILEPATH),
+                    "file_path": str(
+                        idc_index_data.PRIOR_VERSIONS_INDEX_PARQUET_FILEPATH
+                    ),
                 },
             }
-            
+
             # Try to fetch schemas for bundled indices even when API fails
             for index_name, schema_filename in [
                 ("index", "idc_index.json"),
@@ -305,7 +307,9 @@ class IDCClient:
                 schema_url = f"{asset_endpoint_url}/{schema_filename}"
                 schema = self._fetch_index_schema_from_url(schema_url)
                 if schema:
-                    indices[index_name]["description"] = schema.get("table_description", indices[index_name]["description"])
+                    indices[index_name]["description"] = schema.get(
+                        "table_description", indices[index_name]["description"]
+                    )
                     self._index_schemas[index_name] = schema
 
         # Save to disk cache
@@ -321,21 +325,21 @@ class IDCClient:
                 None otherwise.
         """
         cache_file = os.path.join(self.indices_data_dir, "indices_cache.json")
-        
+
         if not os.path.exists(cache_file):
             return None
 
         try:
             with open(cache_file) as f:
                 cache_data = json.load(f)
-            
+
             # Verify cache is for current version
             if cache_data.get("version") != idc_index_data.__version__:
                 logger.debug(
                     f"Cache version mismatch: {cache_data.get('version')} != {idc_index_data.__version__}"
                 )
                 return None
-            
+
             return {
                 "indices": cache_data.get("indices", {}),
                 "schemas": cache_data.get("schemas", {}),
@@ -352,19 +356,19 @@ class IDCClient:
             schemas: Dictionary of index schemas
         """
         cache_file = os.path.join(self.indices_data_dir, "indices_cache.json")
-        
+
         try:
             os.makedirs(self.indices_data_dir, exist_ok=True)
-            
+
             cache_data = {
                 "version": idc_index_data.__version__,
                 "indices": indices,
                 "schemas": schemas,
             }
-            
+
             with open(cache_file, "w") as f:
                 json.dump(cache_data, f, indent=2)
-            
+
             logger.debug(f"Saved indices cache to {cache_file}")
         except (OSError, TypeError) as e:
             logger.warning(f"Failed to save indices cache to disk: {e}")
