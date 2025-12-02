@@ -260,7 +260,9 @@ class IDCClient:
                     "Unable to discover available indices."
                 )
         except requests.exceptions.RequestException as e:
-            logger.warning(f"GitHub API request failed: {e}. Unable to discover available indices.")
+            logger.warning(
+                f"GitHub API request failed: {e}. Unable to discover available indices."
+            )
 
         # If no indices were discovered, add at least the bundled indices with default descriptions
         if not indices:
