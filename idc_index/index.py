@@ -165,9 +165,13 @@ class IDCClient:
         releases API to dynamically find all available indices. Descriptions are
         populated from the accompanying JSON schema files.
 
+        Schemas are cached to disk in the indices_data_dir. On subsequent calls,
+        schemas are loaded from disk unless the idc-index-data version changes or
+        refresh is requested.
+
         Args:
-            refresh: If True, forces a refresh of the cached index list. If False,
-                returns the cached list if available.
+            refresh: If True, forces a refresh of the cached index list and schemas. 
+                If False, loads from disk cache if available.
 
         Returns:
             dict: A dictionary of available indices with their descriptions, URLs,
@@ -180,6 +184,16 @@ class IDCClient:
             and self.indices_overview is not None
         ):
             return self.indices_overview
+
+        # Try to load from disk cache first (if not forcing refresh)
+        if not refresh:
+            cached_data = self._load_indices_cache_from_disk()
+            if cached_data:
+                logger.debug("Loaded indices overview from disk cache")
+                # Populate the in-memory schema cache
+                if "schemas" in cached_data:
+                    self._index_schemas = cached_data["schemas"]
+                return cached_data["indices"]
 
         # Mapping of asset filenames to canonical index names for bundled indices
         bundled_indices = {
@@ -237,7 +251,7 @@ class IDCClient:
                         file_path = local_path if installed else None
                         url = parquet_url
 
-                    # Determine description from schema file
+                    # Determine description from schema file and cache the full schema
                     description = ""
                     schema_name = f"{asset_index_name}.json"
                     if schema_name in json_assets:
@@ -246,12 +260,14 @@ class IDCClient:
                         )
                         if schema:
                             description = schema.get("table_description", "")
+                            # Cache the full schema in memory
+                            self._index_schemas[index_name] = schema
 
                     indices[index_name] = {
                         "description": description,
                         "installed": installed,
                         "url": url,
-                        "file_path": file_path,
+                        "file_path": str(file_path) if file_path else None,
                     }
 
             else:
@@ -271,17 +287,87 @@ class IDCClient:
                     "description": "Main index containing one row per DICOM series.",
                     "installed": True,
                     "url": None,
-                    "file_path": idc_index_data.IDC_INDEX_PARQUET_FILEPATH,
+                    "file_path": str(idc_index_data.IDC_INDEX_PARQUET_FILEPATH),
                 },
                 "prior_versions_index": {
                     "description": "Index containing one row per DICOM series from all previous IDC versions that are not in current version.",
                     "installed": True,
                     "url": None,
-                    "file_path": idc_index_data.PRIOR_VERSIONS_INDEX_PARQUET_FILEPATH,
+                    "file_path": str(idc_index_data.PRIOR_VERSIONS_INDEX_PARQUET_FILEPATH),
                 },
             }
+            
+            # Try to fetch schemas for bundled indices even when API fails
+            for index_name, schema_filename in [
+                ("index", "idc_index.json"),
+                ("prior_versions_index", "prior_versions_index.json"),
+            ]:
+                schema_url = f"{asset_endpoint_url}/{schema_filename}"
+                schema = self._fetch_index_schema_from_url(schema_url)
+                if schema:
+                    indices[index_name]["description"] = schema.get("table_description", indices[index_name]["description"])
+                    self._index_schemas[index_name] = schema
+
+        # Save to disk cache
+        self._save_indices_cache_to_disk(indices, self._index_schemas)
 
         return indices
+
+    def _load_indices_cache_from_disk(self) -> dict | None:
+        """Load cached indices overview and schemas from disk.
+
+        Returns:
+            dict or None: Dictionary containing 'indices' and 'schemas' if cache is valid,
+                None otherwise.
+        """
+        cache_file = os.path.join(self.indices_data_dir, "indices_cache.json")
+        
+        if not os.path.exists(cache_file):
+            return None
+
+        try:
+            with open(cache_file) as f:
+                cache_data = json.load(f)
+            
+            # Verify cache is for current version
+            if cache_data.get("version") != idc_index_data.__version__:
+                logger.debug(
+                    f"Cache version mismatch: {cache_data.get('version')} != {idc_index_data.__version__}"
+                )
+                return None
+            
+            return {
+                "indices": cache_data.get("indices", {}),
+                "schemas": cache_data.get("schemas", {}),
+            }
+        except (json.JSONDecodeError, OSError) as e:
+            logger.debug(f"Failed to load indices cache from disk: {e}")
+            return None
+
+    def _save_indices_cache_to_disk(self, indices: dict, schemas: dict) -> None:
+        """Save indices overview and schemas to disk cache.
+
+        Args:
+            indices: Dictionary of indices overview
+            schemas: Dictionary of index schemas
+        """
+        cache_file = os.path.join(self.indices_data_dir, "indices_cache.json")
+        
+        try:
+            os.makedirs(self.indices_data_dir, exist_ok=True)
+            
+            cache_data = {
+                "version": idc_index_data.__version__,
+                "indices": indices,
+                "schemas": schemas,
+            }
+            
+            with open(cache_file, "w") as f:
+                json.dump(cache_data, f, indent=2)
+            
+            logger.debug(f"Saved indices cache to {cache_file}")
+        except (OSError, TypeError) as e:
+            logger.warning(f"Failed to save indices cache to disk: {e}")
 
     def _fetch_index_schema_from_url(self, url: str) -> dict | None:
         """Fetch an index schema JSON from a URL.
@@ -315,38 +401,36 @@ class IDCClient:
     def get_index_schema(self, index_name: str, refresh: bool = False) -> dict | None:
         """Get the full schema for an index, including column definitions.
 
-        This method fetches the JSON schema file for the specified index from the
-        idc-index-data release assets. The schema includes table_description and
-        column definitions with name, type, mode, and description.
+        This method returns the JSON schema for the specified index. The schema
+        includes table_description and column definitions with name, type, mode,
+        and description. Schemas are cached in memory and on disk during discovery.
 
         Args:
             index_name: The name of the index to get the schema for.
-            refresh: If True, forces a refresh of the cached schema.
+            refresh: If True, forces a refresh by re-discovering all indices.
 
         Returns:
             dict or None: The schema dictionary containing 'table_description' and
-                'columns', or None if the schema could not be fetched.
+                'columns', or None if the schema is not available.
         """
         if index_name not in self.indices_overview:
             logger.error(f"Index {index_name} is not available.")
             return None
 
-        # Return cached schema if available and refresh is not requested
-        if not refresh and index_name in self._index_schemas:
+        # If refresh is requested, re-discover indices to refresh all schemas
+        if refresh:
+            self.indices_overview = self._discover_available_indices(refresh=True)
+
+        # Return cached schema if available
+        if index_name in self._index_schemas:
             return self._index_schemas[index_name]
 
-        # Construct the schema URL
-        schema_url = f"{asset_endpoint_url}/{index_name}.json"
-
-        # Special handling for the main index - it uses idc_index.json
-        if index_name == "index":
-            schema_url = f"{asset_endpoint_url}/idc_index.json"
-
-        schema = self._fetch_index_schema_from_url(schema_url)
-        if schema:
-            self._index_schemas[index_name] = schema
-
-        return schema
+        # Schema was not cached during discovery (shouldn't happen in normal operation)
+        logger.warning(
+            f"Schema for {index_name} not available in cache. "
+            "This may indicate the index was discovered but schema fetch failed."
+        )
+        return None
 
     @staticmethod
     def _replace_aws_with_gcp_buckets(dataframe, column_name):
