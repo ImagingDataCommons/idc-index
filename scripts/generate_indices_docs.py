@@ -68,13 +68,20 @@ def generate_mermaid_diagram(indices_schemas: dict) -> str:
 
         # Add entity definition
         lines.append(f"    {index_name} {{")
-        for col in schema["columns"][:5]:  # Show first 5 columns for clarity
+        # Include ALL columns from the schema
+        for col in schema["columns"]:
             col_type = col.get("type", "STRING")
             col_name = col.get("name", "")
-            lines.append(f"        {col_type} {col_name}")
-        if len(schema["columns"]) > 5:
-            lines.append("        string ...")
+            # Escape special characters that might cause issues in Mermaid
+            col_name_safe = col_name.replace("-", "_")
+            lines.append(f"        {col_type} {col_name_safe}")
         lines.append("    }")
+
+    # Add relationships
+    for table1, table2, col in relationships:
+        lines.append(f"    {table1} ||--o{{ {table2} : {col}")
+
+    lines.append("```")
 
     # Add relationships
     for table1, table2, col in relationships:
