@@ -71,7 +71,7 @@ def generate_mermaid_diagram(indices_schemas: dict) -> str:
         for col in schema["columns"][:5]:  # Show first 5 columns for clarity
             col_type = col.get("type", "STRING")
             col_name = col.get("name", "")
-            lines.append(f'        {col_type} {col_name}')
+            lines.append(f"        {col_type} {col_name}")
         if len(schema["columns"]) > 5:
             lines.append("        string ...")
         lines.append("    }")
