@@ -65,7 +65,7 @@ def generate_mermaid_diagram(indices_schemas: dict) -> str:
         ":zoom:",
         "",
         "%%{init: {'theme':'base', 'themeVariables': {'fontSize':'14px'}, 'er': {'layoutDirection': 'LR', 'minEntityWidth': 120, 'minEntityHeight': 80}}}%%",
-        "erDiagram"
+        "erDiagram",
     ]
 
     # Define entities with their columns
