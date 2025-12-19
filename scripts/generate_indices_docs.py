@@ -82,12 +82,6 @@ def generate_mermaid_diagram(indices_schemas: dict) -> str:
         lines.append(f"    {table1} ||--o{{ {table2} : {col}")
 
     lines.append("```")
-
-    # Add relationships
-    for table1, table2, col in relationships:
-        lines.append(f"    {table1} ||--o{{ {table2} : {col}")
-
-    lines.append("```")
     return "\n".join(lines)
 
 

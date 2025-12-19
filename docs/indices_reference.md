@@ -140,26 +140,10 @@ erDiagram
     collections_index ||--o{ index : collection_id
     collections_index ||--o{ prior_versions_index : collection_id
     index ||--o{ prior_versions_index : PatientID
-    index ||--o{ prior_versions_index : StudyInstanceUID
     index ||--o{ prior_versions_index : SeriesInstanceUID
-    index ||--o{ prior_versions_index : collection_id
     index ||--o{ prior_versions_index : crdc_series_uuid
-    index ||--o{ sm_index : SeriesInstanceUID
-    index ||--o{ sm_instance_index : SeriesInstanceUID
-    prior_versions_index ||--o{ sm_index : SeriesInstanceUID
-    prior_versions_index ||--o{ sm_instance_index : SeriesInstanceUID
-    sm_index ||--o{ sm_instance_index : SeriesInstanceUID
-```
-    clinical_index ||--o{ collections_index : collection_id
-    clinical_index ||--o{ index : collection_id
-    clinical_index ||--o{ prior_versions_index : collection_id
-    collections_index ||--o{ index : collection_id
-    collections_index ||--o{ prior_versions_index : collection_id
-    index ||--o{ prior_versions_index : PatientID
+    index ||--o{ prior_versions_index : collection_id
     index ||--o{ prior_versions_index : StudyInstanceUID
-    index ||--o{ prior_versions_index : SeriesInstanceUID
-    index ||--o{ prior_versions_index : collection_id
-    index ||--o{ prior_versions_index : crdc_series_uuid
     index ||--o{ sm_index : SeriesInstanceUID
     index ||--o{ sm_instance_index : SeriesInstanceUID
     prior_versions_index ||--o{ sm_index : SeriesInstanceUID
