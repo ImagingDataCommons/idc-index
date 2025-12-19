@@ -19,7 +19,8 @@ extensions = [
     "sphinxcontrib.mermaid",
 ]
 
-source_suffix = [".rst", ".md"]
+source_suffix = {".rst": "restructuredtext", ".md": "markdown"}
+
 exclude_patterns = [
     "_build",
     "**.ipynb_checkpoints",
