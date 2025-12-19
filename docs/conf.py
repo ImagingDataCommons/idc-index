@@ -16,6 +16,7 @@ extensions = [
     "sphinx_autodoc_typehints",
     "sphinx_copybutton",
     "sphinx_click",
+    "sphinxcontrib.mermaid",
 ]
 
 source_suffix = [".rst", ".md"]

@@ -58,8 +58,8 @@ def generate_mermaid_diagram(indices_schemas: dict) -> str:
                 for col in meaningful_shared:
                     relationships.append((table1, table2, col))
 
-    # Generate Mermaid markup
-    lines = ["```mermaid", "erDiagram"]
+    # Generate Mermaid markup using MyST directive syntax
+    lines = ["```{mermaid}", "erDiagram"]
 
     # Define entities with their columns
     for index_name, schema in indices_schemas.items():
