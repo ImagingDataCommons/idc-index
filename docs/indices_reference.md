@@ -3,6 +3,10 @@
 This page provides a comprehensive reference for all index tables available in `idc-index`.
 The documentation is automatically generated from the schemas provided by `idc-index-data`.
 
+> **Note:** Column descriptions are sourced directly from the `idc-index-data` package schemas.
+> If you notice any missing or incorrect descriptions, please report them in the
+> [idc-index-data repository](https://github.com/ImagingDataCommons/idc-index-data).
+
 ## Overview
 
 `idc-index` provides access to multiple index tables containing metadata about the files
@@ -76,9 +80,9 @@ erDiagram
     clinical_index ||--o{ prior_versions_index : collection_id
     collections_index ||--o{ index : collection_id
     collections_index ||--o{ prior_versions_index : collection_id
-    index ||--o{ prior_versions_index : crdc_series_uuid
-    index ||--o{ prior_versions_index : SeriesInstanceUID
     index ||--o{ prior_versions_index : StudyInstanceUID
+    index ||--o{ prior_versions_index : SeriesInstanceUID
+    index ||--o{ prior_versions_index : crdc_series_uuid
     index ||--o{ prior_versions_index : collection_id
     index ||--o{ prior_versions_index : PatientID
     index ||--o{ sm_index : SeriesInstanceUID
