@@ -12,6 +12,7 @@ This script:
 from __future__ import annotations
 
 import sys
+import traceback
 from pathlib import Path
 
 from idc_index import IDCClient
@@ -96,7 +97,7 @@ def generate_table_documentation(index_name: str, schema: dict) -> str:
     lines = [f"## `{index_name}`", ""]
 
     # Add table description if available
-    if "table_description" in schema and schema["table_description"]:
+    if schema.get("table_description"):
         lines.append(schema["table_description"])
         lines.append("")
 
@@ -174,7 +175,7 @@ def generate_indices_documentation(output_path: Path) -> None:
     # Sort tables: main indices first, then others alphabetically
     priority_tables = ["index", "prior_versions_index"]
     other_tables = sorted(
-        [name for name in indices_schemas.keys() if name not in priority_tables]
+        [name for name in indices_schemas if name not in priority_tables]
     )
     sorted_tables = priority_tables + other_tables
 
@@ -190,7 +191,7 @@ def generate_indices_documentation(output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("\n".join(doc_lines))
 
-    print(f"✓ Documentation generated successfully!")
+    print("✓ Documentation generated successfully!")
     print(f"  Total tables documented: {len(indices_schemas)}")
     print(f"  Output file: {output_path}")
 
@@ -207,8 +208,6 @@ def main() -> int:
         return 0
     except Exception as e:
         print(f"Error generating documentation: {e}", file=sys.stderr)
-        import traceback
-
         traceback.print_exc()
         return 1
 

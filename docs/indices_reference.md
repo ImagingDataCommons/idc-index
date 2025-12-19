@@ -77,8 +77,8 @@ erDiagram
     collections_index ||--o{ index : collection_id
     collections_index ||--o{ prior_versions_index : collection_id
     index ||--o{ prior_versions_index : crdc_series_uuid
-    index ||--o{ prior_versions_index : StudyInstanceUID
     index ||--o{ prior_versions_index : SeriesInstanceUID
+    index ||--o{ prior_versions_index : StudyInstanceUID
     index ||--o{ prior_versions_index : collection_id
     index ||--o{ prior_versions_index : PatientID
     index ||--o{ sm_index : SeriesInstanceUID
