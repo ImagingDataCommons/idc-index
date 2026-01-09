@@ -15,11 +15,14 @@ import sys
 import traceback
 from pathlib import Path
 
+import idc_index_data
 from idc_index import IDCClient
 
 
 def generate_mermaid_diagram(indices_schemas: dict) -> str:
     """Generate a Mermaid ER diagram showing relationships between tables.
+
+    Only shows key columns used for relationships to keep the diagram compact.
 
     Args:
         indices_schemas: Dictionary mapping index names to their schemas
@@ -27,35 +30,40 @@ def generate_mermaid_diagram(indices_schemas: dict) -> str:
     Returns:
         String containing the Mermaid diagram markup
     """
-    # Collect all columns per table
-    table_columns: dict[str, set[str]] = {}
+    # Define key columns that are used for relationships between tables
+    key_columns = {
+        "SeriesInstanceUID",
+        "StudyInstanceUID",
+        "PatientID",
+        "collection_id",
+        "SOPInstanceUID",
+        "crdc_series_uuid",
+        "analysis_result_id",
+        "source_DOI",
+    }
+
+    # Collect key columns per table
+    table_key_columns: dict[str, dict[str, str]] = {}
     for index_name, schema in indices_schemas.items():
         if schema and "columns" in schema:
-            table_columns[index_name] = {col["name"] for col in schema["columns"]}
+            table_key_columns[index_name] = {}
+            for col in schema["columns"]:
+                col_name = col.get("name", "")
+                if col_name in key_columns:
+                    col_type = col.get("type", "STRING")
+                    table_key_columns[index_name][col_name] = col_type
 
-    # Find relationships based on shared column names
+    # Find relationships based on shared key columns
     relationships: list[tuple[str, str, str]] = []
-    tables = list(table_columns.keys())
+    tables = list(table_key_columns.keys())
 
     for i, table1 in enumerate(tables):
         for table2 in tables[i + 1 :]:
-            shared_columns = table_columns[table1] & table_columns[table2]
-            # Only create relationships for meaningful shared columns
-            meaningful_shared = [
-                col
-                for col in shared_columns
-                if col
-                in {
-                    "SeriesInstanceUID",
-                    "StudyInstanceUID",
-                    "PatientID",
-                    "collection_id",
-                    "SOPInstanceUID",
-                    "crdc_series_uuid",
-                }
-            ]
-            if meaningful_shared:
-                for col in meaningful_shared:
+            shared_columns = set(table_key_columns[table1].keys()) & set(
+                table_key_columns[table2].keys()
+            )
+            if shared_columns:
+                for col in sorted(shared_columns):
                     relationships.append((table1, table2, col))
 
     # Generate Mermaid markup using MyST directive syntax with zoom enabled
@@ -66,17 +74,16 @@ def generate_mermaid_diagram(indices_schemas: dict) -> str:
         "erDiagram",
     ]
 
-    # Define entities with their columns
-    for index_name, schema in indices_schemas.items():
-        if not schema or "columns" not in schema:
+    # Define entities with only key columns
+    for index_name in sorted(indices_schemas.keys()):
+        if index_name not in table_key_columns or not table_key_columns[index_name]:
             continue
 
         # Add entity definition
         lines.append(f"    {index_name} {{")
-        # Include ALL columns from the schema
-        for col in schema["columns"]:
-            col_type = col.get("type", "STRING")
-            col_name = col.get("name", "")
+        # Include only key columns
+        for col_name in sorted(table_key_columns[index_name].keys()):
+            col_type = table_key_columns[index_name][col_name]
             # Escape special characters that might cause issues in Mermaid
             col_name_safe = col_name.replace("-", "_")
             lines.append(f"        {col_type} {col_name_safe}")
@@ -149,13 +156,16 @@ def generate_indices_documentation(output_path: Path) -> None:
         else:
             print(f"  ✗ {index_name} (schema not available)")
 
+    # Get idc-index-data version
+    idc_index_data_version = idc_index_data.__version__
+
     # Generate documentation
     print("\nGenerating documentation...")
     doc_lines = [
         "# Index Tables Reference",
         "",
         "This page provides a comprehensive reference for all index tables available in `idc-index`.",
-        "The documentation is automatically generated from the schemas provided by `idc-index-data`.",
+        f"The documentation is automatically generated from the schemas provided by `idc-index-data` (version {idc_index_data_version}).",
         "",
         "> **Note:** Column descriptions are sourced directly from the `idc-index-data` package schemas.",
         "> If you notice any missing or incorrect descriptions, please report them in the",
@@ -169,7 +179,8 @@ def generate_indices_documentation(output_path: Path) -> None:
         "## Table Relationships",
         "",
         "The following diagram shows how the different index tables relate to each other",
-        "based on shared column names:",
+        "based on shared key columns. Only key columns used for joins are shown in the diagram;",
+        "see the individual table sections below for complete column lists.",
         "",
     ]
 

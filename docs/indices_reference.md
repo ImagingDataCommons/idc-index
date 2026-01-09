@@ -2,7 +2,7 @@
 
 This page provides a comprehensive reference for all index tables available in
 `idc-index`. The documentation is automatically generated from the schemas
-provided by `idc-index-data`.
+provided by `idc-index-data` (version 23.2.7).
 
 > **Note:** Column descriptions are sourced directly from the `idc-index-data`
 > package schemas. If you notice any missing or incorrect descriptions, please
@@ -18,7 +18,8 @@ different metadata attributes.
 ## Table Relationships
 
 The following diagram shows how the different index tables relate to each other
-based on shared column names:
+based on shared key columns. Only key columns used for joins are shown in the
+diagram; see the individual table sections below for complete column lists.
 
 ```{mermaid}
 :zoom:
@@ -26,133 +27,53 @@ based on shared column names:
 erDiagram
     analysis_results_index {
         STRING analysis_result_id
-        STRING analysis_result_title
-        STRING source_doi
-        STRING source_url
-        INTEGER Subjects
-        STRING Collections
-        STRING AnalysisArtifacts
-        DATE Updated
-        STRING license_url
-        STRING license_long_name
-        STRING license_short_name
-        STRING Description
-        STRING Citation
+        STRING source_DOI
     }
     clinical_index {
         STRING collection_id
-        STRING table_name
-        STRING short_table_name
-        STRING column
-        STRING column_label
-        RECORD values
     }
     collections_index {
-        STRING collection_name
         STRING collection_id
-        STRING CancerTypes
-        STRING TumorLocations
-        INTEGER Subjects
-        STRING Species
-        RECORD Sources
-        STRING SupportingData
-        STRING Program
-        STRING Status
-        DATE Updated
-        STRING Description
     }
     index {
-        STRING collection_id
-        STRING analysis_result_id
         STRING PatientID
         STRING SeriesInstanceUID
         STRING StudyInstanceUID
-        STRING source_DOI
-        STRING PatientAge
-        STRING PatientSex
-        DATE StudyDate
-        STRING StudyDescription
-        STRING BodyPartExamined
-        STRING Modality
-        STRING Manufacturer
-        STRING ManufacturerModelName
-        STRING SeriesDate
-        STRING SeriesDescription
-        STRING SeriesNumber
-        INTEGER instanceCount
-        STRING license_short_name
-        STRING aws_bucket
+        STRING analysis_result_id
+        STRING collection_id
         STRING crdc_series_uuid
-        STRING series_aws_url
-        FLOAT series_size_MB
+        STRING source_DOI
     }
     prior_versions_index {
-        STRING collection_id
         STRING PatientID
         STRING SeriesInstanceUID
         STRING StudyInstanceUID
-        STRING Modality
-        STRING gcs_bucket
+        STRING collection_id
         STRING crdc_series_uuid
-        FLOAT series_size_MB
-        STRING series_aws_url
-        STRING gcs_bucket_1
-        STRING aws_bucket
-        INTEGER min_idc_version
-        INTEGER max_idc_version
     }
     sm_index {
         STRING SeriesInstanceUID
-        STRING embeddingMedium_CodeMeaning
-        STRING embeddingMedium_code_designator_value_str
-        STRING tissueFixative_CodeMeaning
-        STRING tissueFixative_code_designator_value_str
-        STRING staining_usingSubstance_CodeMeaning
-        STRING staining_usingSubstance_code_designator_value_str
-        FLOAT min_PixelSpacing_2sf
-        INTEGER max_TotalPixelMatrixColumns
-        INTEGER max_TotalPixelMatrixRows
-        INTEGER ObjectiveLensPower
-        STRING primaryAnatomicStructure_code_designator_value_str
-        STRING primaryAnatomicStructure_CodeMeaning
-        STRING primaryAnatomicStructureModifier_code_designator_value_str
-        STRING primaryAnatomicStructureModifier_CodeMeaning
-        STRING illuminationType_code_designator_value_str
-        STRING illuminationType_CodeMeaning
-        STRING admittingDiagnosis_code_designator_value_str
-        STRING admittingDiagnosis_CodeMeaning
     }
     sm_instance_index {
         STRING SOPInstanceUID
         STRING SeriesInstanceUID
-        STRING embeddingMedium_CodeMeaning
-        STRING embeddingMedium_code_designator_value_str
-        STRING tissueFixative_CodeMeaning
-        STRING tissueFixative_code_designator_value_str
-        STRING staining_usingSubstance_CodeMeaning
-        STRING staining_usingSubstance_code_designator_value_str
-        FLOAT PixelSpacing_0
-        STRING ImageType
-        STRING TransferSyntaxUID
-        INTEGER instance_size
-        INTEGER TotalPixelMatrixColumns
-        INTEGER TotalPixelMatrixRows
-        STRING crdc_instance_uuid
     }
-    clinical_index ||--o{ collections_index : collection_id
-    clinical_index ||--o{ index : collection_id
-    clinical_index ||--o{ prior_versions_index : collection_id
-    collections_index ||--o{ index : collection_id
-    collections_index ||--o{ prior_versions_index : collection_id
-    index ||--o{ prior_versions_index : collection_id
-    index ||--o{ prior_versions_index : SeriesInstanceUID
-    index ||--o{ prior_versions_index : crdc_series_uuid
     index ||--o{ prior_versions_index : PatientID
+    index ||--o{ prior_versions_index : SeriesInstanceUID
     index ||--o{ prior_versions_index : StudyInstanceUID
+    index ||--o{ prior_versions_index : collection_id
+    index ||--o{ prior_versions_index : crdc_series_uuid
+    index ||--o{ collections_index : collection_id
+    index ||--o{ analysis_results_index : analysis_result_id
+    index ||--o{ analysis_results_index : source_DOI
+    index ||--o{ clinical_index : collection_id
     index ||--o{ sm_index : SeriesInstanceUID
     index ||--o{ sm_instance_index : SeriesInstanceUID
+    prior_versions_index ||--o{ collections_index : collection_id
+    prior_versions_index ||--o{ clinical_index : collection_id
     prior_versions_index ||--o{ sm_index : SeriesInstanceUID
     prior_versions_index ||--o{ sm_instance_index : SeriesInstanceUID
+    collections_index ||--o{ clinical_index : collection_id
     sm_index ||--o{ sm_instance_index : SeriesInstanceUID
 ```
 
@@ -188,8 +109,8 @@ AWS S3 bucket and URL to download the series.
   attribute)
 - **`StudyDescription`** (`STRING`, NULLABLE): textual description of the study
   content (DICOM attribute)
-- **`BodyPartExamined`** (`STRING`, NULLABLE): body part imaged (not
-  iniapplicabletialized for SM series) (DICOM attribute)
+- **`BodyPartExamined`** (`STRING`, NULLABLE): body part imaged (not applicable
+  for SM series) (DICOM attribute)
 - **`Modality`** (`STRING`, NULLABLE): acquisition modality (DICOM attribute)
 - **`Manufacturer`** (`STRING`, NULLABLE): manufacturer of the equipment that
   produced the series (DICOM attribute)
@@ -244,7 +165,7 @@ collection
   analysis results collection
 - **`analysis_result_title`** (`STRING`, NULLABLE): name of the analysis results
   collection
-- **`source_doi`** (`STRING`, NULLABLE): Digital Object Identifier (DOI) of the
+- **`source_DOI`** (`STRING`, NULLABLE): Digital Object Identifier (DOI) of the
   analysis results collection
 - **`source_url`** (`STRING`, NULLABLE): URL for the location of additional
   information about the analysis results collection
@@ -252,8 +173,8 @@ collection
   analysis results collection
 - **`Collections`** (`STRING`, NULLABLE): collections analyzed in the analysis
   results collection
-- **`AnalysisArtifacts`** (`STRING`, NULLABLE): analysis artifacts included in
-  the analysis results collection
+- **`Modalities`** (`STRING`, NULLABLE): modalities corresponding to the
+  analysis artifacts included in the analysis results collection
 - **`Updated`** (`DATE`, NULLABLE): timestamp of the last update to the analysis
   results collection
 - **`license_url`** (`STRING`, NULLABLE): license URL for the analysis results

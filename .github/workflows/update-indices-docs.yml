@@ -2,6 +2,14 @@ name: Update Indices Documentation
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "pyproject.toml"
+  pull_request:
+    paths:
+      - "pyproject.toml"
 
 permissions:
   contents: write
@@ -32,10 +40,22 @@ jobs:
         run: |
           python scripts/generate_indices_docs.py
 
+      - name: Build documentation
+        run: |
+          python -m pip install -e .[docs]
+          cd docs
+          sphinx-build -W -b html . _build/html
+
       - name: Check for changes
         id: git-check
         run: |
           git diff --exit-code docs/indices_reference.md || echo "changed=true" >> $GITHUB_OUTPUT
+
+      - name: Configure git
+        if: steps.git-check.outputs.changed == 'true'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Create Pull Request
         if: steps.git-check.outputs.changed == 'true'
