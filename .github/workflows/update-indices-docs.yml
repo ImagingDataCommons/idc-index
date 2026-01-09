@@ -8,10 +8,6 @@ on:
     paths:
       - "pyproject.toml"
 
-permissions:
-  contents: write
-  pull-requests: write
-
 jobs:
   update-docs:
     name: Update indices_reference.md
@@ -67,3 +63,7 @@ jobs:
           branch: update-indices-docs
           delete-branch: true
           labels: documentation
+          committer: GitHub <noreply@github.com>
+          author:
+            ${{ github.actor }} <${{ github.actor }}@users.noreply.github.com>
+          signoff: false
