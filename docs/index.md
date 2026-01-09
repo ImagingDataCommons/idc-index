@@ -28,7 +28,7 @@ starting a discussion in [IDC User forum](https://discourse.canceridc.dev/).
 :titlesonly:
 :caption: API docs
 
-column_descriptions
+indices_reference
 cli_tools.rst
 api/idc_index
 ```
