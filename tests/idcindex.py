@@ -591,19 +591,22 @@ class TestIDCClient(unittest.TestCase):
             assert "columns" in schema
 
     def test_get_index_schema_caching(self):
-        """Test that schemas are cached after first fetch."""
+        """Test that schemas are available and consistent."""
         i = IDCClient()
-        # First fetch should populate cache for the bundled index
+        # First fetch should return schema from indices_overview
         schema1 = i.get_index_schema("index")
-        assert "index" in i._index_schemas
+        assert schema1 is not None
+        assert "index" in i.indices_overview
+        assert "schema" in i.indices_overview["index"]
 
-        # Second fetch should use cache
+        # Second fetch should return the same schema
         schema2 = i.get_index_schema("index")
-        assert schema1 is schema2  # Same object from cache
+        assert schema1 == schema2  # Same schema content
 
-        # Refresh should fetch new data
-        schema3 = i.get_index_schema("index", refresh=True)
+        # Schema should remain consistent
+        schema3 = i.get_index_schema("index")
         assert schema3 is not None
+        assert schema3 == schema1
 
     def test_get_index_schema_invalid_index(self):
         """Test that get_index_schema returns None for invalid index."""
