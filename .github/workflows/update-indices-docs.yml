@@ -7,7 +7,11 @@ on:
       - main
     paths:
       - "pyproject.toml"
-
+      
+permissions:
+  contents: write
+  pull-requests: write
+  
 jobs:
   update-docs:
     name: Update indices_reference.md
@@ -15,7 +19,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -46,7 +50,7 @@ jobs:
 
       - name: Create Pull Request
         if: steps.git-check.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           commit-message:
             "docs: update indices_reference.md with latest schemas"
