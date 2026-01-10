@@ -2,7 +2,7 @@
 
 This page provides a comprehensive reference for all index tables available in
 `idc-index`. The documentation is automatically generated from the schemas
-provided by `idc-index-data` (version 23.2.7).
+provided by `idc-index-data` (version 23.2.8).
 
 > **Note:** Column descriptions are sourced directly from the `idc-index-data`
 > package schemas. If you notice any missing or incorrect descriptions, please
@@ -105,7 +105,7 @@ AWS S3 bucket and URL to download the series.
 - **`PatientAge`** (`STRING`, NULLABLE): age of the subject at the time of
   imaging (DICOM attribute)
 - **`PatientSex`** (`STRING`, NULLABLE): subject sex (DICOM attribute)
-- **`StudyDate`** (`DATE`, NULLABLE): date of the study (de-identified) (DICOM
+- **`StudyDate`** (`STRING`, NULLABLE): date of the study (de-identified) (DICOM
   attribute)
 - **`StudyDescription`** (`STRING`, NULLABLE): textual description of the study
   content (DICOM attribute)
@@ -175,8 +175,8 @@ collection
   results collection
 - **`Modalities`** (`STRING`, NULLABLE): modalities corresponding to the
   analysis artifacts included in the analysis results collection
-- **`Updated`** (`DATE`, NULLABLE): timestamp of the last update to the analysis
-  results collection
+- **`Updated`** (`STRING`, NULLABLE): timestamp of the last update to the
+  analysis results collection
 - **`license_url`** (`STRING`, NULLABLE): license URL for the analysis results
   collection
 - **`license_long_name`** (`STRING`, NULLABLE): license name for the analysis
@@ -233,7 +233,7 @@ resources to learn more about the content of the collection.
   this collection is being shared
 - **`Status`** (`STRING`, NULLABLE): status of the collection (Completed or
   Ongoing)
-- **`Updated`** (`DATE`, NULLABLE): timestamp of the last update to the
+- **`Updated`** (`STRING`, NULLABLE): timestamp of the last update to the
   collection
 - **`Description`** (`STRING`, NULLABLE): detailed information about the
   collection
