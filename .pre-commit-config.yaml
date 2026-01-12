@@ -40,7 +40,7 @@ repos:
         args: [--prose-wrap=always]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: "v0.14.10"
+    rev: "v0.14.11"
     hooks:
       # Run the linter
       - id: ruff-check
@@ -78,7 +78,7 @@ repos:
         exclude: .pre-commit-config.yaml
 
   - repo: https://github.com/henryiii/validate-pyproject-schema-store
-    rev: "2026.01.02"
+    rev: "2026.01.10"
     hooks:
       - id: validate-pyproject
 
