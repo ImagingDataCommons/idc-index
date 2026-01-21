@@ -281,6 +281,19 @@ class TestIDCClient(unittest.TestCase):
 
         self.assertIsNotNone(df)
 
+    def test_sql_query_all_indices(self):
+        """Test that all discovered indices are queryable via sql_query after fetching."""
+        # Iterate over all indices discovered in indices_overview
+        for index_name, info in self.client.indices_overview.items():
+            with self.subTest(index_name=index_name):
+                # Fetch the index (handles both downloading and loading from disk)
+                self.client.fetch_index(index_name)
+
+                # Verify the index is queryable
+                df = self.client.sql_query(f"SELECT COUNT(*) FROM {index_name}")
+                self.assertIsNotNone(df)
+                self.assertEqual(len(df), 1)  # COUNT(*) returns single row
+
     def test_download_from_aws_manifest(self):
         # Define the values for each optional parameter
         quiet_values = [True, False]
