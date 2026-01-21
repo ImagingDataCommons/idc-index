@@ -153,6 +153,9 @@ class IDCClient:
         # ... and check it can be executed
         subprocess.check_call([self.s5cmdPath, "--help"], stdout=subprocess.DEVNULL)
 
+        # Create DuckDB connection for sql_query method
+        self._duckdb_conn = duckdb.connect()
+
     def _discover_available_indices(self, refresh: bool = False) -> dict:
         """Discover available index tables using INDEX_METADATA from idc-index-data.
 
@@ -2305,7 +2308,9 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         """Execute SQL query against the table in the index using duckdb.
 
         Args:
-            sql_query: string containing the SQL query to execute. The table name to use in the FROM clause is 'index' (without quotes).
+            sql_query: string containing the SQL query to execute.
+                Table names available: 'index', 'prior_versions_index',
+                and any installed index (e.g., 'sm_index', 'clinical_index').
 
         Returns:
             pandas dataframe containing the results of the query
@@ -2314,14 +2319,11 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             duckdb.Error: any exception that duckdb.query() raises
         """
         logger.debug("Executing SQL query: " + sql_query)
-        # TODO: find a more elegant way to automate the following:  https://www.perplexity.ai/search/write-python-code-that-iterate-XY9ppywbQFSRnOpgbwx_uQ
-        index = self.index
-        if self.sm_index is not None:
-            sm_index = self.sm_index
-        if self.sm_instance_index is not None:
-            sm_instance_index = self.sm_instance_index
-        if self.clinical_index is not None:
-            clinical_index = self.clinical_index
-        if self.prior_versions_index is not None:
-            prior_versions_index = self.prior_versions_index
-        return duckdb.query(sql_query).to_df()
+
+        # Re-register all available indices (handles newly fetched indices)
+        for index_name in self.indices_overview:
+            df = getattr(self, index_name, None)
+            if df is not None:
+                self._duckdb_conn.register(index_name, df)
+
+        return self._duckdb_conn.query(sql_query).to_df()
