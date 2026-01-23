@@ -2,7 +2,7 @@
 
 This page provides a comprehensive reference for all index tables available in
 `idc-index`. The documentation is automatically generated from the schemas
-provided by `idc-index-data` (version 23.2.9).
+provided by `idc-index-data` (version 23.3.1).
 
 > **Note:** Column descriptions are sourced directly from the `idc-index-data`
 > package schemas. If you notice any missing or incorrect descriptions, please
@@ -51,6 +51,9 @@ erDiagram
         STRING collection_id
         STRING crdc_series_uuid
     }
+    seg_index {
+        STRING SeriesInstanceUID
+    }
     sm_index {
         STRING SeriesInstanceUID
     }
@@ -69,12 +72,16 @@ erDiagram
     index ||--o{ clinical_index : collection_id
     index ||--o{ sm_index : SeriesInstanceUID
     index ||--o{ sm_instance_index : SeriesInstanceUID
+    index ||--o{ seg_index : SeriesInstanceUID
     prior_versions_index ||--o{ collections_index : collection_id
     prior_versions_index ||--o{ clinical_index : collection_id
     prior_versions_index ||--o{ sm_index : SeriesInstanceUID
     prior_versions_index ||--o{ sm_instance_index : SeriesInstanceUID
+    prior_versions_index ||--o{ seg_index : SeriesInstanceUID
     collections_index ||--o{ clinical_index : collection_id
     sm_index ||--o{ sm_instance_index : SeriesInstanceUID
+    sm_index ||--o{ seg_index : SeriesInstanceUID
+    sm_instance_index ||--o{ seg_index : SeriesInstanceUID
 ```
 
 ## Available Index Tables
@@ -237,6 +244,29 @@ resources to learn more about the content of the collection.
   collection
 - **`Description`** (`STRING`, NULLABLE): detailed information about the
   collection
+
+## `seg_index`
+
+This table contains one row per DICOM Segmentation SeriesInstanceUID available
+from IDC, and captures key metadata about the segmentation series including the
+number of segments, segmentation type, algorithm type and name, and the
+segmented image series.
+
+### Columns
+
+- **`SeriesInstanceUID`** (`STRING`, NULLABLE): DICOM SeriesInstanceUID
+  identifier of the segmentation series
+- **`SegmentationType`** (`STRING`, NULLABLE): Type of segmentation as defined
+  in DICOM SegmentationType attribute
+- **`total_segments`** (`INTEGER`, NULLABLE): Number of segments in the
+  segmentation series obtained by counting distinct DICOM SegmentNumber values
+  in the DICOM SegmentatationSequence
+- **`AlgorithmType`** (`STRING`, NULLABLE): Segmentation algorithm type as
+  available in DICOM SegmentAlgorithmType
+- **`AlgorithmName`** (`STRING`, NULLABLE): Segmentation algorithm name as
+  available in DICOM SegmentAlgorithmName
+- **`segmented_SeriesInstanceUID`** (`STRING`, NULLABLE): SeriesInstanceUID of
+  the referenced image series that the segmentation applies to
 
 ## `sm_index`
 
