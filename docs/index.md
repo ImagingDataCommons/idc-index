@@ -33,6 +33,14 @@ cli_tools.rst
 api/idc_index
 ```
 
+```{toctree}
+:maxdepth: 2
+:titlesonly:
+:caption: Developer docs
+
+dev/architecture
+```
+
 ## Indices and tables
 
 - {ref}`genindex`
