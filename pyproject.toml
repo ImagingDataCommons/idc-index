@@ -40,7 +40,6 @@ dependencies = [
   "pyarrow",
   "requests",
   "s5cmd>=0.3.2",
-  "sphinx-click",
   "tqdm"
 ]
 
@@ -54,10 +53,11 @@ dev = [
   "pytest-cov >=3",
 ]
 docs = [
-  "sphinx>=7.0",
-  "myst_parser>=0.13",
+  "sphinx>=7.0,<8",
+  "myst_parser>=0.13,<5.0",
   "sphinx_copybutton",
   "sphinx_autodoc_typehints",
+  "sphinx-click",
   "furo>=2023.08.17",
   "sphinxcontrib-mermaid",
 ]
