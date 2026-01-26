@@ -745,7 +745,7 @@ class TestIDCClient(unittest.TestCase):
 
     def test_get_viewer_URL_derived_series_in_sm_study(self):
         """Test that derived series (e.g., SEG) in SM studies use Slim viewer.
-        
+
         This tests the fix for the issue where derived series like SEG were not
         properly detected as being part of a study with SM modality.
         """
@@ -754,17 +754,16 @@ class TestIDCClient(unittest.TestCase):
         seg_seriesInstanceUID = (
             "1.2.826.0.1.3680043.10.511.3.13030052368605737491286008410171774"
         )
-        
+
         # Without specifying viewer_selector, it should detect SM in the study
         # and use Slim viewer
         viewer_url = c.get_viewer_URL(seriesInstanceUID=seg_seriesInstanceUID)
         self.assertIsNotNone(viewer_url)
         # Should use Slim viewer for studies with SM modality
         self.assertIn("/slim/studies/", viewer_url)
-        
+
         # Verify the URL contains the SEG series
         self.assertIn(seg_seriesInstanceUID, viewer_url)
-
 
 
 class TestInsufficientDiskSpaceException(unittest.TestCase):
