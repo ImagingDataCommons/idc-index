@@ -908,19 +908,28 @@ class IDCClient:
         modality = None
 
         if studyInstanceUID is None:
+            # Get StudyInstanceUID and all modalities in the study using a single query
             query = f"""
+            WITH study_info AS (
+                SELECT DISTINCT StudyInstanceUID
+                FROM index
+                WHERE SeriesInstanceUID='{seriesInstanceUID}'
+            )
             SELECT
-                DISTINCT(StudyInstanceUID),
-                Modality
+                s.StudyInstanceUID,
+                index.Modality
             FROM
                 index
-            WHERE
-                SeriesInstanceUID='{seriesInstanceUID}'
+            JOIN
+                study_info s ON index.StudyInstanceUID = s.StudyInstanceUID
+            GROUP BY
+                s.StudyInstanceUID, index.Modality
             """
             query_result = self.sql_query(query)
             studyInstanceUID = query_result.StudyInstanceUID[0]
-
+            modality = query_result.Modality.unique()
         else:
+            # Query all modalities for the provided study
             query = f"""
             SELECT
                 DISTINCT(Modality) AS Modality
@@ -930,8 +939,7 @@ class IDCClient:
                 StudyInstanceUID='{studyInstanceUID}'
             """
             query_result = self.sql_query(query)
-
-        modality = query_result.Modality.values
+            modality = query_result.Modality.values
 
         viewer_url = None
         if viewer_selector is None:
@@ -949,7 +957,7 @@ class IDCClient:
             if seriesInstanceUID is None:
                 viewer_url = f"https://viewer.imaging.datacommons.cancer.gov/v3/viewer/?StudyInstanceUIDs={studyInstanceUID}"
             else:
-                viewer_url = f"https://viewer.imaging.datacommons.cancer.gov/v3/viewer/?StudyInstanceUIDs={studyInstanceUID}&SeriesInstanceUIDs={seriesInstanceUID}"
+                viewer_url = f"https://viewer.imaging.datacommons.cancer.gov/v3/viewer/?StudyInstanceUIDs={studyInstanceUID}&initialSeriesUID={seriesInstanceUID}"
         elif viewer_selector == "volview":
             # TODO! Not implemented yet
             viewer_url = None
