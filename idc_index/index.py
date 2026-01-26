@@ -908,29 +908,38 @@ class IDCClient:
         modality = None
 
         if studyInstanceUID is None:
-            # First, get the StudyInstanceUID from the series
+            # Get StudyInstanceUID and all modalities in the study using a single query
             query = f"""
+            WITH study_info AS (
+                SELECT DISTINCT StudyInstanceUID
+                FROM index
+                WHERE SeriesInstanceUID='{seriesInstanceUID}'
+            )
             SELECT
-                DISTINCT(StudyInstanceUID) AS StudyInstanceUID
+                s.StudyInstanceUID,
+                index.Modality
             FROM
                 index
-            WHERE
-                SeriesInstanceUID='{seriesInstanceUID}'
+            JOIN
+                study_info s ON index.StudyInstanceUID = s.StudyInstanceUID
+            GROUP BY
+                s.StudyInstanceUID, index.Modality
             """
             query_result = self.sql_query(query)
             studyInstanceUID = query_result.StudyInstanceUID[0]
-
-        # Now query all modalities for the entire study
-        query = f"""
-        SELECT
-            DISTINCT(Modality) AS Modality
-        FROM
-            index
-        WHERE
-            StudyInstanceUID='{studyInstanceUID}'
-        """
-        query_result = self.sql_query(query)
-        modality = query_result.Modality.values
+            modality = query_result.Modality.unique()
+        else:
+            # Query all modalities for the provided study
+            query = f"""
+            SELECT
+                DISTINCT(Modality) AS Modality
+            FROM
+                index
+            WHERE
+                StudyInstanceUID='{studyInstanceUID}'
+            """
+            query_result = self.sql_query(query)
+            modality = query_result.Modality.values
 
         viewer_url = None
         if viewer_selector is None:
