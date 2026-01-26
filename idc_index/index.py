@@ -908,10 +908,10 @@ class IDCClient:
         modality = None
 
         if studyInstanceUID is None:
+            # First, get the StudyInstanceUID from the series
             query = f"""
             SELECT
-                DISTINCT(StudyInstanceUID),
-                Modality
+                DISTINCT(StudyInstanceUID) AS StudyInstanceUID
             FROM
                 index
             WHERE
@@ -920,17 +920,16 @@ class IDCClient:
             query_result = self.sql_query(query)
             studyInstanceUID = query_result.StudyInstanceUID[0]
 
-        else:
-            query = f"""
-            SELECT
-                DISTINCT(Modality) AS Modality
-            FROM
-                index
-            WHERE
-                StudyInstanceUID='{studyInstanceUID}'
-            """
-            query_result = self.sql_query(query)
-
+        # Now query all modalities for the entire study
+        query = f"""
+        SELECT
+            DISTINCT(Modality) AS Modality
+        FROM
+            index
+        WHERE
+            StudyInstanceUID='{studyInstanceUID}'
+        """
+        query_result = self.sql_query(query)
         modality = query_result.Modality.values
 
         viewer_url = None
@@ -949,7 +948,7 @@ class IDCClient:
             if seriesInstanceUID is None:
                 viewer_url = f"https://viewer.imaging.datacommons.cancer.gov/v3/viewer/?StudyInstanceUIDs={studyInstanceUID}"
             else:
-                viewer_url = f"https://viewer.imaging.datacommons.cancer.gov/v3/viewer/?StudyInstanceUIDs={studyInstanceUID}&SeriesInstanceUIDs={seriesInstanceUID}"
+                viewer_url = f"https://viewer.imaging.datacommons.cancer.gov/v3/viewer/?StudyInstanceUIDs={studyInstanceUID}&initialSeriesUID={seriesInstanceUID}"
         elif viewer_selector == "volview":
             # TODO! Not implemented yet
             viewer_url = None
