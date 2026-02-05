@@ -1,112 +1,172 @@
 # idc-index
 
-[![Actions Status][actions-badge]][actions-link]
-[![Documentation Status][rtd-badge]][rtd-link]
+**Programmatic access to NCI Imaging Data Commons - the largest public
+collection of cancer imaging data**
 
 [![PyPI version][pypi-version]][pypi-link]
 [![PyPI platforms][pypi-platforms]][pypi-link]
-
+[![Actions Status][actions-badge]][actions-link]
+[![Documentation Status][rtd-badge]][rtd-link]
 [![Discourse Forum][discourse-forum-badge]][discourse-forum-link]
-
-> [!WARNING]
->
-> This package is in its early development stages. Its functionality and API
-> will change.
->
-> Stay tuned for the updates and documentation, and please share your feedback
-> about it by opening issues in this repository, or by starting a discussion in
-> [IDC User forum](https://discourse.canceridc.dev/).
 
 <!-- SPHINX-START -->
 
-## About
+## What is Imaging Data Commons?
 
-`idc-index` is a Python package that enables basic operations for working with
-[NCI Imaging Data Commons (IDC)](https://imaging.datacommons.cancer.gov):
+[NCI Imaging Data Commons (IDC)](https://imaging.datacommons.cancer.gov) is a
+cloud-based platform providing researchers with free access to a large and
+growing collection of cancer imaging data. This includes radiology images (CT,
+MRI, PET), digital pathology slides, and more - all in standard DICOM format
+with rich clinical and research metadata.
 
-- subsetting of the IDC data using selected metadata attributes
-- download of the files corresponding to selection
-- generation of the viewer URLs for the selected data
+`idc-index` is the official Python package for querying IDC metadata and
+downloading imaging data - no cloud credentials or complex setup required.
 
-## Getting started
+## Features
 
-Install the latest version of the package.
+- **Query metadata with SQL** - Search across 175+ collections using
+  DuckDB-powered SQL queries
+- **High-speed downloads** - Parallel downloads from AWS and Google Cloud public
+  buckets via s5cmd
+- **Browse hierarchically** - Navigate collections → patients → studies → series
+  programmatically
+- **Generate viewer URLs** - Create links to view images in OHIF (radiology) or
+  Slim (pathology) web viewers
+- **Command line interface** - Download data directly from the terminal with
+  `idc` commands
+- **No authentication required** - All data is publicly accessible
+
+## Installation
 
 ```bash
-$ pip install --upgrade idc-index
+pip install idc-index
 ```
 
-Instantiate `IDCClient`, which provides the interface for main operations.
+Requires Python 3.10+. Downloads are powered by the bundled
+[s5cmd](https://github.com/peak/s5cmd) tool.
+
+### Keeping Up to Date
+
+The package version is updated with each new IDC data release. Upgrade regularly
+to access the latest collections and data:
+
+```bash
+pip install --upgrade idc-index
+```
+
+## Quick Start
+
+### Explore and Download a Collection
 
 ```python
 from idc_index import IDCClient
 
 client = IDCClient.client()
+
+# List all available collections
+collections = client.get_collections()
+print(f"IDC has {len(collections)} collections")
+
+# Download a small collection (10.5 GB)
+client.download_from_selection(collection_id="rider_pilot", downloadDir="./data")
 ```
 
-You can use [IDC Portal](https://imaging.datacommons.cancer.gov/explore/) to
-browse collections, cases, studies and series, copy their identifiers and
-download the corresponding files using `idc-index` helper functions.
+### Query with SQL
 
-You can try this out with the `rider_pilot` collection, which is just 10.5 GB in
-size:
-
-```
-client.download_from_selection(collection_id="rider_pilot", downloadDir=".")
-```
-
-... or run queries against the "mini" index of Imaging Data Commons data, and
-download images that match your selection criteria! The following will select
-all Magnetic Resonance (MR) series, and will download the first 10.
+Find CT scans of the chest and download them:
 
 ```python
-from idc_index import index
+from idc_index import IDCClient
 
-client = index.IDCClient()
+client = IDCClient.client()
 
 query = """
 SELECT
-  SeriesInstanceUID
-FROM
-  index
-WHERE
-  Modality = 'MR'
+    collection_id,
+    PatientID,
+    SeriesInstanceUID,
+    SeriesDescription,
+    series_size_MB
+FROM index
+WHERE Modality = 'CT'
+  AND BodyPartExamined = 'CHEST'
+LIMIT 10
 """
 
-selection_df = client.sql_query(query)
+results = client.sql_query(query)
+print(results)
 
-client.download_from_selection(
-    seriesInstanceUID=list(selection_df["SeriesInstanceUID"].values[:10]),
-    downloadDir=".",
+# Download the matching series
+client.download_dicom_series(
+    seriesInstanceUID=results["SeriesInstanceUID"].tolist(), downloadDir="./chest_ct"
 )
 ```
 
-## Tutorial
+### Browse Data Hierarchy and View Images
 
-Please check out
-[this tutorial notebook](https://github.com/ImagingDataCommons/IDC-Tutorials/blob/master/notebooks/labs/idc_rsna2023.ipynb)
-for the introduction into using `idc-index`.
+Navigate from collection to viewable images:
+
+```python
+from idc_index import IDCClient
+
+client = IDCClient.client()
+
+# Get patients in a collection
+patients = client.get_patients("tcga_luad", outputFormat="list")
+print(f"Found {len(patients)} patients")
+
+# Get studies for a patient
+studies = client.get_dicom_studies(patients[0])
+
+# Get series in that study
+series = client.get_dicom_series(studies[0]["StudyInstanceUID"])
+
+# Generate a viewer URL
+viewer_url = client.get_viewer_URL(seriesInstanceUID=series[0]["SeriesInstanceUID"])
+print(f"View in browser: {viewer_url}")
+```
+
+## Command Line Interface
+
+Download data directly from the terminal:
+
+```bash
+# Download an entire collection
+idc download-from-selection --collection-id rider_pilot --download-dir ./data
+
+# Download specific series by UID
+idc download-from-selection --series-instance-uid 1.3.6.1.4.1.14519... --download-dir ./series
+
+# Download from a manifest file
+idc download-from-manifest --manifest-file manifest.s5cmd --download-dir ./data
+
+# See all options
+idc --help
+```
+
+## Documentation
+
+- [**Full Documentation**](https://idc-index.readthedocs.io) - API reference and
+  guides
+- [**Tutorial Notebook**](https://github.com/ImagingDataCommons/IDC-Tutorials/blob/master/notebooks/labs/idc_rsna2023.ipynb) -
+  Interactive introduction to idc-index
 
 ## Resources
 
-- [Imaging Data Commons Portal](https://imaging.datacommons.cancer.gov/) can be
-  used to explore the content of IDC from the web browser
-- [s5cmd](https://github.com/peak/s5cmd) is a highly efficient, open source,
-  multi-platform S3 client that we use for downloading IDC data, which is hosted
-  in public AWS and GCS buckets. Distributed on PyPI as
-  [s5cmd](https://pypi.org/project/s5cmd/).
-- [SlicerIDCBrowser](https://github.com/ImagingDataCommons/SlicerIDCBrowser) 3D
-  Slicer extension that relies on `idc-index` for search and download of IDC
-  data
+- [IDC Portal](https://imaging.datacommons.cancer.gov/) - Browse IDC data in
+  your web browser
+- [IDC Forum](https://discourse.canceridc.dev/) - Community discussions and
+  support
+- [idc-claude-skill](https://github.com/ImagingDataCommons/idc-claude-skill) -
+  Claude AI skill for querying IDC with natural language
+- [SlicerIDCBrowser](https://github.com/ImagingDataCommons/SlicerIDCBrowser) -
+  3D Slicer extension using idc-index
+- [s5cmd](https://github.com/peak/s5cmd) - The high-performance S3 client
+  powering downloads
 
-## Acknowledgment
+## Citation
 
-This software is maintained by the IDC team, which has been funded in whole or
-in part with Federal funds from the NCI, NIH, under task order no. HHSN26110071
-under contract no. HHSN261201500003l.
-
-If this package helped your research, we would appreciate if you could cite IDC
-paper below.
+If idc-index helps your research, please cite:
 
 > Fedorov, A., Longabaugh, W. J. R., Pot, D., Clunie, D. A., Pieper, S. D.,
 > Gibbs, D. L., Bridge, C., Herrmann, M. D., Homeyer, A., Lewis, R., Aerts, H.
@@ -115,6 +175,12 @@ paper below.
 > _National Cancer Institute Imaging Data Commons: Toward Transparency,
 > Reproducibility, and Scalability in Imaging Artificial Intelligence_.
 > RadioGraphics (2023). https://doi.org/10.1148/rg.230180
+
+## Acknowledgment
+
+This software is maintained by the IDC team, which has been funded in whole or
+in part with Federal funds from the NCI, NIH, under task order no. HHSN26110071
+under contract no. HHSN261201500003I.
 
 <!-- prettier-ignore-start -->
 [actions-badge]:            https://github.com/ImagingDataCommons/idc-index/workflows/CI/badge.svg
