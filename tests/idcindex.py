@@ -681,6 +681,90 @@ class TestIDCClient(unittest.TestCase):
         files_gcp = c.get_instance_file_URL(sopInstanceUID, "gcs")
         assert files_aws == files_gcp == file_url
 
+    def test_get_viewer_URL_with_series(self):
+        """Test get_viewer_URL with a seriesInstanceUID."""
+        c = IDCClient()
+        # Test with a regular series
+        seriesInstanceUID = (
+            "1.3.6.1.4.1.14519.5.2.1.3671.4754.228015946741563785297552112143"
+        )
+        viewer_url = c.get_viewer_URL(seriesInstanceUID=seriesInstanceUID)
+        self.assertIsNotNone(viewer_url)
+        # Should use OHIF v3 by default for non-SM series
+        self.assertIn("v3/viewer", viewer_url)
+        self.assertIn(f"initialSeriesInstanceUID={seriesInstanceUID}", viewer_url)
+
+    def test_get_viewer_URL_with_study(self):
+        """Test get_viewer_URL with a studyInstanceUID."""
+        c = IDCClient()
+        studyInstanceUID = (
+            "1.3.6.1.4.1.14519.5.2.1.6279.6001.175012972118199124641098335511"
+        )
+        viewer_url = c.get_viewer_URL(studyInstanceUID=studyInstanceUID)
+        self.assertIsNotNone(viewer_url)
+        self.assertIn(studyInstanceUID, viewer_url)
+
+    def test_get_viewer_URL_with_viewer_selector(self):
+        """Test get_viewer_URL with explicit viewer_selector."""
+        c = IDCClient()
+        seriesInstanceUID = (
+            "1.3.6.1.4.1.14519.5.2.1.3671.4754.228015946741563785297552112143"
+        )
+        # Test with OHIF v2
+        viewer_url = c.get_viewer_URL(
+            seriesInstanceUID=seriesInstanceUID, viewer_selector="ohif_v2"
+        )
+        self.assertIn("/viewer/", viewer_url)
+        self.assertNotIn("/v3/", viewer_url)
+
+        # Test with OHIF v3
+        viewer_url = c.get_viewer_URL(
+            seriesInstanceUID=seriesInstanceUID, viewer_selector="ohif_v3"
+        )
+        self.assertIn("/v3/viewer", viewer_url)
+        self.assertIn(f"initialSeriesInstanceUID={seriesInstanceUID}", viewer_url)
+
+        # Test with Slim
+        viewer_url = c.get_viewer_URL(
+            seriesInstanceUID=seriesInstanceUID, viewer_selector="slim"
+        )
+        self.assertIn("/slim/studies/", viewer_url)
+
+    def test_get_viewer_URL_ohif_v3_param(self):
+        """Test that OHIF v3 uses initialSeriesInstanceUID instead of SeriesInstanceUIDs."""
+        c = IDCClient()
+        seriesInstanceUID = (
+            "1.3.6.1.4.1.14519.5.2.1.3671.4754.228015946741563785297552112143"
+        )
+        viewer_url = c.get_viewer_URL(
+            seriesInstanceUID=seriesInstanceUID, viewer_selector="ohif_v3"
+        )
+        # Should use initialSeriesInstanceUID, not SeriesInstanceUIDs
+        self.assertIn("initialSeriesInstanceUID=", viewer_url)
+        self.assertNotIn("SeriesInstanceUIDs=", viewer_url)
+
+    def test_get_viewer_URL_derived_series_in_sm_study(self):
+        """Test that derived series (e.g., SEG) in SM studies use Slim viewer.
+
+        This tests the fix for the issue where derived series like SEG were not
+        properly detected as being part of a study with SM modality.
+        """
+        c = IDCClient()
+        # This is a SEG series in a study that also contains SM series
+        seg_seriesInstanceUID = (
+            "1.2.826.0.1.3680043.10.511.3.13030052368605737491286008410171774"
+        )
+
+        # Without specifying viewer_selector, it should detect SM in the study
+        # and use Slim viewer
+        viewer_url = c.get_viewer_URL(seriesInstanceUID=seg_seriesInstanceUID)
+        self.assertIsNotNone(viewer_url)
+        # Should use Slim viewer for studies with SM modality
+        self.assertIn("/slim/studies/", viewer_url)
+
+        # Verify the URL contains the SEG series
+        self.assertIn(seg_seriesInstanceUID, viewer_url)
+
 
 class TestInsufficientDiskSpaceException(unittest.TestCase):
     def setUp(self):
