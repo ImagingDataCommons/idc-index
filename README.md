@@ -24,7 +24,7 @@ downloading imaging data - no cloud credentials or complex setup required.
 
 ## Features
 
-- **Query metadata with SQL** - Search across 175+ collections using
+- **Query metadata with SQL** - Search across ~100TB of data using
   DuckDB-powered SQL queries
 - **High-speed downloads** - Parallel downloads from AWS and Google Cloud public
   buckets via s5cmd
@@ -128,17 +128,21 @@ print(f"View in browser: {viewer_url}")
 
 ## Command Line Interface
 
-Download data directly from the terminal:
+Download data directly from the terminal using `idc download`, which
+auto-detects the input type:
 
 ```bash
-# Download an entire collection
-idc download-from-selection --collection-id rider_pilot --download-dir ./data
+# Download a collection
+idc download rider_pilot
 
-# Download specific series by UID
-idc download-from-selection --series-instance-uid 1.3.6.1.4.1.14519... --download-dir ./series
+# Download a specific series by UID
+idc download 1.3.6.1.4.1.14519.5.2.1.6279.6001.100225287222365663678666836860
 
 # Download from a manifest file
-idc download-from-manifest --manifest-file manifest.s5cmd --download-dir ./data
+idc download manifest.s5cmd
+
+# Specify output directory
+idc download rider_pilot --download-dir ./data
 
 # See all options
 idc --help
