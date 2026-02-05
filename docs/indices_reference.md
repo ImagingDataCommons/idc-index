@@ -2,7 +2,7 @@
 
 This page provides a comprehensive reference for all index tables available in
 `idc-index`. The documentation is automatically generated from the schemas
-provided by `idc-index-data` (version 23.3.1).
+provided by `idc-index-data` (version 23.4.1).
 
 > **Note:** Column descriptions are sourced directly from the `idc-index-data`
 > package schemas. If you notice any missing or incorrect descriptions, please
@@ -28,6 +28,12 @@ erDiagram
     analysis_results_index {
         STRING analysis_result_id
         STRING source_DOI
+    }
+    ann_group_index {
+        STRING SeriesInstanceUID
+    }
+    ann_index {
+        STRING SeriesInstanceUID
     }
     clinical_index {
         STRING collection_id
@@ -73,15 +79,26 @@ erDiagram
     index ||--o{ sm_index : SeriesInstanceUID
     index ||--o{ sm_instance_index : SeriesInstanceUID
     index ||--o{ seg_index : SeriesInstanceUID
+    index ||--o{ ann_index : SeriesInstanceUID
+    index ||--o{ ann_group_index : SeriesInstanceUID
     prior_versions_index ||--o{ collections_index : collection_id
     prior_versions_index ||--o{ clinical_index : collection_id
     prior_versions_index ||--o{ sm_index : SeriesInstanceUID
     prior_versions_index ||--o{ sm_instance_index : SeriesInstanceUID
     prior_versions_index ||--o{ seg_index : SeriesInstanceUID
+    prior_versions_index ||--o{ ann_index : SeriesInstanceUID
+    prior_versions_index ||--o{ ann_group_index : SeriesInstanceUID
     collections_index ||--o{ clinical_index : collection_id
     sm_index ||--o{ sm_instance_index : SeriesInstanceUID
     sm_index ||--o{ seg_index : SeriesInstanceUID
+    sm_index ||--o{ ann_index : SeriesInstanceUID
+    sm_index ||--o{ ann_group_index : SeriesInstanceUID
     sm_instance_index ||--o{ seg_index : SeriesInstanceUID
+    sm_instance_index ||--o{ ann_index : SeriesInstanceUID
+    sm_instance_index ||--o{ ann_group_index : SeriesInstanceUID
+    seg_index ||--o{ ann_index : SeriesInstanceUID
+    seg_index ||--o{ ann_group_index : SeriesInstanceUID
+    ann_index ||--o{ ann_group_index : SeriesInstanceUID
 ```
 
 ## Available Index Tables
@@ -195,6 +212,58 @@ collection
 - **`Citation`** (`STRING`, NULLABLE): citation for the analysis results
   collection that should be used for acknowledgment
 
+## `ann_group_index`
+
+This table contains detailed metadata about individual annotation groups within
+Microscopy Bulk Simple Annotations (ANN) series in IDC. Each row corresponds to
+a single annotation group, providing granular information about the graphic
+type, number of annotations, property codes, and algorithm details. This table
+can be joined with ann_index using SeriesInstanceUID for series-level context.
+Note: ANN series are assumed to contain a single instance.
+
+### Columns
+
+- **`SeriesInstanceUID`** (`STRING`, NULLABLE):
+- **`AnnotationGroupNumber`** (`INTEGER`, NULLABLE):
+- **`AnnotationGroupUID`** (`STRING`, NULLABLE):
+- **`AnnotationGroupLabel`** (`STRING`, NULLABLE):
+- **`AnnotationGroupGenerationType`** (`STRING`, NULLABLE):
+- **`NumberOfAnnotations`** (`INTEGER`, NULLABLE):
+- **`GraphicType`** (`STRING`, NULLABLE):
+- **`AnnotationPropertyCategory_code`** (`STRING`, NULLABLE): annotation
+  property category code tuple (CodingSchemeDesignator:CodeValue) from DICOM
+  AnnotationPropertyCategoryCodeSequence
+- **`AnnotationPropertyCategory_CodeMeaning`** (`STRING`, NULLABLE):
+  human-readable meaning of the annotation property category from DICOM
+  AnnotationPropertyCategoryCodeSequence
+- **`AnnotationPropertyType_code`** (`STRING`, NULLABLE): annotation property
+  type code tuple (CodingSchemeDesignator:CodeValue) from DICOM
+  AnnotationPropertyTypeCodeSequence
+- **`AnnotationPropertyType_CodeMeaning`** (`STRING`, NULLABLE): human-readable
+  meaning of the annotation property type from DICOM
+  AnnotationPropertyTypeCodeSequence
+- **`AlgorithmName`** (`STRING`, NULLABLE): name of the algorithm from DICOM
+  AlgorithmName attribute in AnnotationGroupAlgorithmIdentificationSequence
+  (when AnnotationGroupGenerationType is AUTOMATIC)
+
+## `ann_index`
+
+This table contains metadata about the Microscopy Bulk Simple Annotations (ANN)
+series available in IDC. Each row corresponds to a DICOM series containing
+annotations, and includes attributes such as the annotation coordinate type and
+references to the annotated image series. For detailed group-level information
+(counts, graphic types, property codes), join with ann_group_index using
+SeriesInstanceUID. This table can be joined with the main idc_index table using
+the SeriesInstanceUID column. Note: ANN series are assumed to contain a single
+instance.
+
+### Columns
+
+- **`SeriesInstanceUID`** (`STRING`, NULLABLE):
+- **`AnnotationCoordinateType`** (`STRING`, NULLABLE):
+- **`referenced_SeriesInstanceUID`** (`STRING`, NULLABLE): SeriesInstanceUID of
+  the referenced image series that the annotations apply to
+
 ## `clinical_index`
 
 This table contains metadata about the tabular data, including clinical data,
@@ -280,46 +349,55 @@ index table using the `SeriesInstanceUID` column.
 ### Columns
 
 - **`SeriesInstanceUID`** (`STRING`, NULLABLE):
-- **`embeddingMedium_CodeMeaning`** (`STRING`, REPEATED): embedding medium used
-  for the slide preparation
+- **`embeddingMedium_CodeMeaning`** (`STRING`, REPEATED): embedding medium
+  CodeMeaning from DICOM SpecimenPreparationSequence in
+  SpecimenDescriptionSequence
 - **`embeddingMedium_code_designator_value_str`** (`STRING`, REPEATED):
-  embedding medium code tuple
-- **`tissueFixative_CodeMeaning`** (`STRING`, REPEATED): tissue fixative used
-  for the slide preparation
+  embedding medium code tuple from DICOM SpecimenPreparationSequence in
+  SpecimenDescriptionSequence
+- **`tissueFixative_CodeMeaning`** (`STRING`, REPEATED): tissue fixative
+  CodeMeaning from DICOM SpecimenPreparationSequence in
+  SpecimenDescriptionSequence
 - **`tissueFixative_code_designator_value_str`** (`STRING`, REPEATED): tissue
-  fixative code tuple
+  fixative code tuple from DICOM SpecimenPreparationSequence in
+  SpecimenDescriptionSequence
 - **`staining_usingSubstance_CodeMeaning`** (`STRING`, REPEATED): staining
-  substances used for the slide preparation
+  substances CodeMeaning from DICOM SpecimenPreparationSequence in
+  SpecimenDescriptionSequence
 - **`staining_usingSubstance_code_designator_value_str`** (`STRING`, REPEATED):
-  staining using substance code tuple
+  staining substances code tuple from DICOM SpecimenPreparationSequence in
+  SpecimenDescriptionSequence
 - **`min_PixelSpacing_2sf`** (`FLOAT`, NULLABLE): pixel spacing in mm at the
-  maximum resolution layer, rounded to 2 significant figures
+  maximum resolution layer, rounded to 2 significant figures, derived from DICOM
+  PixelSpacing attribute
 - **`max_TotalPixelMatrixColumns`** (`INTEGER`, NULLABLE): width of the image at
-  the maximum resolution
+  the maximum resolution from DICOM TotalPixelMatrixColumns attribute
 - **`max_TotalPixelMatrixRows`** (`INTEGER`, NULLABLE): height of the image at
-  the maximum resolution
-- **`ObjectiveLensPower`** (`INTEGER`, NULLABLE): power of the objective lens of
-  the equipment used to digitize the slide
+  the maximum resolution from DICOM TotalPixelMatrixRows attribute
+- **`ObjectiveLensPower`** (`INTEGER`, NULLABLE): power of the objective lens
+  from DICOM ObjectiveLensPower attribute in OpticalPathSequence
 - **`primaryAnatomicStructure_code_designator_value_str`** (`STRING`, NULLABLE):
-  anatomic location from where the imaged specimen was collected
-- **`primaryAnatomicStructure_CodeMeaning`** (`STRING`, NULLABLE): code tuple
-  for the anatomic location from where the imaged specimen was collected
+  anatomic location code tuple from DICOM PrimaryAnatomicStructureSequence in
+  SpecimenDescriptionSequence
+- **`primaryAnatomicStructure_CodeMeaning`** (`STRING`, NULLABLE): anatomic
+  location CodeMeaning from DICOM PrimaryAnatomicStructureSequence in
+  SpecimenDescriptionSequence
 - **`primaryAnatomicStructureModifier_code_designator_value_str`** (`STRING`,
-  NULLABLE): additional characteristics of the specimen, such as whether it is a
-  tumor or normal tissue (when available)
-- **`primaryAnatomicStructureModifier_CodeMeaning`** (`STRING`, NULLABLE): code
-  tuple for additional characteristics of the specimen, such as whether it is a
-  tumor or normal tissue (when available)
+  NULLABLE): specimen modifier code tuple from DICOM
+  PrimaryAnatomicStructureModifierSequence (when available)
+- **`primaryAnatomicStructureModifier_CodeMeaning`** (`STRING`, NULLABLE):
+  specimen modifier CodeMeaning from DICOM
+  PrimaryAnatomicStructureModifierSequence (when available)
 - **`illuminationType_code_designator_value_str`** (`STRING`, NULLABLE):
-  illumination type used during slide digitization
-- **`illuminationType_CodeMeaning`** (`STRING`, NULLABLE): code tuple for the
-  illumination type used during slide digitization
+  illumination type code tuple from DICOM IlluminationTypeCodeSequence in
+  OpticalPathSequence
+- **`illuminationType_CodeMeaning`** (`STRING`, NULLABLE): illumination type
+  CodeMeaning from DICOM IlluminationTypeCodeSequence in OpticalPathSequence
 - **`admittingDiagnosis_code_designator_value_str`** (`STRING`, NULLABLE):
-  admitting diagnosis associated with the specimen imaged on the slide (when
+  admitting diagnosis code tuple from DICOM AdmittingDiagnosesCodeSequence (when
   available)
-- **`admittingDiagnosis_CodeMeaning`** (`STRING`, NULLABLE): code tuple for the
-  admitting diagnosis associated with the specimen imaged on the slide (when
-  available)
+- **`admittingDiagnosis_CodeMeaning`** (`STRING`, NULLABLE): admitting diagnosis
+  CodeMeaning from DICOM AdmittingDiagnosesCodeSequence (when available)
 
 ## `sm_instance_index`
 
