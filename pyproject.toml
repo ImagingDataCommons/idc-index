@@ -9,7 +9,7 @@ authors = [
   { name = "Andrey Fedorov", email = "andrey.fedorov@gmail.com" },
   { name = "Vamsi Thiriveedhi", email = "vthiriveedhi@mgh.harvard.edu" },
 ]
-description = "Package to query and download data from an index of ImagingDataCommons"
+description = "Python package to simplify access to the data available in NCI Imaging Data Commons"
 readme = "README.md"
 license.file = "LICENSE"
 requires-python = ">=3.10"
