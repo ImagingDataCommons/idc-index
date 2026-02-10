@@ -2,7 +2,7 @@
 
 This page provides a comprehensive reference for all index tables available in
 `idc-index`. The documentation is automatically generated from the schemas
-provided by `idc-index-data` (version 23.4.1).
+provided by `idc-index-data` (version 23.5.0).
 
 > **Note:** Column descriptions are sourced directly from the `idc-index-data`
 > package schemas. If you notice any missing or incorrect descriptions, please
@@ -40,6 +40,9 @@ erDiagram
     }
     collections_index {
         STRING collection_id
+    }
+    contrast_index {
+        STRING SeriesInstanceUID
     }
     index {
         STRING PatientID
@@ -81,6 +84,7 @@ erDiagram
     index ||--o{ seg_index : SeriesInstanceUID
     index ||--o{ ann_index : SeriesInstanceUID
     index ||--o{ ann_group_index : SeriesInstanceUID
+    index ||--o{ contrast_index : SeriesInstanceUID
     prior_versions_index ||--o{ collections_index : collection_id
     prior_versions_index ||--o{ clinical_index : collection_id
     prior_versions_index ||--o{ sm_index : SeriesInstanceUID
@@ -88,17 +92,23 @@ erDiagram
     prior_versions_index ||--o{ seg_index : SeriesInstanceUID
     prior_versions_index ||--o{ ann_index : SeriesInstanceUID
     prior_versions_index ||--o{ ann_group_index : SeriesInstanceUID
+    prior_versions_index ||--o{ contrast_index : SeriesInstanceUID
     collections_index ||--o{ clinical_index : collection_id
     sm_index ||--o{ sm_instance_index : SeriesInstanceUID
     sm_index ||--o{ seg_index : SeriesInstanceUID
     sm_index ||--o{ ann_index : SeriesInstanceUID
     sm_index ||--o{ ann_group_index : SeriesInstanceUID
+    sm_index ||--o{ contrast_index : SeriesInstanceUID
     sm_instance_index ||--o{ seg_index : SeriesInstanceUID
     sm_instance_index ||--o{ ann_index : SeriesInstanceUID
     sm_instance_index ||--o{ ann_group_index : SeriesInstanceUID
+    sm_instance_index ||--o{ contrast_index : SeriesInstanceUID
     seg_index ||--o{ ann_index : SeriesInstanceUID
     seg_index ||--o{ ann_group_index : SeriesInstanceUID
+    seg_index ||--o{ contrast_index : SeriesInstanceUID
     ann_index ||--o{ ann_group_index : SeriesInstanceUID
+    ann_index ||--o{ contrast_index : SeriesInstanceUID
+    ann_group_index ||--o{ contrast_index : SeriesInstanceUID
 ```
 
 ## Available Index Tables
@@ -313,6 +323,28 @@ resources to learn more about the content of the collection.
   collection
 - **`Description`** (`STRING`, NULLABLE): detailed information about the
   collection
+
+## `contrast_index`
+
+This table contains one row per DICOM series that has contrast agent
+information. It captures contrast bolus metadata from CT, MR, PT, XA, and RF
+imaging modalities, including the agent name, ingredient, and administration
+route. Only series with at least one non-null contrast attribute are included.
+This table can be joined with the main idc_index table using the
+SeriesInstanceUID column.
+
+### Columns
+
+- **`SeriesInstanceUID`** (`STRING`, NULLABLE): DICOM SeriesInstanceUID
+  identifier of the imaging series
+- **`ContrastBolusAgent`** (`STRING`, REPEATED): distinct contrast agent names
+  used in the series as defined in DICOM ContrastBolusAgent attribute
+- **`ContrastBolusIngredient`** (`STRING`, REPEATED): distinct contrast agent
+  ingredients used in the series as defined in DICOM ContrastBolusIngredient
+  attribute
+- **`ContrastBolusRoute`** (`STRING`, REPEATED): distinct contrast
+  administration routes used in the series as defined in DICOM
+  ContrastBolusRoute attribute
 
 ## `seg_index`
 
