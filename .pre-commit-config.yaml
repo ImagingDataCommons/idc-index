@@ -40,7 +40,7 @@ repos:
         args: [--prose-wrap=always]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: "v0.15.2"
+    rev: "v0.15.4"
     hooks:
       # Run the linter
       - id: ruff-check
@@ -83,7 +83,7 @@ repos:
       - id: validate-pyproject
 
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: "0.36.2"
+    rev: "0.37.0"
     hooks:
       - id: check-dependabot
       - id: check-github-workflows
