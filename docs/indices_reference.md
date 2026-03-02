@@ -2,7 +2,7 @@
 
 This page provides a comprehensive reference for all index tables available in
 `idc-index`. The documentation is automatically generated from the schemas
-provided by `idc-index-data` (version 23.5.0).
+provided by `idc-index-data` (version 23.7.0).
 
 > **Note:** Column descriptions are sourced directly from the `idc-index-data`
 > package schemas. If you notice any missing or incorrect descriptions, please
@@ -381,6 +381,9 @@ index table using the `SeriesInstanceUID` column.
 ### Columns
 
 - **`SeriesInstanceUID`** (`STRING`, NULLABLE):
+- **`ContainerIdentifier`** (`STRING`, NULLABLE): identifier of the container
+  (e.g., glass slide) holding the specimen from DICOM ContainerIdentifier
+  attribute
 - **`embeddingMedium_CodeMeaning`** (`STRING`, REPEATED): embedding medium
   CodeMeaning from DICOM SpecimenPreparationSequence in
   SpecimenDescriptionSequence
