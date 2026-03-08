@@ -2,7 +2,7 @@
 
 This page provides a comprehensive reference for all index tables available in
 `idc-index`. The documentation is automatically generated from the schemas
-provided by `idc-index-data` (version 23.7.0).
+provided by `idc-index-data` (version 23.8.0).
 
 > **Note:** Column descriptions are sourced directly from the `idc-index-data`
 > package schemas. If you notice any missing or incorrect descriptions, please
@@ -368,6 +368,20 @@ segmented image series.
   available in DICOM SegmentAlgorithmName
 - **`segmented_SeriesInstanceUID`** (`STRING`, NULLABLE): SeriesInstanceUID of
   the referenced image series that the segmentation applies to
+- **`SegmentedPropertyCategory_CodeMeanings`** (`STRING`, REPEATED): Array of
+  distinct CodeMeaning values from SegmentedPropertyCategoryCodeSequence across
+  all segments in the series, representing the broad category of the segmented
+  property as defined in DICOM PS3.3 C.8.20.2, e.g., ["Anatomical Structure"],
+  ["Morphologically Altered Structure"]
+- **`SegmentedPropertyType_CodeMeanings`** (`STRING`, REPEATED): Array of
+  distinct CodeMeaning values from SegmentedPropertyTypeCodeSequence across all
+  segments in the series, representing the specific type of the segmented
+  property as defined in DICOM PS3.3 C.8.20.2, e.g., ["Liver", "Kidney",
+  "Spleen"]
+- **`AnatomicRegion_CodeMeanings`** (`STRING`, REPEATED): Array of distinct
+  CodeMeaning values from AnatomicRegionSequence across all segments in the
+  series, representing the anatomic location of the segmented structure as
+  defined in DICOM PS3.3 C.8.20.2, e.g., ["Abdomen"], ["Thorax", "Head"]
 
 ## `sm_index`
 
