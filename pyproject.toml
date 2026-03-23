@@ -59,7 +59,7 @@ docs = [
   "sphinx_autodoc_typehints",
   "sphinx-click",
   "furo>=2023.08.17",
-  "sphinxcontrib-mermaid",
+  "sphinxcontrib-mermaid<2",
 ]
 
 [project.scripts]
