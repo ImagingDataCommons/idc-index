@@ -43,6 +43,12 @@ jobs:
           cd docs
           sphinx-build -W -b html . _build/html
 
+      - name: Run pre-commit on generated docs
+        uses: pre-commit/action@v3.0.1
+        with:
+          extra_args: --files docs/indices_reference.md
+        continue-on-error: true
+
       - name: Check for changes
         id: git-check
         run: |
