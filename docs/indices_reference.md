@@ -2,7 +2,7 @@
 
 This page provides a comprehensive reference for all index tables available in
 `idc-index`. The documentation is automatically generated from the schemas
-provided by `idc-index-data` (version 23.8.2).
+provided by `idc-index-data` (version 23.9.0).
 
 > **Note:** Column descriptions are sourced directly from the `idc-index-data`
 > package schemas. If you notice any missing or incorrect descriptions, please
@@ -70,6 +70,9 @@ erDiagram
         STRING SOPInstanceUID
         STRING SeriesInstanceUID
     }
+    volume_geometry_index {
+        STRING SeriesInstanceUID
+    }
     index ||--o{ prior_versions_index : PatientID
     index ||--o{ prior_versions_index : SeriesInstanceUID
     index ||--o{ prior_versions_index : StudyInstanceUID
@@ -85,6 +88,7 @@ erDiagram
     index ||--o{ ann_index : SeriesInstanceUID
     index ||--o{ ann_group_index : SeriesInstanceUID
     index ||--o{ contrast_index : SeriesInstanceUID
+    index ||--o{ volume_geometry_index : SeriesInstanceUID
     prior_versions_index ||--o{ collections_index : collection_id
     prior_versions_index ||--o{ clinical_index : collection_id
     prior_versions_index ||--o{ sm_index : SeriesInstanceUID
@@ -93,22 +97,29 @@ erDiagram
     prior_versions_index ||--o{ ann_index : SeriesInstanceUID
     prior_versions_index ||--o{ ann_group_index : SeriesInstanceUID
     prior_versions_index ||--o{ contrast_index : SeriesInstanceUID
+    prior_versions_index ||--o{ volume_geometry_index : SeriesInstanceUID
     collections_index ||--o{ clinical_index : collection_id
     sm_index ||--o{ sm_instance_index : SeriesInstanceUID
     sm_index ||--o{ seg_index : SeriesInstanceUID
     sm_index ||--o{ ann_index : SeriesInstanceUID
     sm_index ||--o{ ann_group_index : SeriesInstanceUID
     sm_index ||--o{ contrast_index : SeriesInstanceUID
+    sm_index ||--o{ volume_geometry_index : SeriesInstanceUID
     sm_instance_index ||--o{ seg_index : SeriesInstanceUID
     sm_instance_index ||--o{ ann_index : SeriesInstanceUID
     sm_instance_index ||--o{ ann_group_index : SeriesInstanceUID
     sm_instance_index ||--o{ contrast_index : SeriesInstanceUID
+    sm_instance_index ||--o{ volume_geometry_index : SeriesInstanceUID
     seg_index ||--o{ ann_index : SeriesInstanceUID
     seg_index ||--o{ ann_group_index : SeriesInstanceUID
     seg_index ||--o{ contrast_index : SeriesInstanceUID
+    seg_index ||--o{ volume_geometry_index : SeriesInstanceUID
     ann_index ||--o{ ann_group_index : SeriesInstanceUID
     ann_index ||--o{ contrast_index : SeriesInstanceUID
+    ann_index ||--o{ volume_geometry_index : SeriesInstanceUID
     ann_group_index ||--o{ contrast_index : SeriesInstanceUID
+    ann_group_index ||--o{ volume_geometry_index : SeriesInstanceUID
+    contrast_index ||--o{ volume_geometry_index : SeriesInstanceUID
 ```
 
 ## Available Index Tables
@@ -146,6 +157,20 @@ AWS S3 bucket and URL to download the series.
 - **`BodyPartExamined`** (`STRING`, NULLABLE): body part imaged (not applicable
   for SM series) (DICOM attribute)
 - **`Modality`** (`STRING`, NULLABLE): acquisition modality (DICOM attribute)
+- **`SOPClassUID`** (`STRING`, NULLABLE): SOP Class UID identifying the type of
+  DICOM object (e.g., CT Image Storage, Segmentation Storage); more specific
+  than Modality for distinguishing object types (DICOM attribute)
+- **`sop_class_name`** (`STRING`, NULLABLE): human-readable name of the SOP
+  Class (e.g., "CT Image Storage", "Segmentation Storage"); derived from
+  SOPClassUID
+- **`TransferSyntaxUID`** (`STRING`, NULLABLE): Transfer Syntax UID identifying
+  the encoding of the stored instances (e.g., Explicit VR Little Endian, JPEG
+  2000, HTJ2K); comma-separated when a series contains instances with different
+  encodings, which is common for SM (DICOM attribute)
+- **`transfer_syntax_name`** (`STRING`, NULLABLE): human-readable name of the
+  Transfer Syntax (e.g., "JPEG 2000", "Explicit VR Little Endian");
+  comma-separated when a series contains instances with different encodings;
+  derived from TransferSyntaxUID
 - **`Manufacturer`** (`STRING`, NULLABLE): manufacturer of the equipment that
   produced the series (DICOM attribute)
 - **`ManufacturerModelName`** (`STRING`, NULLABLE): model name of the equipment
@@ -486,3 +511,82 @@ be joined with the main index table and/or with `sm_index` using the
 - **`TotalPixelMatrixRows`** (`INTEGER`, NULLABLE): number of rows in the image
 - **`crdc_instance_uuid`** (`STRING`, NULLABLE): unique identifier of the
   instance within the IDC
+
+## `volume_geometry_index`
+
+This table contains one row per DICOM series from IDC for single-frame CT, MR,
+and PT SOP classes, with boolean columns characterizing the geometric properties
+of each series. The checks determine whether the series forms a regularly-spaced
+rectilinear 3D volume (consistent orientation, spacing, dimensions, and slice
+positions). Series that do not pass all checks may still be usable with
+additional processing such as resampling or acquisition geometry correction
+(e.g., for variable-spacing or gantry-tilted acquisitions). Oblique-aware: uses
+projection-based slice position computation, which handles gantry-tilted CT,
+oblique MR, and axial PET uniformly. Approach overview: Each DICOM instance
+(slice) carries its 3D position in patient space (ImagePositionPatient,
+abbreviated IPP) and the orientation of its pixel grid (ImageOrientationPatient,
+abbreviated IOP). IOP provides two unit vectors — the row direction and the
+column direction — that define the image plane. Their cross product gives the
+slice normal, i.e. the direction perpendicular to the image plane. To check
+whether slices are regularly spaced along the volume axis, we project each
+instance's IPP onto the slice normal. This yields a single scalar "slice
+position" for each instance, regardless of whether the acquisition is axial,
+oblique, or gantry-tilted. The expected spacing is computed from the full span
+(first-to-last slice position divided by N-1), and each adjacent pair is
+compared against it — an approach that minimizes floating-point accumulation
+errors (see 3D Slicer reference below). The slice spacing tolerance is relative
+(a fraction of expected spacing) rather than absolute, so it scales correctly
+for both human imaging (~1-5mm spacing) and preclinical/small-animal imaging
+(~0.1mm). Similarly, projecting IPP onto the row and column directions gives
+in-plane coordinates that should be constant across all slices if the slices are
+properly aligned (no lateral shift between slices). Key SQL patterns used: WITH
+... AS (...) — Common Table Expression (CTE): defines a named temporary result
+set, like a subquery you can reference by name. The query is structured as a
+chain of CTEs that progressively transform the data. SAFE_CAST(x AS FLOAT64) —
+converts x to a floating-point number, returning NULL instead of an error if the
+conversion fails. ARRAY[OFFSET(i)] — accesses the i-th element of an array
+(0-based). SAFE_OFFSET returns NULL instead of an error for out-of-bounds.
+LEAD(value) OVER (PARTITION BY key ORDER BY value) — a window function that
+returns the value from the next row within the same partition (group), ordered
+by the specified column. Used here to compute the distance between each slice
+and the next one. Returns NULL for the last row in each partition (no next row).
+MAX/MIN(...) OVER (PARTITION BY key) — window aggregates that compute the
+max/min across all rows sharing the same key, without collapsing rows. Used to
+compute per-series statistics while keeping per-instance rows intact.
+SAFE_DIVIDE(a, b) — returns a/b, or NULL if b is zero (avoids division-by-zero
+errors for single-instance series). COUNT(DISTINCT x) — counts the number of
+unique values of x. ANY_VALUE(x) — returns an arbitrary value of x from the
+group; used when all values in the group are expected to be the same.
+
+### Columns
+
+- **`SeriesInstanceUID`** (`STRING`, NULLABLE): unique identifier of the DICOM
+  series
+- **`single_orientation`** (`BOOLEAN`, NULLABLE): TRUE if all instances share
+  the same ImageOrientationPatient (DICOM attribute)
+- **`orthogonal_orientation`** (`BOOLEAN`, NULLABLE): TRUE if the cross product
+  of row and column orientation vectors has unit magnitude (within
+  orientationTolerance), confirming orthogonal direction cosines
+- **`unique_slice_positions`** (`BOOLEAN`, NULLABLE): TRUE if every instance has
+  a distinct slice position along the volume normal, i.e. no duplicate or
+  overlapping slices
+- **`consistent_in_plane_row`** (`BOOLEAN`, NULLABLE): TRUE if the projection of
+  ImagePositionPatient onto the row direction is constant across all instances
+  (within inPlaneTolerance)
+- **`consistent_in_plane_col`** (`BOOLEAN`, NULLABLE): TRUE if the projection of
+  ImagePositionPatient onto the column direction is constant across all
+  instances (within inPlaneTolerance)
+- **`consistent_pixel_spacing`** (`BOOLEAN`, NULLABLE): TRUE if all instances
+  share the same PixelSpacing (DICOM attribute)
+- **`consistent_image_dimensions`** (`BOOLEAN`, NULLABLE): TRUE if all instances
+  share the same Rows and Columns values (DICOM attributes)
+- **`uniform_slice_spacing`** (`BOOLEAN`, NULLABLE): TRUE if the spacing between
+  consecutive slices is constant (within relativeSliceTolerance, a relative
+  fraction of expected spacing)
+- **`obliquity_degrees`** (`FLOAT`, NULLABLE): angle in degrees between the
+  slice normal and the nearest cardinal axis (X, Y, or Z in patient
+  coordinates); 0 means pure axial, sagittal, or coronal; values above 0
+  indicate oblique acquisition or gantry tilt
+- **`regularly_spaced_3d_volume`** (`BOOLEAN`, NULLABLE): TRUE if all individual
+  checks pass, indicating the series forms a regularly-spaced rectilinear 3D
+  volume that can be loaded directly into a 3D array without resampling
