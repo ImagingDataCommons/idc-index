@@ -2,7 +2,7 @@
 
 This page provides a comprehensive reference for all index tables available in
 `idc-index`. The documentation is automatically generated from the schemas
-provided by `idc-index-data` (version 23.9.0).
+provided by `idc-index-data` (version 23.10.1).
 
 > **Note:** Column descriptions are sourced directly from the `idc-index-data`
 > package schemas. If you notice any missing or incorrect descriptions, please
@@ -60,6 +60,9 @@ erDiagram
         STRING collection_id
         STRING crdc_series_uuid
     }
+    rtstruct_index {
+        STRING SeriesInstanceUID
+    }
     seg_index {
         STRING SeriesInstanceUID
     }
@@ -89,6 +92,7 @@ erDiagram
     index ||--o{ ann_group_index : SeriesInstanceUID
     index ||--o{ contrast_index : SeriesInstanceUID
     index ||--o{ volume_geometry_index : SeriesInstanceUID
+    index ||--o{ rtstruct_index : SeriesInstanceUID
     prior_versions_index ||--o{ collections_index : collection_id
     prior_versions_index ||--o{ clinical_index : collection_id
     prior_versions_index ||--o{ sm_index : SeriesInstanceUID
@@ -98,6 +102,7 @@ erDiagram
     prior_versions_index ||--o{ ann_group_index : SeriesInstanceUID
     prior_versions_index ||--o{ contrast_index : SeriesInstanceUID
     prior_versions_index ||--o{ volume_geometry_index : SeriesInstanceUID
+    prior_versions_index ||--o{ rtstruct_index : SeriesInstanceUID
     collections_index ||--o{ clinical_index : collection_id
     sm_index ||--o{ sm_instance_index : SeriesInstanceUID
     sm_index ||--o{ seg_index : SeriesInstanceUID
@@ -105,21 +110,28 @@ erDiagram
     sm_index ||--o{ ann_group_index : SeriesInstanceUID
     sm_index ||--o{ contrast_index : SeriesInstanceUID
     sm_index ||--o{ volume_geometry_index : SeriesInstanceUID
+    sm_index ||--o{ rtstruct_index : SeriesInstanceUID
     sm_instance_index ||--o{ seg_index : SeriesInstanceUID
     sm_instance_index ||--o{ ann_index : SeriesInstanceUID
     sm_instance_index ||--o{ ann_group_index : SeriesInstanceUID
     sm_instance_index ||--o{ contrast_index : SeriesInstanceUID
     sm_instance_index ||--o{ volume_geometry_index : SeriesInstanceUID
+    sm_instance_index ||--o{ rtstruct_index : SeriesInstanceUID
     seg_index ||--o{ ann_index : SeriesInstanceUID
     seg_index ||--o{ ann_group_index : SeriesInstanceUID
     seg_index ||--o{ contrast_index : SeriesInstanceUID
     seg_index ||--o{ volume_geometry_index : SeriesInstanceUID
+    seg_index ||--o{ rtstruct_index : SeriesInstanceUID
     ann_index ||--o{ ann_group_index : SeriesInstanceUID
     ann_index ||--o{ contrast_index : SeriesInstanceUID
     ann_index ||--o{ volume_geometry_index : SeriesInstanceUID
+    ann_index ||--o{ rtstruct_index : SeriesInstanceUID
     ann_group_index ||--o{ contrast_index : SeriesInstanceUID
     ann_group_index ||--o{ volume_geometry_index : SeriesInstanceUID
+    ann_group_index ||--o{ rtstruct_index : SeriesInstanceUID
     contrast_index ||--o{ volume_geometry_index : SeriesInstanceUID
+    contrast_index ||--o{ rtstruct_index : SeriesInstanceUID
+    volume_geometry_index ||--o{ rtstruct_index : SeriesInstanceUID
 ```
 
 ## Available Index Tables
@@ -371,12 +383,47 @@ SeriesInstanceUID column.
   administration routes used in the series as defined in DICOM
   ContrastBolusRoute attribute
 
+## `rtstruct_index`
+
+This table contains one row per DICOM RT Structure Set (RTSTRUCT)
+SeriesInstanceUID available from IDC, and captures key metadata about the
+structure set including the number of ROIs, ROI names, generation algorithms,
+interpreted types, and the referenced image series. Note: multi-valued columns
+(ROINames, ROIGenerationAlgorithms, RTROIInterpretedTypes) are aggregated with
+DISTINCT independently, so positional correspondence between columns is not
+preserved.
+
+### Columns
+
+- **`SeriesInstanceUID`** (`STRING`, NULLABLE): DICOM SeriesInstanceUID
+  identifier of the RT Structure Set series
+- **`total_rois`** (`INTEGER`, NULLABLE): Number of ROIs in the structure set
+  obtained by counting distinct DICOM ROINumber values in the
+  StructureSetROISequence
+- **`ROINames`** (`STRING`, REPEATED): Array of distinct ROI names from DICOM
+  ROIName attribute in StructureSetROISequence, e.g., ["GTV", "Heart", "Liver",
+  "PTV"]
+- **`ROIGenerationAlgorithms`** (`STRING`, REPEATED): Array of distinct ROI
+  generation algorithms from DICOM ROIGenerationAlgorithm attribute in
+  StructureSetROISequence, e.g., ["AUTOMATIC", "MANUAL", "SEMIAUTOMATIC"]
+- **`RTROIInterpretedTypes`** (`STRING`, REPEATED): Array of distinct ROI
+  interpreted types from DICOM RTROIInterpretedType attribute in
+  RTROIObservationsSequence, e.g., ["GTV", "ORGAN", "PTV"]
+- **`referenced_SeriesInstanceUID`** (`STRING`, NULLABLE): SeriesInstanceUID of
+  the referenced image series that the structure set applies to, extracted from
+  DICOM ReferencedFrameOfReferenceSequence > RTReferencedStudySequence >
+  RTReferencedSeriesSequence
+
 ## `seg_index`
 
 This table contains one row per DICOM Segmentation SeriesInstanceUID available
 from IDC, and captures key metadata about the segmentation series including the
 number of segments, segmentation type, algorithm type and name, and the
-segmented image series.
+segmented image series. Note: multi-valued columns (AlgorithmType,
+AlgorithmName, SegmentedPropertyCategory_CodeMeanings, etc.) are aggregated with
+DISTINCT independently, so positional correspondence between columns is not
+preserved. For example, the first value in AlgorithmType does not necessarily
+pair with the first value in AlgorithmName.
 
 ### Columns
 
@@ -522,41 +569,7 @@ positions). Series that do not pass all checks may still be usable with
 additional processing such as resampling or acquisition geometry correction
 (e.g., for variable-spacing or gantry-tilted acquisitions). Oblique-aware: uses
 projection-based slice position computation, which handles gantry-tilted CT,
-oblique MR, and axial PET uniformly. Approach overview: Each DICOM instance
-(slice) carries its 3D position in patient space (ImagePositionPatient,
-abbreviated IPP) and the orientation of its pixel grid (ImageOrientationPatient,
-abbreviated IOP). IOP provides two unit vectors — the row direction and the
-column direction — that define the image plane. Their cross product gives the
-slice normal, i.e. the direction perpendicular to the image plane. To check
-whether slices are regularly spaced along the volume axis, we project each
-instance's IPP onto the slice normal. This yields a single scalar "slice
-position" for each instance, regardless of whether the acquisition is axial,
-oblique, or gantry-tilted. The expected spacing is computed from the full span
-(first-to-last slice position divided by N-1), and each adjacent pair is
-compared against it — an approach that minimizes floating-point accumulation
-errors (see 3D Slicer reference below). The slice spacing tolerance is relative
-(a fraction of expected spacing) rather than absolute, so it scales correctly
-for both human imaging (~1-5mm spacing) and preclinical/small-animal imaging
-(~0.1mm). Similarly, projecting IPP onto the row and column directions gives
-in-plane coordinates that should be constant across all slices if the slices are
-properly aligned (no lateral shift between slices). Key SQL patterns used: WITH
-... AS (...) — Common Table Expression (CTE): defines a named temporary result
-set, like a subquery you can reference by name. The query is structured as a
-chain of CTEs that progressively transform the data. SAFE_CAST(x AS FLOAT64) —
-converts x to a floating-point number, returning NULL instead of an error if the
-conversion fails. ARRAY[OFFSET(i)] — accesses the i-th element of an array
-(0-based). SAFE_OFFSET returns NULL instead of an error for out-of-bounds.
-LEAD(value) OVER (PARTITION BY key ORDER BY value) — a window function that
-returns the value from the next row within the same partition (group), ordered
-by the specified column. Used here to compute the distance between each slice
-and the next one. Returns NULL for the last row in each partition (no next row).
-MAX/MIN(...) OVER (PARTITION BY key) — window aggregates that compute the
-max/min across all rows sharing the same key, without collapsing rows. Used to
-compute per-series statistics while keeping per-instance rows intact.
-SAFE_DIVIDE(a, b) — returns a/b, or NULL if b is zero (avoids division-by-zero
-errors for single-instance series). COUNT(DISTINCT x) — counts the number of
-unique values of x. ANY_VALUE(x) — returns an arbitrary value of x from the
-group; used when all values in the group are expected to be the same.
+oblique MR, and axial PET uniformly.
 
 ### Columns
 
