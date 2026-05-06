@@ -2,7 +2,7 @@
 
 This page provides a comprehensive reference for all index tables available in
 `idc-index`. The documentation is automatically generated from the schemas
-provided by `idc-index-data` (version 23.10.1).
+provided by `idc-index-data` (version 24.0.1).
 
 > **Note:** Column descriptions are sourced directly from the `idc-index-data`
 > package schemas. If you notice any missing or incorrect descriptions, please
@@ -343,22 +343,21 @@ resources to learn more about the content of the collection.
 
 - **`collection_name`** (`STRING`, NULLABLE): name of the collection
 - **`collection_id`** (`STRING`, NULLABLE): unique identifier of the collection
-- **`CancerTypes`** (`STRING`, NULLABLE): types of cancer represented in the
+- **`cancer_types`** (`STRING`, NULLABLE): types of cancer represented in the
   collection
-- **`TumorLocations`** (`STRING`, NULLABLE): locations of tumors represented in
+- **`tumor_locations`** (`STRING`, NULLABLE): locations of tumors represented in
   the collection
-- **`Subjects`** (`INTEGER`, NULLABLE): number of subjects in the collection
-- **`Species`** (`STRING`, NULLABLE): species represented in the collection
-- **`Sources`** (`RECORD`, REPEATED): sources of data for the collection
-- **`SupportingData`** (`STRING`, NULLABLE): additional data supporting the
+- **`subjects`** (`INTEGER`, NULLABLE): number of subjects in the collection
+- **`species`** (`STRING`, NULLABLE): species represented in the collection
+- **`sources`** (`RECORD`, REPEATED): sources of data for the collection
+- **`supporting_data`** (`STRING`, NULLABLE): additional data supporting the
   collection available in IDC
-- **`Program`** (`STRING`, NULLABLE): broader initiative/category under which
+- **`program_id`** (`STRING`, NULLABLE): broader initiative/category under which
   this collection is being shared
-- **`Status`** (`STRING`, NULLABLE): status of the collection (Completed or
+- **`status`** (`STRING`, NULLABLE): status of the collection (Completed or
   Ongoing)
-- **`Updated`** (`STRING`, NULLABLE): timestamp of the last update to the
-  collection
-- **`Description`** (`STRING`, NULLABLE): detailed information about the
+- **`updated`** (`STRING`, NULLABLE): date of the last update to the collection
+- **`description`** (`STRING`, NULLABLE): detailed information about the
   collection
 
 ## `contrast_index`
