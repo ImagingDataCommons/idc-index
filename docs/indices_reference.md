@@ -2,7 +2,7 @@
 
 This page provides a comprehensive reference for all index tables available in
 `idc-index`. The documentation is automatically generated from the schemas
-provided by `idc-index-data` (version 24.0.1).
+provided by `idc-index-data` (version 24.0.4).
 
 > **Note:** Column descriptions are sourced directly from the `idc-index-data`
 > package schemas. If you notice any missing or incorrect descriptions, please
@@ -240,11 +240,11 @@ collection
   analysis results collection
 - **`source_url`** (`STRING`, NULLABLE): URL for the location of additional
   information about the analysis results collection
-- **`Subjects`** (`INTEGER`, NULLABLE): number of subjects analyzed in the
+- **`subjects`** (`INTEGER`, NULLABLE): number of subjects analyzed in the
   analysis results collection
-- **`Collections`** (`STRING`, NULLABLE): collections analyzed in the analysis
+- **`collections`** (`STRING`, NULLABLE): collections analyzed in the analysis
   results collection
-- **`Modalities`** (`STRING`, NULLABLE): modalities corresponding to the
+- **`modalities`** (`STRING`, NULLABLE): modalities corresponding to the
   analysis artifacts included in the analysis results collection
 - **`Updated`** (`STRING`, NULLABLE): timestamp of the last update to the
   analysis results collection
@@ -256,7 +256,7 @@ collection
   the analysis results collection
 - **`Description`** (`STRING`, NULLABLE): detailed description of the analysis
   results collection
-- **`Citation`** (`STRING`, NULLABLE): citation for the analysis results
+- **`citation`** (`STRING`, NULLABLE): citation for the analysis results
   collection that should be used for acknowledgment
 
 ## `ann_group_index`
