@@ -2,7 +2,7 @@
 
 This page provides a comprehensive reference for all index tables available in
 `idc-index`. The documentation is automatically generated from the schemas
-provided by `idc-index-data` (version 24.0.4).
+provided by `idc-index-data` (version 24.1.0).
 
 > **Note:** Column descriptions are sourced directly from the `idc-index-data`
 > package schemas. If you notice any missing or incorrect descriptions, please
@@ -152,8 +152,7 @@ AWS S3 bucket and URL to download the series.
   can be added to a given collection over time
 - **`PatientID`** (`STRING`, NULLABLE): identifier of the patient within the
   collection (DICOM attribute)
-- **`SeriesInstanceUID`** (`STRING`, NULLABLE): unique identifier of the DICOM
-  series (DICOM attribute)
+- **`SeriesInstanceUID`** (`STRING`, NULLABLE):
 - **`StudyInstanceUID`** (`STRING`, NULLABLE): unique identifier of the DICOM
   study (DICOM attribute)
 - **`source_DOI`** (`STRING`, NULLABLE): Digital Object Identifier of the
@@ -195,6 +194,11 @@ AWS S3 bucket and URL to download the series.
 - **`instanceCount`** (`INTEGER`, NULLABLE): number of instances in the series
 - **`license_short_name`** (`STRING`, NULLABLE): short name of the license that
   applies to this series
+- **`series_init_idc_version`** (`INTEGER`, NULLABLE): IDC data release version
+  number when this series first appeared in IDC (integer, e.g., 1 for v1)
+- **`series_revised_idc_version`** (`INTEGER`, NULLABLE): IDC data release
+  version number when this series was most recently revised in IDC (integer,
+  e.g., 24 for v24)
 - **`aws_bucket`** (`STRING`, NULLABLE): name of the AWS S3 bucket that contains
   the series
 - **`crdc_series_uuid`** (`STRING`, NULLABLE): unique identifier of the series
@@ -246,7 +250,7 @@ collection
   results collection
 - **`modalities`** (`STRING`, NULLABLE): modalities corresponding to the
   analysis artifacts included in the analysis results collection
-- **`Updated`** (`STRING`, NULLABLE): timestamp of the last update to the
+- **`updated`** (`STRING`, NULLABLE): timestamp of the last update to the
   analysis results collection
 - **`license_url`** (`STRING`, NULLABLE): license URL for the analysis results
   collection
@@ -254,7 +258,7 @@ collection
   results collection
 - **`license_short_name`** (`STRING`, NULLABLE): short name for the license of
   the analysis results collection
-- **`Description`** (`STRING`, NULLABLE): detailed description of the analysis
+- **`description`** (`STRING`, NULLABLE): detailed description of the analysis
   results collection
 - **`citation`** (`STRING`, NULLABLE): citation for the analysis results
   collection that should be used for acknowledgment
@@ -557,6 +561,20 @@ be joined with the main index table and/or with `sm_index` using the
 - **`TotalPixelMatrixRows`** (`INTEGER`, NULLABLE): number of rows in the image
 - **`crdc_instance_uuid`** (`STRING`, NULLABLE): unique identifier of the
   instance within the IDC
+
+## `version_metadata_index`
+
+This table contains metadata about each IDC data release version. Each row
+corresponds to one IDC version and captures when that version was created. This
+index can be used to correlate data in other indexes (which include idc_version
+columns) with the corresponding release timestamps.
+
+### Columns
+
+- **`idc_version`** (`INTEGER`, NULLABLE): IDC version number identifying the
+  data release
+- **`version_timestamp`** (`STRING`, NULLABLE): timestamp when this IDC version
+  was created
 
 ## `volume_geometry_index`
 
