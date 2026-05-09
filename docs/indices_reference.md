@@ -2,7 +2,7 @@
 
 This page provides a comprehensive reference for all index tables available in
 `idc-index`. The documentation is automatically generated from the schemas
-provided by `idc-index-data` (version 24.1.0).
+provided by `idc-index-data` (version 24.2.0).
 
 > **Note:** Column descriptions are sourced directly from the `idc-index-data`
 > package schemas. If you notice any missing or incorrect descriptions, please
@@ -44,6 +44,9 @@ erDiagram
     contrast_index {
         STRING SeriesInstanceUID
     }
+    ct_index {
+        STRING SeriesInstanceUID
+    }
     index {
         STRING PatientID
         STRING SeriesInstanceUID
@@ -53,12 +56,18 @@ erDiagram
         STRING crdc_series_uuid
         STRING source_DOI
     }
+    mr_index {
+        STRING SeriesInstanceUID
+    }
     prior_versions_index {
         STRING PatientID
         STRING SeriesInstanceUID
         STRING StudyInstanceUID
         STRING collection_id
         STRING crdc_series_uuid
+    }
+    pt_index {
+        STRING SeriesInstanceUID
     }
     rtstruct_index {
         STRING SeriesInstanceUID
@@ -93,6 +102,9 @@ erDiagram
     index ||--o{ contrast_index : SeriesInstanceUID
     index ||--o{ volume_geometry_index : SeriesInstanceUID
     index ||--o{ rtstruct_index : SeriesInstanceUID
+    index ||--o{ ct_index : SeriesInstanceUID
+    index ||--o{ mr_index : SeriesInstanceUID
+    index ||--o{ pt_index : SeriesInstanceUID
     prior_versions_index ||--o{ collections_index : collection_id
     prior_versions_index ||--o{ clinical_index : collection_id
     prior_versions_index ||--o{ sm_index : SeriesInstanceUID
@@ -103,6 +115,9 @@ erDiagram
     prior_versions_index ||--o{ contrast_index : SeriesInstanceUID
     prior_versions_index ||--o{ volume_geometry_index : SeriesInstanceUID
     prior_versions_index ||--o{ rtstruct_index : SeriesInstanceUID
+    prior_versions_index ||--o{ ct_index : SeriesInstanceUID
+    prior_versions_index ||--o{ mr_index : SeriesInstanceUID
+    prior_versions_index ||--o{ pt_index : SeriesInstanceUID
     collections_index ||--o{ clinical_index : collection_id
     sm_index ||--o{ sm_instance_index : SeriesInstanceUID
     sm_index ||--o{ seg_index : SeriesInstanceUID
@@ -111,27 +126,54 @@ erDiagram
     sm_index ||--o{ contrast_index : SeriesInstanceUID
     sm_index ||--o{ volume_geometry_index : SeriesInstanceUID
     sm_index ||--o{ rtstruct_index : SeriesInstanceUID
+    sm_index ||--o{ ct_index : SeriesInstanceUID
+    sm_index ||--o{ mr_index : SeriesInstanceUID
+    sm_index ||--o{ pt_index : SeriesInstanceUID
     sm_instance_index ||--o{ seg_index : SeriesInstanceUID
     sm_instance_index ||--o{ ann_index : SeriesInstanceUID
     sm_instance_index ||--o{ ann_group_index : SeriesInstanceUID
     sm_instance_index ||--o{ contrast_index : SeriesInstanceUID
     sm_instance_index ||--o{ volume_geometry_index : SeriesInstanceUID
     sm_instance_index ||--o{ rtstruct_index : SeriesInstanceUID
+    sm_instance_index ||--o{ ct_index : SeriesInstanceUID
+    sm_instance_index ||--o{ mr_index : SeriesInstanceUID
+    sm_instance_index ||--o{ pt_index : SeriesInstanceUID
     seg_index ||--o{ ann_index : SeriesInstanceUID
     seg_index ||--o{ ann_group_index : SeriesInstanceUID
     seg_index ||--o{ contrast_index : SeriesInstanceUID
     seg_index ||--o{ volume_geometry_index : SeriesInstanceUID
     seg_index ||--o{ rtstruct_index : SeriesInstanceUID
+    seg_index ||--o{ ct_index : SeriesInstanceUID
+    seg_index ||--o{ mr_index : SeriesInstanceUID
+    seg_index ||--o{ pt_index : SeriesInstanceUID
     ann_index ||--o{ ann_group_index : SeriesInstanceUID
     ann_index ||--o{ contrast_index : SeriesInstanceUID
     ann_index ||--o{ volume_geometry_index : SeriesInstanceUID
     ann_index ||--o{ rtstruct_index : SeriesInstanceUID
+    ann_index ||--o{ ct_index : SeriesInstanceUID
+    ann_index ||--o{ mr_index : SeriesInstanceUID
+    ann_index ||--o{ pt_index : SeriesInstanceUID
     ann_group_index ||--o{ contrast_index : SeriesInstanceUID
     ann_group_index ||--o{ volume_geometry_index : SeriesInstanceUID
     ann_group_index ||--o{ rtstruct_index : SeriesInstanceUID
+    ann_group_index ||--o{ ct_index : SeriesInstanceUID
+    ann_group_index ||--o{ mr_index : SeriesInstanceUID
+    ann_group_index ||--o{ pt_index : SeriesInstanceUID
     contrast_index ||--o{ volume_geometry_index : SeriesInstanceUID
     contrast_index ||--o{ rtstruct_index : SeriesInstanceUID
+    contrast_index ||--o{ ct_index : SeriesInstanceUID
+    contrast_index ||--o{ mr_index : SeriesInstanceUID
+    contrast_index ||--o{ pt_index : SeriesInstanceUID
     volume_geometry_index ||--o{ rtstruct_index : SeriesInstanceUID
+    volume_geometry_index ||--o{ ct_index : SeriesInstanceUID
+    volume_geometry_index ||--o{ mr_index : SeriesInstanceUID
+    volume_geometry_index ||--o{ pt_index : SeriesInstanceUID
+    rtstruct_index ||--o{ ct_index : SeriesInstanceUID
+    rtstruct_index ||--o{ mr_index : SeriesInstanceUID
+    rtstruct_index ||--o{ pt_index : SeriesInstanceUID
+    ct_index ||--o{ mr_index : SeriesInstanceUID
+    ct_index ||--o{ pt_index : SeriesInstanceUID
+    mr_index ||--o{ pt_index : SeriesInstanceUID
 ```
 
 ## Available Index Tables
@@ -385,6 +427,273 @@ SeriesInstanceUID column.
 - **`ContrastBolusRoute`** (`STRING`, REPEATED): distinct contrast
   administration routes used in the series as defined in DICOM
   ContrastBolusRoute attribute
+
+## `ct_index`
+
+This table contains one row per CT Image Storage (SOPClassUID
+1.2.840.10008.5.1.4.1.1.2) DICOM series in IDC, capturing acquisition and
+reconstruction parameters that are not included in the main idc_index table. The
+index can be joined to idc_index on SeriesInstanceUID to combine universal
+series metadata with CT-specific acquisition parameters. For XRayTubeCurrent,
+Exposure, and ExposureTime — which vary across instances within a series due to
+dose modulation — both min and max values are reported. All other attributes are
+aggregated with ANY_VALUE (one representative instance).
+
+### Columns
+
+- **`SeriesInstanceUID`** (`STRING`, NULLABLE): DICOM SeriesInstanceUID — unique
+  identifier of the CT series; use to join with idc_index
+- **`ImageType`** (`STRING`, REPEATED): image type values as defined in DICOM
+  ImageType attribute (e.g., ORIGINAL/DERIVED, PRIMARY/SECONDARY,
+  AXIAL/LOCALIZER); aggregated with ANY_VALUE — constant across instances within
+  a series
+- **`PixelSpacing_row_mm`** (`FLOAT`, NULLABLE): in-plane pixel spacing along
+  the row direction in mm, derived from DICOM PixelSpacing[0]; a subset of CT
+  series have anisotropic spacing where this differs from PixelSpacing_col_mm;
+  aggregated with ANY_VALUE — constant across instances within a series
+- **`PixelSpacing_col_mm`** (`FLOAT`, NULLABLE): in-plane pixel spacing along
+  the column direction in mm, derived from DICOM PixelSpacing[1]; a subset of CT
+  series have anisotropic spacing where this differs from PixelSpacing_row_mm;
+  aggregated with ANY_VALUE — constant across instances within a series
+- **`Rows`** (`INTEGER`, NULLABLE):
+- **`Columns`** (`INTEGER`, NULLABLE):
+- **`SliceThickness`** (`FLOAT`, NULLABLE): nominal reconstructed slice
+  thickness in mm as defined in DICOM SliceThickness attribute; aggregated with
+  ANY_VALUE — constant across instances within a series
+- **`KVP`** (`FLOAT`, NULLABLE): peak kilovoltage of the X-ray tube in kV as
+  defined in DICOM KVP attribute; constant across instances — aggregated with
+  ANY_VALUE
+- **`ScanOptions`** (`STRING`, REPEATED): acquisition scan options as defined in
+  DICOM ScanOptions attribute (e.g., HELICAL MODE, AXIAL MODE, SCOUT MODE); may
+  contain multiple values; aggregated with ANY_VALUE — constant across instances
+  within a series
+- **`ConvolutionKernel`** (`STRING`, REPEATED): reconstruction convolution
+  kernel as defined in DICOM ConvolutionKernel attribute; vendor-specific string
+  (e.g., B30f, STANDARD, LUNG); may contain multiple values; aggregated with
+  ANY_VALUE — constant across instances within a series
+- **`GantryDetectorTilt`** (`FLOAT`, NULLABLE): nominal angle of the scanning
+  gantry in degrees as defined in DICOM GantryDetectorTilt attribute; non-zero
+  for gantry-tilted acquisitions; constant across instances — aggregated with
+  ANY_VALUE
+- **`XRayTubeCurrent_min`** (`FLOAT`, NULLABLE): minimum X-ray tube current in
+  mA across all instances in the series, derived from DICOM XRayTubeCurrent
+  attribute; equals XRayTubeCurrent_max for fixed-current acquisitions; lower
+  than XRayTubeCurrent_max for dose-modulated acquisitions (MIN across all
+  instances)
+- **`XRayTubeCurrent_max`** (`FLOAT`, NULLABLE): maximum X-ray tube current in
+  mA across all instances in the series, derived from DICOM XRayTubeCurrent
+  attribute; equals XRayTubeCurrent_min for fixed-current acquisitions; higher
+  than XRayTubeCurrent_min for dose-modulated acquisitions (MAX across all
+  instances)
+- **`FilterType`** (`STRING`, NULLABLE): type of filter used in the acquisition
+  as defined in DICOM FilterType attribute (e.g., WEDGE, BUTTERFLY, FLAT);
+  constant across instances — aggregated with ANY_VALUE
+- **`Exposure_min`** (`FLOAT`, NULLABLE): minimum exposure in mAs across all
+  instances in the series, derived from DICOM Exposure attribute; equals
+  Exposure_max for fixed-exposure acquisitions; lower than Exposure_max for
+  dose-modulated acquisitions (MIN across all instances)
+- **`Exposure_max`** (`FLOAT`, NULLABLE): maximum exposure in mAs across all
+  instances in the series, derived from DICOM Exposure attribute; equals
+  Exposure_min for fixed-exposure acquisitions; higher than Exposure_min for
+  dose-modulated acquisitions (MAX across all instances)
+- **`ExposureTime_min`** (`FLOAT`, NULLABLE): minimum duration of the X-ray
+  exposure in ms across all instances in the series, derived from DICOM
+  ExposureTime attribute (MIN across all instances)
+- **`ExposureTime_max`** (`FLOAT`, NULLABLE): maximum duration of the X-ray
+  exposure in ms across all instances in the series, derived from DICOM
+  ExposureTime attribute (MAX across all instances)
+- **`DataCollectionDiameter`** (`FLOAT`, NULLABLE): diameter of the region over
+  which data were collected in mm as defined in DICOM DataCollectionDiameter
+  attribute; constant across instances — aggregated with ANY_VALUE
+- **`ReconstructionDiameter`** (`FLOAT`, NULLABLE): diameter of the
+  reconstruction field of view in mm as defined in DICOM ReconstructionDiameter
+  attribute; aggregated with ANY_VALUE — constant across instances within a
+  series
+- **`SpiralPitchFactor`** (`FLOAT`, NULLABLE): ratio of the beam pitch for
+  helical CT as defined in DICOM SpiralPitchFactor attribute; NULL for
+  non-helical (sequential/axial) acquisitions; constant across instances —
+  aggregated with ANY_VALUE
+
+## `mr_index`
+
+This table contains one row per MR Image Storage (SOPClassUID
+1.2.840.10008.5.1.4.1.1.4) DICOM series in IDC, capturing MR acquisition and
+sequence parameters that are not included in the main idc_index table. The index
+can be joined to idc_index on SeriesInstanceUID to combine universal series
+metadata with MR-specific acquisition parameters. EchoTime and DiffusionBValue
+are reported as arrays of all distinct per-instance values because they
+legitimately differ across instances within multi-echo and diffusion-weighted
+series respectively. All other attributes are aggregated with ANY_VALUE (one
+representative instance).
+
+### Columns
+
+- **`SeriesInstanceUID`** (`STRING`, NULLABLE): DICOM SeriesInstanceUID — unique
+  identifier of the MR series; use to join with idc_index
+- **`MagneticFieldStrength`** (`FLOAT`, NULLABLE): static magnetic field
+  strength in Tesla as defined in DICOM MagneticFieldStrength attribute;
+  constant across instances within a series — aggregated with ANY_VALUE
+- **`ScanningSequence`** (`STRING`, REPEATED): pulse sequence type as defined in
+  DICOM ScanningSequence attribute (SE = Spin Echo, GR = Gradient Recalled, IR =
+  Inversion Recovery, EP = Echo Planar); may contain multiple values; constant
+  across instances — aggregated with ANY_VALUE
+- **`SequenceVariant`** (`STRING`, REPEATED): variant of the scanning sequence
+  as defined in DICOM SequenceVariant attribute (SK = Segmented k-Space, MTC =
+  Magnetization Transfer Contrast, SS = Steady State, TRSS = Time Reversed
+  Steady State, SP = Spoiled, MP = MAG Prepared, OSP = Oversampling Phase, NONE
+  = No sequence variant); may contain multiple values; constant across instances
+  — aggregated with ANY_VALUE
+- **`MRAcquisitionType`** (`STRING`, NULLABLE): whether the acquisition is 2D or
+  3D as defined in DICOM MRAcquisitionType attribute; constant across instances
+  — aggregated with ANY_VALUE
+- **`EchoTime`** (`FLOAT`, REPEATED): distinct echo times in ms present in the
+  series, derived from DICOM EchoTime attribute; aggregated as
+  ARRAY_AGG(DISTINCT) across all instances because EchoTime legitimately varies
+  in multi-echo sequences; single-element array for single-echo series,
+  multi-element array for multi-echo series (e.g., [2.46, 4.92, 7.38])
+- **`RepetitionTime`** (`FLOAT`, NULLABLE): repetition time in ms as defined in
+  DICOM RepetitionTime attribute; aggregated with ANY_VALUE — constant across
+  instances within a series
+- **`EchoTrainLength`** (`INTEGER`, NULLABLE): number of echoes in the echo
+  train as defined in DICOM EchoTrainLength attribute; constant across instances
+  — aggregated with ANY_VALUE
+- **`FlipAngle`** (`FLOAT`, NULLABLE): flip angle in degrees as defined in DICOM
+  FlipAngle attribute; aggregated with ANY_VALUE — constant across instances
+  within a series
+- **`PixelBandwidth`** (`FLOAT`, NULLABLE): receiver bandwidth per pixel in Hz
+  as defined in DICOM PixelBandwidth attribute; aggregated with ANY_VALUE —
+  constant across instances within a series
+- **`ImagingFrequency`** (`FLOAT`, NULLABLE): Larmor resonance frequency in MHz
+  as defined in DICOM ImagingFrequency attribute; proportional to
+  MagneticFieldStrength (42.577 MHz/T for proton); constant across instances —
+  aggregated with ANY_VALUE
+- **`ImagedNucleus`** (`STRING`, NULLABLE): nucleus used for imaging as defined
+  in DICOM ImagedNucleus attribute (e.g., 1H for proton, 31P, 23Na); constant
+  across instances — aggregated with ANY_VALUE
+- **`PixelSpacing_row_mm`** (`FLOAT`, NULLABLE): in-plane pixel spacing along
+  the row direction in mm, derived from DICOM PixelSpacing[0]; MR pixel spacing
+  is isotropic in almost all series in IDC; aggregated with ANY_VALUE — constant
+  across instances within a series
+- **`PixelSpacing_col_mm`** (`FLOAT`, NULLABLE): in-plane pixel spacing along
+  the column direction in mm, derived from DICOM PixelSpacing[1]; MR pixel
+  spacing is isotropic in almost all series in IDC; aggregated with ANY_VALUE —
+  constant across instances within a series
+- **`Rows`** (`INTEGER`, NULLABLE):
+- **`Columns`** (`INTEGER`, NULLABLE):
+- **`SliceThickness`** (`FLOAT`, NULLABLE): nominal slice thickness in mm as
+  defined in DICOM SliceThickness attribute; aggregated with ANY_VALUE —
+  constant across instances within a series
+- **`InversionTime`** (`FLOAT`, NULLABLE): inversion time in ms as defined in
+  DICOM InversionTime attribute; populated only for inversion recovery
+  sequences, NULL otherwise; constant across instances — aggregated with
+  ANY_VALUE
+- **`ReceiveCoilName`** (`STRING`, NULLABLE): name of the receiver coil used as
+  defined in DICOM ReceiveCoilName attribute; aggregated with ANY_VALUE —
+  constant across instances within a series
+- **`SequenceName`** (`STRING`, NULLABLE): manufacturer-specific pulse sequence
+  name as defined in DICOM SequenceName attribute (e.g., _tfl_ for Siemens
+  FLASH, _ep_b1000_ for Siemens EPI diffusion); aggregated with ANY_VALUE —
+  constant across instances within a series
+- **`DiffusionBValue`** (`FLOAT`, REPEATED): distinct diffusion b-values in
+  s/mm² present in the series, derived from DICOM DiffusionBValue attribute;
+  aggregated as ARRAY_AGG(DISTINCT) across all instances because DiffusionBValue
+  legitimately varies across instances in diffusion-weighted series; empty array
+  for non-DWI series; multi-element for DWI (e.g., [0.0, 1000.0])
+- **`NumberOfTemporalPositions`** (`INTEGER`, NULLABLE): number of temporal
+  positions (time frames) in the series as defined in DICOM
+  NumberOfTemporalPositions attribute; populated for dynamic (DCE-MRI) series;
+  NULL otherwise; constant across instances — aggregated with ANY_VALUE
+
+## `pt_index`
+
+This table contains one row per Positron Emission Tomography Image Storage
+(SOPClassUID 1.2.840.10008.5.1.4.1.1.128) DICOM series in IDC, capturing PET
+acquisition, reconstruction and radiopharmaceutical parameters that are not
+included in the main idc_index table. The index can be joined to idc_index on
+SeriesInstanceUID to combine universal series metadata with PET-specific
+acquisition parameters. ActualFrameDuration is reported as an array of all
+distinct per-instance values because it legitimately varies across frames in
+dynamic (multi-frame) PET acquisitions. All other attributes are constant within
+a series and are aggregated with ANY_VALUE.
+
+### Columns
+
+- **`SeriesInstanceUID`** (`STRING`, NULLABLE): DICOM SeriesInstanceUID — unique
+  identifier of the PET series; use to join with idc_index
+- **`SeriesType`** (`STRING`, NULLABLE): acquisition type of the series as
+  defined in DICOM SeriesType attribute, encoded as a slash-separated string of
+  the two type values (e.g., STATIC/IMAGE, DYNAMIC/IMAGE, GATED/IMAGE, WHOLE
+  BODY/IMAGE); constant across instances — aggregated with
+  ANY_VALUE(ARRAY_TO_STRING(SeriesType, '/'))
+- **`Units`** (`STRING`, NULLABLE): pixel value units as defined in DICOM Units
+  attribute (e.g., BQML = Bq/mL, CNTS = counts, CPS = counts/s, GML = g/mL);
+  constant across instances — aggregated with ANY_VALUE
+- **`DecayCorrection`** (`STRING`, NULLABLE): type of decay correction applied
+  as defined in DICOM DecayCorrection attribute (START = corrected to scan start
+  time, ADMIN = corrected to radiopharmaceutical administration time, NONE = no
+  correction); constant across instances — aggregated with ANY_VALUE
+- **`CorrectedImage`** (`STRING`, REPEATED): list of corrections applied to the
+  image as defined in DICOM CorrectedImage attribute (e.g., ATTN = attenuation,
+  SCAT = scatter, DECY = decay, RAN = randoms); may contain multiple values;
+  constant across instances — aggregated with ANY_VALUE
+- **`RandomsCorrectionMethod`** (`STRING`, NULLABLE): method used for randoms
+  correction as defined in DICOM RandomsCorrectionMethod attribute; constant
+  across instances — aggregated with ANY_VALUE
+- **`ReconstructionMethod`** (`STRING`, NULLABLE): reconstruction algorithm as
+  defined in DICOM ReconstructionMethod attribute (e.g., OSEM, FBP); constant
+  across instances — aggregated with ANY_VALUE
+- **`ActualFrameDuration`** (`FLOAT`, REPEATED): distinct actual frame durations
+  in ms present in the series, derived from DICOM ActualFrameDuration attribute;
+  aggregated as ARRAY_AGG(DISTINCT) across all instances because
+  ActualFrameDuration legitimately varies across frames in dynamic PET
+  acquisitions; single-element array for static PET, multi-element for dynamic
+  PET with variable frame durations
+- **`ScatterCorrectionMethod`** (`STRING`, NULLABLE): scatter correction method
+  as defined in DICOM ScatterCorrectionMethod attribute; constant across
+  instances — aggregated with ANY_VALUE
+- **`AttenuationCorrectionMethod`** (`STRING`, NULLABLE): attenuation correction
+  method as defined in DICOM AttenuationCorrectionMethod attribute; constant
+  across instances — aggregated with ANY_VALUE
+- **`RadionuclideCodeMeaning`** (`STRING`, NULLABLE): code meaning of the
+  radionuclide used, from
+  RadiopharmaceuticalInformationSequence[0].RadionuclideCodeSequence[0].CodeMeaning;
+  (e.g., Fluorine F18, Gallium Ga-68); constant across instances — aggregated
+  with ANY_VALUE
+- **`RadionuclideTotalDose`** (`FLOAT`, NULLABLE): total administered dose of
+  the radionuclide in Bq, from
+  RadiopharmaceuticalInformationSequence[0].RadionuclideTotalDose; constant
+  across instances — aggregated with ANY_VALUE
+- **`RadiopharmaceuticalStartTime`** (`STRING`, NULLABLE): time of
+  radiopharmaceutical administration (injection time), from
+  RadiopharmaceuticalInformationSequence[0].RadiopharmaceuticalStartTime; stored
+  as STRING (HH:MM:SS.FFFFFF) because DICOM TIME type is not supported in
+  parquet output; constant across instances — aggregated with ANY_VALUE
+- **`Radiopharmaceutical`** (`STRING`, NULLABLE): free-text name of the
+  radiopharmaceutical as defined in
+  RadiopharmaceuticalInformationSequence[0].Radiopharmaceutical (e.g.,
+  Fluorodeoxyglucose F^18^); values are not standardized across sites; see
+  RadionuclideCodeMeaning for a more consistent alternative; constant across
+  instances — aggregated with ANY_VALUE
+- **`PixelSpacing_row_mm`** (`FLOAT`, NULLABLE): in-plane pixel spacing along
+  the row direction in mm, derived from DICOM PixelSpacing[0]; PET pixel spacing
+  is isotropic in almost all series in IDC; aggregated with ANY_VALUE — constant
+  across instances within a series
+- **`PixelSpacing_col_mm`** (`FLOAT`, NULLABLE): in-plane pixel spacing along
+  the column direction in mm, derived from DICOM PixelSpacing[1]; PET pixel
+  spacing is isotropic in almost all series in IDC; aggregated with ANY_VALUE —
+  constant across instances within a series
+- **`Rows`** (`INTEGER`, NULLABLE):
+- **`Columns`** (`INTEGER`, NULLABLE):
+- **`SliceThickness`** (`FLOAT`, NULLABLE): nominal slice thickness in mm as
+  defined in DICOM SliceThickness attribute; constant across instances —
+  aggregated with ANY_VALUE
+- **`NumberOfSlices`** (`INTEGER`, NULLABLE): total number of slices in the
+  series as defined in DICOM NumberOfSlices attribute; constant across instances
+  — aggregated with ANY_VALUE
+- **`NumberOfTimeSlices`** (`INTEGER`, NULLABLE): number of time frames in the
+  series as defined in DICOM NumberOfTimeSlices attribute; populated only for
+  dynamic (multi-frame) PET series, NULL for static PET; constant across
+  instances — aggregated with ANY_VALUE
 
 ## `rtstruct_index`
 
