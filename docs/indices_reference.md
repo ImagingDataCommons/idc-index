@@ -2,7 +2,7 @@
 
 This page provides a comprehensive reference for all index tables available in
 `idc-index`. The documentation is automatically generated from the schemas
-provided by `idc-index-data` (version 24.2.0).
+provided by `idc-index-data` (version 24.2.2).
 
 > **Note:** Column descriptions are sourced directly from the `idc-index-data`
 > package schemas. If you notice any missing or incorrect descriptions, please
@@ -208,7 +208,10 @@ AWS S3 bucket and URL to download the series.
 - **`StudyDescription`** (`STRING`, NULLABLE): textual description of the study
   content (DICOM attribute)
 - **`BodyPartExamined`** (`STRING`, NULLABLE): body part imaged (not applicable
-  for SM series) (DICOM attribute)
+  for SM series) (DICOM attribute). For derived series (SEG, RTSTRUCT) this
+  reflects the source acquisition, not the segmented anatomy -- what was
+  segmented is recorded in the seg_index table
+  (SegmentedPropertyType_CodeMeanings) and in rtstruct_index.
 - **`Modality`** (`STRING`, NULLABLE): acquisition modality (DICOM attribute)
 - **`SOPClassUID`** (`STRING`, NULLABLE): SOP Class UID identifying the type of
   DICOM object (e.g., CT Image Storage, Segmentation Storage); more specific
@@ -224,6 +227,14 @@ AWS S3 bucket and URL to download the series.
   Transfer Syntax (e.g., "JPEG 2000", "Explicit VR Little Endian");
   comma-separated when a series contains instances with different encodings;
   derived from TransferSyntaxUID
+- **`PhotometricInterpretation`** (`STRING`, NULLABLE): intended interpretation
+  of the pixel data, e.g., MONOCHROME2 (grayscale), RGB or YBR_FULL_422 (color);
+  NULL for non-image objects (e.g., SEG, SR, RTSTRUCT); comma-separated when a
+  series contains instances with different values (DICOM attribute)
+- **`PixelRepresentation`** (`STRING`, NULLABLE): data representation of pixel
+  sample values: "0" for unsigned integers, "1" for signed integers; NULL for
+  non-image objects; comma-separated when a series contains instances with
+  different values (DICOM attribute)
 - **`Manufacturer`** (`STRING`, NULLABLE): manufacturer of the equipment that
   produced the series (DICOM attribute)
 - **`ManufacturerModelName`** (`STRING`, NULLABLE): model name of the equipment
