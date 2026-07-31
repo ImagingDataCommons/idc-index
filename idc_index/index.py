@@ -567,9 +567,9 @@ class IDCClient:
             ValueError: If the `seriesInstanceUID` does not exist.
         """
 
-        resp = self.index[["SeriesInstanceUID"] == seriesInstanceUID][
-            "series_size_MB"
-        ].iloc[0]
+        resp = self._filter_dataframe_by_id(
+            "SeriesInstanceUID", self.index, seriesInstanceUID
+        )["series_size_MB"].iloc[0]
         return resp
 
     def get_patients(self, collection_id, outputFormat="dict"):
@@ -2045,7 +2045,7 @@ Destination folder is not empty and sync size is less than total size.
             if sopInstanceUID:
                 if "instance_aws_url" not in result_df:
                     result_df["instance_aws_url"] = (
-                        result_df["series_aws_url"].replace("/*", "/")
+                        result_df["series_aws_url"].str.removesuffix("*")
                         + result_df["crdc_instance_uuid"]
                         + ".dcm"
                     )
