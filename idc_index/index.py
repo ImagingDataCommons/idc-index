@@ -410,7 +410,9 @@ class IDCClient:
         download_dir = Path(download_dir)
         download_dir.mkdir(parents=True, exist_ok=True)
 
-        return str(download_dir.resolve())
+        download_dir = str(download_dir.resolve()).replace("'", "''")
+
+        return download_dir
 
     def _validate_disk_space(self, download_dir, disk_size_needed):
         """Check if there is sufficient disk space for the download.
