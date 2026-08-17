@@ -1663,7 +1663,7 @@ Destination folder is not empty and sync size is less than total size.
 
                 runtime_errors = []
                 with open(stderr_log_file.name) as stderr_log_file:
-                    for line in stderr_log_file.readlines():
+                    for line in stderr_log_file:
                         if not quiet:
                             logger.info(line)
                         if line.startswith("ERROR"):
