@@ -40,7 +40,7 @@ repos:
         args: [--prose-wrap=always]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: "v0.16.3"
+    rev: "v0.16.4"
     hooks:
       # Run the linter
       - id: ruff-check
@@ -65,7 +65,7 @@ repos:
         args: ["--quiet-level 3"]
 
   - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: "v0.11.0.1"
+    rev: "v0.11.0.1-1"
     hooks:
       - id: shellcheck
 
