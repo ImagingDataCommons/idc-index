@@ -227,7 +227,7 @@ def main() -> int:
     try:
         generate_indices_documentation(output_path)
         return 0
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - top-level handler: report and exit non-zero
         print(f"Error generating documentation: {e}", file=sys.stderr)
         traceback.print_exc()
         return 1
