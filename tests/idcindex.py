@@ -284,7 +284,7 @@ class TestIDCClient(unittest.TestCase):
     def test_sql_query_all_indices(self):
         """Test that all discovered indices are queryable via sql_query after fetching."""
         # Iterate over all indices discovered in indices_overview
-        for index_name, info in self.client.indices_overview.items():
+        for index_name in self.client.indices_overview:
             with self.subTest(index_name=index_name):
                 # Fetch the index (handles both downloading and loading from disk)
                 self.client.fetch_index(index_name)
@@ -580,7 +580,7 @@ class TestIDCClient(unittest.TestCase):
         """Test that discovered indices have descriptions from schema files."""
         i = IDCClient()
         # All indices should have descriptions
-        for index_name, index_info in i.indices_overview.items():
+        for index_info in i.indices_overview.values():
             assert "description" in index_info
             # Most indices should have non-empty descriptions from schema files
             # (though some may be empty if the schema fetch fails)
