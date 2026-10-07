@@ -2,7 +2,7 @@
 
 This page provides a comprehensive reference for all index tables available in
 `idc-index`. The documentation is automatically generated from the schemas
-provided by `idc-index-data` (version 24.2.2).
+provided by `idc-index-data` (version 25.0.0).
 
 > **Note:** Column descriptions are sourced directly from the `idc-index-data`
 > package schemas. If you notice any missing or incorrect descriptions, please
@@ -274,7 +274,6 @@ AWS S3 bucket and URL to download the series.
 - **`crdc_series_uuid`** (`STRING`, NULLABLE):
 - **`series_size_MB`** (`FLOAT`, NULLABLE):
 - **`series_aws_url`** (`STRING`, NULLABLE):
-- **`gcs_bucket_1`** (`STRING`, NULLABLE):
 - **`aws_bucket`** (`STRING`, NULLABLE):
 - **`min_idc_version`** (`INTEGER`, NULLABLE):
 - **`max_idc_version`** (`INTEGER`, NULLABLE):
@@ -315,6 +314,10 @@ collection
   results collection
 - **`citation`** (`STRING`, NULLABLE): citation for the analysis results
   collection that should be used for acknowledgment
+- **`provenance`** (`RECORD`, NULLABLE): parties responsible for the data in the
+  analysis results collection: who contributed it to IDC, who provided the
+  source material, who performed de-identification, and who produced the DICOM
+  representation
 
 ## `ann_group_index`
 
@@ -406,7 +409,10 @@ resources to learn more about the content of the collection.
   the collection
 - **`subjects`** (`INTEGER`, NULLABLE): number of subjects in the collection
 - **`species`** (`STRING`, NULLABLE): species represented in the collection
-- **`sources`** (`RECORD`, REPEATED): sources of data for the collection
+- **`sources`** (`RECORD`, REPEATED): sources of data for the collection,
+  including the per-source provenance record naming who contributed the data to
+  IDC, who provided the source material, who performed de-identification, and
+  who produced the DICOM representation
 - **`supporting_data`** (`STRING`, NULLABLE): additional data supporting the
   collection available in IDC
 - **`program_id`** (`STRING`, NULLABLE): broader initiative/category under which
