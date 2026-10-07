@@ -34,7 +34,7 @@ dependencies = [
   'duckdb>=1.0.0,<2.0.0',
   "idc-index-data==25.0.0",
   "packaging",
-  "pandas<=2.2.4",
+  "pandas>=2.2.2,<4",
   "platformdirs",
   "psutil",
   "pyarrow",

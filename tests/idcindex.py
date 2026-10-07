@@ -284,7 +284,7 @@ class TestIDCClient(unittest.TestCase):
     def test_sql_query_all_indices(self):
         """Test that all discovered indices are queryable via sql_query after fetching."""
         # Iterate over all indices discovered in indices_overview
-        for index_name, info in self.client.indices_overview.items():
+        for index_name in self.client.indices_overview:
             with self.subTest(index_name=index_name):
                 # Fetch the index (handles both downloading and loading from disk)
                 self.client.fetch_index(index_name)
@@ -513,21 +513,19 @@ class TestIDCClient(unittest.TestCase):
 
     def test_cli_download(self):
         runner = CliRunner()
-        with runner.isolated_filesystem():
-            result = runner.invoke(
-                self.download,
-                # StudyInstanceUID:
-                ["1.3.6.1.4.1.14519.5.2.1.7695.1700.114861588187429958687900856462"],
-            )
-            assert len(os.listdir(Path.cwd())) != 0
-
-        with runner.isolated_filesystem():
-            result = runner.invoke(
-                self.download,
-                # crdc_series_uuid:
-                ["e5c5c71d-62c4-4c50-a8a9-b6799c7f8dea"],
-            )
-            assert len(os.listdir(Path.cwd())) != 0
+        for item_id in [
+            # StudyInstanceUID:
+            "1.3.6.1.4.1.14519.5.2.1.7695.1700.114861588187429958687900856462",
+            # crdc_series_uuid:
+            "e5c5c71d-62c4-4c50-a8a9-b6799c7f8dea",
+        ]:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                result = runner.invoke(
+                    self.download,
+                    [item_id, "--download-dir", str(Path(temp_dir).resolve())],
+                )
+                assert result.exit_code == 0
+                assert len(os.listdir(temp_dir)) != 0
 
     def test_prior_version_manifest(self):
         # Define the values for each optional parameter
@@ -580,7 +578,7 @@ class TestIDCClient(unittest.TestCase):
         """Test that discovered indices have descriptions from schema files."""
         i = IDCClient()
         # All indices should have descriptions
-        for index_name, index_info in i.indices_overview.items():
+        for index_info in i.indices_overview.values():
             assert "description" in index_info
             # Most indices should have non-empty descriptions from schema files
             # (though some may be empty if the schema fetch fails)
