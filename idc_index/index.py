@@ -412,6 +412,24 @@ class IDCClient:
 
         return str(download_dir.resolve())
 
+    @staticmethod
+    def _sql_string_literal(value):
+        """Return value as a single-quoted SQL string literal, escaping any single quotes.
+
+        This must only be applied where a value is embedded in an SQL query; the
+        unescaped value should be used everywhere else (e.g., file system paths).
+        """
+        return "'" + str(value).replace("'", "''") + "'"
+
+    @staticmethod
+    def _s5cmd_quoted_path(path):
+        """Return path as a double-quoted argument for an s5cmd manifest command.
+
+        s5cmd parses manifest lines following shell quoting rules, so backslashes
+        and double quotes in the path need to be escaped.
+        """
+        return '"' + str(path).replace("\\", "\\\\").replace('"', '\\"') + '"'
+
     def _validate_disk_space(self, download_dir, disk_size_needed):
         """Check if there is sufficient disk space for the download.
 
@@ -1041,7 +1059,7 @@ class IDCClient:
                 dirTemplate=dirTemplate, downloadDir=downloadDir
             )
         else:
-            hierarchy = f"CONCAT('{downloadDir}')"
+            hierarchy = f"CONCAT({self._sql_string_literal(downloadDir)})"
 
         # Extract s3 url and crdc_series_uuid from the manifest copy commands
         # Next, construct aws_series_url in the index and
@@ -1242,27 +1260,16 @@ class IDCClient:
         # Write a temporary manifest file
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as temp_manifest_file:
             if use_s5cmd_sync and len(os.listdir(downloadDir)) != 0:
-                if dirTemplate is not None:
-                    merged_df["s5cmd_cmd"] = (
-                        "sync "
-                        + merged_df["s3_url"]
-                        + " "
-                        + '"'
-                        + merged_df["path"]
-                        + '"'
-                    )
-                else:
-                    merged_df["s5cmd_cmd"] = (
-                        "sync " + merged_df["s3_url"] + " " + '"' + downloadDir + '"'
-                    )
-            elif dirTemplate is not None:
-                merged_df["s5cmd_cmd"] = (
-                    "cp " + merged_df["s3_url"] + " " + '"' + merged_df["path"] + '"'
-                )
+                operation = "sync"
             else:
-                merged_df["s5cmd_cmd"] = (
-                    "cp " + merged_df["s3_url"] + " " + '"' + downloadDir + '"'
-                )
+                operation = "cp"
+            if dirTemplate is not None:
+                destination = merged_df["path"].map(self._s5cmd_quoted_path)
+            else:
+                destination = self._s5cmd_quoted_path(downloadDir)
+            merged_df["s5cmd_cmd"] = (
+                operation + " " + merged_df["s3_url"] + " " + destination
+            )
 
             # Combine all commands into a single string with newline separators
             commands = "\n".join(merged_df["s5cmd_cmd"])
@@ -1319,18 +1326,18 @@ class IDCClient:
             logger.error("Valid separators: " + str(valid_separators))
             raise ValueError
 
-        concat_command = dirTemplate
-        for attr in valid_attributes:
-            concat_command = concat_command.replace("%" + attr, f"', {attr},'")
+        # split the template into attribute references and separator literals;
+        # the download directory is embedded as an escaped string literal, since
+        # it may contain characters (such as single quotes) that are special in SQL
+        attributes_pattern = "%(" + "|".join(valid_attributes) + ")"
+        concat_args = [IDCClient._sql_string_literal(f"{downloadDir}/")]
+        for i, token in enumerate(re.split(attributes_pattern, dirTemplate)):
+            if i % 2:
+                concat_args.append(token)
+            elif token:
+                concat_args.append(IDCClient._sql_string_literal(token))
 
-        # CONCAT command may contain empty strings, and they are not harmless -
-        # duckdb does not like them!
-        # NB: double-quotes are not allowed by duckdb!
-        concat_command = f"CONCAT('{downloadDir}/','" + concat_command + "')"
-        concat_command = concat_command.replace(",''", "")
-        concat_command = concat_command.replace("'',", "")
-        concat_command = concat_command.replace(",'',", "")
-        return concat_command
+        return "CONCAT(" + ", ".join(concat_args) + ")"
 
     @staticmethod
     def _track_download_progress(
@@ -1994,7 +2001,7 @@ Destination folder is not empty and sync size is less than total size.
                 dirTemplate=dirTemplate,
             )
         else:
-            hierarchy = f"CONCAT('{downloadDir}')"
+            hierarchy = f"CONCAT({self._sql_string_literal(downloadDir)})"
 
         if sopInstanceUID:
             sql = f"""
@@ -2054,22 +2061,16 @@ Destination folder is not empty and sync size is less than total size.
                 url_column = "series_aws_url"
 
             if use_s5cmd_sync and len(os.listdir(downloadDir)) != 0:
-                if dirTemplate is not None:
-                    result_df["s5cmd_cmd"] = (
-                        "sync " + result_df[url_column] + ' "' + result_df["path"] + '"'
-                    )
-                else:
-                    result_df["s5cmd_cmd"] = (
-                        "sync " + result_df[url_column] + ' "' + downloadDir + '"'
-                    )
-            elif dirTemplate is not None:
-                result_df["s5cmd_cmd"] = (
-                    "cp " + result_df[url_column] + ' "' + result_df["path"] + '"'
-                )
+                operation = "sync"
             else:
-                result_df["s5cmd_cmd"] = (
-                    "cp " + result_df[url_column] + ' "' + downloadDir + '"'
-                )
+                operation = "cp"
+            if dirTemplate is not None:
+                destination = result_df["path"].map(self._s5cmd_quoted_path)
+            else:
+                destination = self._s5cmd_quoted_path(downloadDir)
+            result_df["s5cmd_cmd"] = (
+                operation + " " + result_df[url_column] + " " + destination
+            )
 
             if source_bucket_location == "gcs":
                 self._replace_aws_with_gcp_buckets(result_df, "s5cmd_cmd")

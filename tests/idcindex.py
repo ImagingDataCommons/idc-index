@@ -239,6 +239,40 @@ class TestIDCClient(unittest.TestCase):
                     sum([len(files) for r, d, files in os.walk(temp_dir)]), 3
                 )
 
+    def test_download_to_dir_with_quotes(self):
+        # https://github.com/ImagingDataCommons/idc-index/issues/166
+        # double quotes are not allowed in file names on Windows
+        dir_name = "Queen's" if os.name == "nt" else 'Queen\'s "dir"'
+        dirTemplateValues = [None, IDCClient.DOWNLOAD_HIERARCHY_DEFAULT]
+        for template, use_s5cmd_sync in product(dirTemplateValues, [False, True]):
+            with tempfile.TemporaryDirectory() as temp_dir:
+                download_dir = os.path.join(temp_dir, dir_name)
+                # download twice when syncing, so that the destination is not empty
+                for _ in range(2 if use_s5cmd_sync else 1):
+                    self.client.download_from_selection(
+                        downloadDir=download_dir,
+                        studyInstanceUID="1.3.6.1.4.1.14519.5.2.1.7695.1700.114861588187429958687900856462",
+                        dirTemplate=template,
+                        use_s5cmd_sync=use_s5cmd_sync,
+                    )
+                self.assertEqual(
+                    sum([len(files) for r, d, files in os.walk(download_dir)]), 3
+                )
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                download_dir = os.path.join(temp_dir, dir_name)
+                for _ in range(2 if use_s5cmd_sync else 1):
+                    self.client.download_from_manifest(
+                        manifestFile="./study_manifest_aws.s5cmd",
+                        downloadDir=download_dir,
+                        validate_manifest=True,
+                        dirTemplate=template,
+                        use_s5cmd_sync=use_s5cmd_sync,
+                    )
+                self.assertEqual(
+                    sum([len(files) for r, d, files in os.walk(download_dir)]), 9
+                )
+
     def test_download_from_selection(self):
         # Define the values for each optional parameter
         dry_run_values = [True, False]
