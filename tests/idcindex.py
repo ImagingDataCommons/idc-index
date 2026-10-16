@@ -6,12 +6,13 @@ import tempfile
 import unittest
 from itertools import product
 from pathlib import Path
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
 import requests
 from click.testing import CliRunner
-from idc_index import IDCClient, cli
+from idc_index import IDCClient, IDCClientInsufficientDiskSpaceError, cli
 
 # Run tests using the following command from the root of the repository:
 # python -m unittest -vv tests/idcindex.py
@@ -280,6 +281,19 @@ class TestIDCClient(unittest.TestCase):
 
         self.assertIsNotNone(df)
 
+    def test_sql_query_all_indices(self):
+        """Test that all discovered indices are queryable via sql_query after fetching."""
+        # Iterate over all indices discovered in indices_overview
+        for index_name in self.client.indices_overview:
+            with self.subTest(index_name=index_name):
+                # Fetch the index (handles both downloading and loading from disk)
+                self.client.fetch_index(index_name)
+
+                # Verify the index is queryable
+                df = self.client.sql_query(f"SELECT COUNT(*) FROM {index_name}")
+                self.assertIsNotNone(df)
+                self.assertEqual(len(df), 1)  # COUNT(*) returns single row
+
     def test_download_from_aws_manifest(self):
         # Define the values for each optional parameter
         quiet_values = [True, False]
@@ -499,21 +513,19 @@ class TestIDCClient(unittest.TestCase):
 
     def test_cli_download(self):
         runner = CliRunner()
-        with runner.isolated_filesystem():
-            result = runner.invoke(
-                self.download,
-                # StudyInstanceUID:
-                ["1.3.6.1.4.1.14519.5.2.1.7695.1700.114861588187429958687900856462"],
-            )
-            assert len(os.listdir(Path.cwd())) != 0
-
-        with runner.isolated_filesystem():
-            result = runner.invoke(
-                self.download,
-                # crdc_series_uuid:
-                ["e5c5c71d-62c4-4c50-a8a9-b6799c7f8dea"],
-            )
-            assert len(os.listdir(Path.cwd())) != 0
+        for item_id in [
+            # StudyInstanceUID:
+            "1.3.6.1.4.1.14519.5.2.1.7695.1700.114861588187429958687900856462",
+            # crdc_series_uuid:
+            "e5c5c71d-62c4-4c50-a8a9-b6799c7f8dea",
+        ]:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                result = runner.invoke(
+                    self.download,
+                    [item_id, "--download-dir", str(Path(temp_dir).resolve())],
+                )
+                assert result.exit_code == 0
+                assert len(os.listdir(temp_dir)) != 0
 
     def test_prior_version_manifest(self):
         # Define the values for each optional parameter
@@ -562,10 +574,72 @@ class TestIDCClient(unittest.TestCase):
         i = IDCClient()
         assert i.indices_overview  # assert that dict was created
 
+    def test_discovered_indices_have_descriptions(self):
+        """Test that discovered indices have descriptions from schema files."""
+        i = IDCClient()
+        # All indices should have descriptions
+        for index_info in i.indices_overview.values():
+            assert "description" in index_info
+            # Most indices should have non-empty descriptions from schema files
+            # (though some may be empty if the schema fetch fails)
+
+    def test_get_index_schema(self):
+        """Test that get_index_schema returns valid schema data."""
+        i = IDCClient()
+        # Test getting schema for the main index (always available as bundled)
+        schema = i.get_index_schema("index")
+        assert schema is not None
+        assert "table_description" in schema
+        assert "columns" in schema
+        assert len(schema["columns"]) > 0
+
+        # Test getting schema for a remote index if available
+        # (may not be available if GitHub API is rate-limited)
+        if "sm_index" in i.indices_overview:
+            schema = i.get_index_schema("sm_index")
+            assert schema is not None
+            assert "table_description" in schema
+            assert "columns" in schema
+
+    def test_get_index_schema_caching(self):
+        """Test that schemas are available and consistent."""
+        i = IDCClient()
+        # First fetch should return schema from indices_overview
+        schema1 = i.get_index_schema("index")
+        assert schema1 is not None
+        assert "index" in i.indices_overview
+        assert "schema" in i.indices_overview["index"]
+
+        # Second fetch should return the same schema
+        schema2 = i.get_index_schema("index")
+        assert schema1 == schema2  # Same schema content
+
+        # Schema should remain consistent
+        schema3 = i.get_index_schema("index")
+        assert schema3 is not None
+        assert schema3 == schema1
+
+    def test_get_index_schema_invalid_index(self):
+        """Test that get_index_schema returns None for invalid index."""
+        i = IDCClient()
+        schema = i.get_index_schema("nonexistent_index")
+        assert schema is None
+
+    def test_refresh_indices_overview(self):
+        """Test that refresh_indices_overview updates the indices list."""
+        i = IDCClient()
+        original_count = len(i.indices_overview)
+        # Refresh should return updated indices
+        refreshed = i.refresh_indices_overview()
+        assert refreshed is not None
+        assert len(refreshed) == original_count
+
     def test_fetch_index(self):
         i = IDCClient()
-        assert i.indices_overview["sm_index"]["installed"] is False
+        # Check if sm_index is discovered
+        assert "sm_index" in i.indices_overview
         i.fetch_index("sm_index")
+        # After fetch_index, it should be installed
         assert i.indices_overview["sm_index"]["installed"] is True
         assert hasattr(i, "sm_index")
 
@@ -577,8 +651,10 @@ class TestIDCClient(unittest.TestCase):
 
     def test_clinical_index_install(self):
         i = IDCClient()
-        assert i.indices_overview["clinical_index"]["installed"] is False
+        # Check if clinical_index is discovered
+        assert "clinical_index" in i.indices_overview
         i.fetch_index("clinical_index")
+        # After fetch_index, it should be installed
         assert i.indices_overview["clinical_index"]["installed"] is True
         assert len(os.listdir(i.clinical_data_dir)) > 0
 
@@ -591,17 +667,169 @@ class TestIDCClient(unittest.TestCase):
             "1.3.6.1.4.1.14519.5.2.1.3671.4754.228015946741563785297552112143"
         )
         files_aws = c.get_series_file_URLs(seriesInstanceUID, "aws")
-        files_gcp = c.get_series_file_URLs(seriesInstanceUID, "gcp")
+        files_gcp = c.get_series_file_URLs(seriesInstanceUID, "gcs")
         assert len(files_aws) > 0
         assert len(files_gcp) == len(files_aws)
 
     def test_instance_file_URLs(self):
         c = IDCClient()
         sopInstanceUID = "1.3.6.1.4.1.5962.99.1.1900325859.924065538.1719887277027.10.0"
-        file_url = "s3://idc-open-data/763fe058-7d25-4ba7-9b29-fd3d6c41dc4b/210f0529-c767-4795-9acf-bad2f4877427.dcm"
+        # UUIDs below are release-specific: this series was revised in IDC v25,
+        # so both the series and instance UUIDs changed from the previous release.
+        file_url = "s3://idc-open-data/5b2656ac-ad4f-45a2-810e-359c40793e7d/2a7d102f-f199-4be0-a237-9bc485f0c89a.dcm"
         files_aws = c.get_instance_file_URL(sopInstanceUID, "aws")
-        files_gcp = c.get_instance_file_URL(sopInstanceUID, "gcp")
+        files_gcp = c.get_instance_file_URL(sopInstanceUID, "gcs")
         assert files_aws == files_gcp == file_url
+
+    def test_get_viewer_URL_with_series(self):
+        """Test get_viewer_URL with a seriesInstanceUID."""
+        c = IDCClient()
+        # Test with a regular series
+        seriesInstanceUID = (
+            "1.3.6.1.4.1.14519.5.2.1.3671.4754.228015946741563785297552112143"
+        )
+        viewer_url = c.get_viewer_URL(seriesInstanceUID=seriesInstanceUID)
+        self.assertIsNotNone(viewer_url)
+        # Should use OHIF v3 by default for non-SM series
+        self.assertIn("v3/viewer", viewer_url)
+        self.assertIn(f"initialSeriesInstanceUID={seriesInstanceUID}", viewer_url)
+
+    def test_get_viewer_URL_with_study(self):
+        """Test get_viewer_URL with a studyInstanceUID."""
+        c = IDCClient()
+        studyInstanceUID = (
+            "1.3.6.1.4.1.14519.5.2.1.6279.6001.175012972118199124641098335511"
+        )
+        viewer_url = c.get_viewer_URL(studyInstanceUID=studyInstanceUID)
+        self.assertIsNotNone(viewer_url)
+        self.assertIn(studyInstanceUID, viewer_url)
+
+    def test_get_viewer_URL_with_viewer_selector(self):
+        """Test get_viewer_URL with explicit viewer_selector."""
+        c = IDCClient()
+        seriesInstanceUID = (
+            "1.3.6.1.4.1.14519.5.2.1.3671.4754.228015946741563785297552112143"
+        )
+        # Test with OHIF v2
+        viewer_url = c.get_viewer_URL(
+            seriesInstanceUID=seriesInstanceUID, viewer_selector="ohif_v2"
+        )
+        self.assertIn("/viewer/", viewer_url)
+        self.assertNotIn("/v3/", viewer_url)
+
+        # Test with OHIF v3
+        viewer_url = c.get_viewer_URL(
+            seriesInstanceUID=seriesInstanceUID, viewer_selector="ohif_v3"
+        )
+        self.assertIn("/v3/viewer", viewer_url)
+        self.assertIn(f"initialSeriesInstanceUID={seriesInstanceUID}", viewer_url)
+
+        # Test with Slim
+        viewer_url = c.get_viewer_URL(
+            seriesInstanceUID=seriesInstanceUID, viewer_selector="slim"
+        )
+        self.assertIn("/slim/studies/", viewer_url)
+
+    def test_get_viewer_URL_ohif_v3_param(self):
+        """Test that OHIF v3 uses initialSeriesInstanceUID instead of SeriesInstanceUIDs."""
+        c = IDCClient()
+        seriesInstanceUID = (
+            "1.3.6.1.4.1.14519.5.2.1.3671.4754.228015946741563785297552112143"
+        )
+        viewer_url = c.get_viewer_URL(
+            seriesInstanceUID=seriesInstanceUID, viewer_selector="ohif_v3"
+        )
+        # Should use initialSeriesInstanceUID, not SeriesInstanceUIDs
+        self.assertIn("initialSeriesInstanceUID=", viewer_url)
+        self.assertNotIn("SeriesInstanceUIDs=", viewer_url)
+
+    def test_get_viewer_URL_derived_series_in_sm_study(self):
+        """Test that derived series (e.g., SEG) in SM studies use Slim viewer.
+
+        This tests the fix for the issue where derived series like SEG were not
+        properly detected as being part of a study with SM modality.
+        """
+        c = IDCClient()
+        # This is a SEG series in a study that also contains SM series
+        seg_seriesInstanceUID = (
+            "1.2.826.0.1.3680043.10.511.3.13030052368605737491286008410171774"
+        )
+
+        # Without specifying viewer_selector, it should detect SM in the study
+        # and use Slim viewer
+        viewer_url = c.get_viewer_URL(seriesInstanceUID=seg_seriesInstanceUID)
+        self.assertIsNotNone(viewer_url)
+        # Should use Slim viewer for studies with SM modality
+        self.assertIn("/slim/studies/", viewer_url)
+
+        # Verify the URL contains the SEG series
+        self.assertIn(seg_seriesInstanceUID, viewer_url)
+
+
+class TestInsufficientDiskSpaceException(unittest.TestCase):
+    def setUp(self):
+        self.client = IDCClient()
+
+    @staticmethod
+    def _create_mock_disk_usage(free_bytes=1000):
+        """Create a mock disk usage object with the specified free space."""
+        return type("DiskUsage", (), {"free": free_bytes})()
+
+    def test_exception_attributes(self):
+        """Test that the exception has the correct attributes."""
+        exc = IDCClientInsufficientDiskSpaceError(
+            disk_space_needed="10 GB",
+            disk_space_available="5 GB",
+        )
+        assert exc.disk_space_needed == "10 GB"
+        assert exc.disk_space_available == "5 GB"
+        assert "10 GB" in str(exc)
+        assert "5 GB" in str(exc)
+        assert "Insufficient disk space" in str(exc)
+
+    def test_exception_custom_message(self):
+        """Test that a custom message can be provided."""
+        custom_msg = "Custom error message"
+        exc = IDCClientInsufficientDiskSpaceError(
+            disk_space_needed="10 GB",
+            disk_space_available="5 GB",
+            message=custom_msg,
+        )
+        assert exc.message == custom_msg
+        assert str(exc) == custom_msg
+
+    def test_exception_raised_on_insufficient_space(self):
+        """Test that exception is raised when disk space is insufficient."""
+        # Mock the disk check to simulate insufficient space (1000 bytes = ~0.001 MB)
+        mock_usage = self._create_mock_disk_usage(free_bytes=1000)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch("psutil.disk_usage", return_value=mock_usage):
+                with pytest.raises(IDCClientInsufficientDiskSpaceError) as exc_info:
+                    self.client.download_from_selection(
+                        downloadDir=temp_dir,
+                        seriesInstanceUID="1.3.6.1.4.1.14519.5.2.1.7695.1700.153974929648969296590126728101",
+                    )
+                assert "Insufficient disk space" in str(exc_info.value)
+
+    def test_cli_handles_insufficient_space_gracefully(self):
+        """Test that CLI handles the exception without crashing."""
+        # Mock the disk check to simulate insufficient space (1000 bytes = ~0.001 MB)
+        mock_usage = self._create_mock_disk_usage(free_bytes=1000)
+        runner = CliRunner()
+        with patch("psutil.disk_usage", return_value=mock_usage):
+            result = runner.invoke(
+                cli.download_from_selection,
+                [
+                    "--download-dir",
+                    "/tmp",
+                    "--study-instance-uid",
+                    "1.3.6.1.4.1.14519.5.2.1.7695.1700.114861588187429958687900856462",
+                ],
+            )
+            # The CLI should not crash (exit code 0) - the error is logged
+            assert result.exit_code == 0
+            # The exception was raised, handled, and logged (not re-raised)
+            assert result.exception is None
 
 
 if __name__ == "__main__":
