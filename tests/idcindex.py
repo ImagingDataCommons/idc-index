@@ -239,12 +239,15 @@ class TestIDCClient(unittest.TestCase):
                     sum([len(files) for r, d, files in os.walk(temp_dir)]), 3
                 )
 
-    def test_download_to_dir_with_quote(self):
+    def test_download_to_dir_with_quotes(self):
         # https://github.com/ImagingDataCommons/idc-index/issues/166
+        # double quotes are not allowed in file names on Windows
+        dir_name = "Queen's" if os.name == "nt" else 'Queen\'s "dir"'
         dirTemplateValues = [None, IDCClient.DOWNLOAD_HIERARCHY_DEFAULT]
         for template, use_s5cmd_sync in product(dirTemplateValues, [False, True]):
             with tempfile.TemporaryDirectory() as temp_dir:
-                download_dir = os.path.join(temp_dir, "Queen's")
+                download_dir = os.path.join(temp_dir, dir_name)
+                # download twice when syncing, so that the destination is not empty
                 for _ in range(2 if use_s5cmd_sync else 1):
                     self.client.download_from_selection(
                         downloadDir=download_dir,
@@ -254,6 +257,20 @@ class TestIDCClient(unittest.TestCase):
                     )
                 self.assertEqual(
                     sum([len(files) for r, d, files in os.walk(download_dir)]), 3
+                )
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                download_dir = os.path.join(temp_dir, dir_name)
+                for _ in range(2 if use_s5cmd_sync else 1):
+                    self.client.download_from_manifest(
+                        manifestFile="./study_manifest_aws.s5cmd",
+                        downloadDir=download_dir,
+                        validate_manifest=True,
+                        dirTemplate=template,
+                        use_s5cmd_sync=use_s5cmd_sync,
+                    )
+                self.assertEqual(
+                    sum([len(files) for r, d, files in os.walk(download_dir)]), 9
                 )
 
     def test_download_from_selection(self):

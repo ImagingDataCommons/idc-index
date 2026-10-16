@@ -421,6 +421,15 @@ class IDCClient:
         """
         return "'" + str(value).replace("'", "''") + "'"
 
+    @staticmethod
+    def _s5cmd_quoted_path(path):
+        """Return path as a double-quoted argument for an s5cmd manifest command.
+
+        s5cmd parses manifest lines following shell quoting rules, so backslashes
+        and double quotes in the path need to be escaped.
+        """
+        return '"' + str(path).replace("\\", "\\\\").replace('"', '\\"') + '"'
+
     def _validate_disk_space(self, download_dir, disk_size_needed):
         """Check if there is sufficient disk space for the download.
 
@@ -1251,27 +1260,16 @@ class IDCClient:
         # Write a temporary manifest file
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as temp_manifest_file:
             if use_s5cmd_sync and len(os.listdir(downloadDir)) != 0:
-                if dirTemplate is not None:
-                    merged_df["s5cmd_cmd"] = (
-                        "sync "
-                        + merged_df["s3_url"]
-                        + " "
-                        + '"'
-                        + merged_df["path"]
-                        + '"'
-                    )
-                else:
-                    merged_df["s5cmd_cmd"] = (
-                        "sync " + merged_df["s3_url"] + " " + '"' + downloadDir + '"'
-                    )
-            elif dirTemplate is not None:
-                merged_df["s5cmd_cmd"] = (
-                    "cp " + merged_df["s3_url"] + " " + '"' + merged_df["path"] + '"'
-                )
+                operation = "sync"
             else:
-                merged_df["s5cmd_cmd"] = (
-                    "cp " + merged_df["s3_url"] + " " + '"' + downloadDir + '"'
-                )
+                operation = "cp"
+            if dirTemplate is not None:
+                destination = merged_df["path"].map(self._s5cmd_quoted_path)
+            else:
+                destination = self._s5cmd_quoted_path(downloadDir)
+            merged_df["s5cmd_cmd"] = (
+                operation + " " + merged_df["s3_url"] + " " + destination
+            )
 
             # Combine all commands into a single string with newline separators
             commands = "\n".join(merged_df["s5cmd_cmd"])
@@ -2063,22 +2061,16 @@ Destination folder is not empty and sync size is less than total size.
                 url_column = "series_aws_url"
 
             if use_s5cmd_sync and len(os.listdir(downloadDir)) != 0:
-                if dirTemplate is not None:
-                    result_df["s5cmd_cmd"] = (
-                        "sync " + result_df[url_column] + ' "' + result_df["path"] + '"'
-                    )
-                else:
-                    result_df["s5cmd_cmd"] = (
-                        "sync " + result_df[url_column] + ' "' + downloadDir + '"'
-                    )
-            elif dirTemplate is not None:
-                result_df["s5cmd_cmd"] = (
-                    "cp " + result_df[url_column] + ' "' + result_df["path"] + '"'
-                )
+                operation = "sync"
             else:
-                result_df["s5cmd_cmd"] = (
-                    "cp " + result_df[url_column] + ' "' + downloadDir + '"'
-                )
+                operation = "cp"
+            if dirTemplate is not None:
+                destination = result_df["path"].map(self._s5cmd_quoted_path)
+            else:
+                destination = self._s5cmd_quoted_path(downloadDir)
+            result_df["s5cmd_cmd"] = (
+                operation + " " + result_df[url_column] + " " + destination
+            )
 
             if source_bucket_location == "gcs":
                 self._replace_aws_with_gcp_buckets(result_df, "s5cmd_cmd")
