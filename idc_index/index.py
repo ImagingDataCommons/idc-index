@@ -410,9 +410,16 @@ class IDCClient:
         download_dir = Path(download_dir)
         download_dir.mkdir(parents=True, exist_ok=True)
 
-        download_dir = str(download_dir.resolve()).replace("'", "''")
+        return str(download_dir.resolve())
 
-        return download_dir
+    @staticmethod
+    def _sql_string_literal(value):
+        """Return value as a single-quoted SQL string literal, escaping any single quotes.
+
+        This must only be applied where a value is embedded in an SQL query; the
+        unescaped value should be used everywhere else (e.g., file system paths).
+        """
+        return "'" + str(value).replace("'", "''") + "'"
 
     def _validate_disk_space(self, download_dir, disk_size_needed):
         """Check if there is sufficient disk space for the download.
@@ -1043,7 +1050,7 @@ class IDCClient:
                 dirTemplate=dirTemplate, downloadDir=downloadDir
             )
         else:
-            hierarchy = f"CONCAT('{downloadDir}')"
+            hierarchy = f"CONCAT({self._sql_string_literal(downloadDir)})"
 
         # Extract s3 url and crdc_series_uuid from the manifest copy commands
         # Next, construct aws_series_url in the index and
@@ -1321,18 +1328,18 @@ class IDCClient:
             logger.error("Valid separators: " + str(valid_separators))
             raise ValueError
 
-        concat_command = dirTemplate
-        for attr in valid_attributes:
-            concat_command = concat_command.replace("%" + attr, f"', {attr},'")
+        # split the template into attribute references and separator literals;
+        # the download directory is embedded as an escaped string literal, since
+        # it may contain characters (such as single quotes) that are special in SQL
+        attributes_pattern = "%(" + "|".join(valid_attributes) + ")"
+        concat_args = [IDCClient._sql_string_literal(f"{downloadDir}/")]
+        for i, token in enumerate(re.split(attributes_pattern, dirTemplate)):
+            if i % 2:
+                concat_args.append(token)
+            elif token:
+                concat_args.append(IDCClient._sql_string_literal(token))
 
-        # CONCAT command may contain empty strings, and they are not harmless -
-        # duckdb does not like them!
-        # NB: double-quotes are not allowed by duckdb!
-        concat_command = f"CONCAT('{downloadDir}/','" + concat_command + "')"
-        concat_command = concat_command.replace(",''", "")
-        concat_command = concat_command.replace("'',", "")
-        concat_command = concat_command.replace(",'',", "")
-        return concat_command
+        return "CONCAT(" + ", ".join(concat_args) + ")"
 
     @staticmethod
     def _track_download_progress(
@@ -1996,7 +2003,7 @@ Destination folder is not empty and sync size is less than total size.
                 dirTemplate=dirTemplate,
             )
         else:
-            hierarchy = f"CONCAT('{downloadDir}')"
+            hierarchy = f"CONCAT({self._sql_string_literal(downloadDir)})"
 
         if sopInstanceUID:
             sql = f"""
