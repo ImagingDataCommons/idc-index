@@ -97,6 +97,19 @@ def set_log_level(log_level):
     help="crdc_series_uuid(s) to filter by.",
 )
 @click.option(
+    "--analysis-result-id",
+    type=str,
+    multiple=True,
+    default=None,
+    help="analysis_result_id(s) to filter by. Only the series that belong to the specified analysis result(s) will be downloaded. Cannot be combined with --analysis-results exclude.",
+)
+@click.option(
+    "--analysis-results",
+    type=click.Choice(["include", "exclude", "only"], case_sensitive=False),
+    default="include",
+    help="Controls whether the series that belong to analysis results are downloaded: 'include' - download both the original data and the analysis results (default), 'exclude' - download only the original data, 'only' - download only the analysis results.",
+)
+@click.option(
     "--quiet",
     type=bool,
     default=True,
@@ -136,6 +149,8 @@ def download_from_selection(
     study_instance_uid,
     series_instance_uid,
     crdc_series_uuid,
+    analysis_result_id,
+    analysis_results,
     quiet,
     show_progress_bar,
     use_s5cmd_sync,
@@ -146,6 +161,8 @@ def download_from_selection(
 
     The filtering will be applied in sequence by first selecting the collection(s), followed by
     patient(s), study(studies) and series. If no filtering is applied, all the files will be downloaded.
+    The analysis result filters (--analysis-result-id, --analysis-results) are applied on top
+    of the selection defined by the other filters.
     """
     # Set the logging level for the CLI module
     set_log_level(log_level)
@@ -178,12 +195,19 @@ def download_from_selection(
         if crdc_series_uuid
         else None
     )
+    analysis_result_id = (
+        [aid.strip() for aid in (",".join(analysis_result_id)).split(",")]
+        if analysis_result_id
+        else None
+    )
     logger_cli.debug("Inputs received from cli download:")
     logger_cli.debug(f"collection_id: {collection_id}")
     logger_cli.debug(f"patient_id: {patient_id}")
     logger_cli.debug(f"study_instance_uid: {study_instance_uid}")
     logger_cli.debug(f"series_instance_uid: {series_instance_uid}")
     logger_cli.debug(f"crdc_series_uuid: {crdc_series_uuid}")
+    logger_cli.debug(f"analysis_result_id: {analysis_result_id}")
+    logger_cli.debug(f"analysis_results: {analysis_results}")
     logger_cli.debug(f"dry_run: {dry_run}")
     logger_cli.debug(f"quiet: {quiet}")
     logger_cli.debug(f"show_progress_bar: {show_progress_bar}")
@@ -199,6 +223,8 @@ def download_from_selection(
             studyInstanceUID=study_instance_uid,
             seriesInstanceUID=series_instance_uid,
             crdc_series_uuid=crdc_series_uuid,
+            analysis_result_id=analysis_result_id,
+            analysis_results=analysis_results.lower(),
             quiet=quiet,
             show_progress_bar=show_progress_bar,
             use_s5cmd_sync=use_s5cmd_sync,
@@ -331,7 +357,7 @@ def download_from_manifest(
 def download(generic_argument, download_dir, dir_template, log_level):
     """Download content given the input parameter.
 
-    Determine whether the input parameter corresponds to a file manifest or a list of collection_id, PatientID, StudyInstanceUID, or SeriesInstanceUID values, and download the corresponding files into the current directory. Default parameters will be used for organizing the downloaded files into folder hierarchy. Use `download_from_selection()` and `download_from_manifest()` functions if granular control over the download process is needed.
+    Determine whether the input parameter corresponds to a file manifest or a list of collection_id, analysis_result_id, PatientID, StudyInstanceUID, or SeriesInstanceUID values, and download the corresponding files into the current directory. Default parameters will be used for organizing the downloaded files into folder hierarchy. Use `download_from_selection()` and `download_from_manifest()` functions if granular control over the download process is needed.
     """
     # Set the logging level for the CLI module
     set_log_level(log_level)
@@ -390,6 +416,9 @@ def download(generic_argument, download_dir, dir_template, log_level):
                 "collection_id", item_ids, download_dir, "collection_id"
             )
             matches_found += check_and_download(
+                "analysis_result_id", item_ids, download_dir, "analysis_result_id"
+            )
+            matches_found += check_and_download(
                 "PatientID", item_ids, download_dir, "patientId"
             )
             matches_found += check_and_download(
@@ -403,7 +432,7 @@ def download(generic_argument, download_dir, dir_template, log_level):
             )
             if not matches_found:
                 logger_cli.error(
-                    "None of the values passed matched any of the identifiers: collection_id, PatientID, StudyInstanceUID, SeriesInstanceUID, crdc_series_uuid."
+                    "None of the values passed matched any of the identifiers: collection_id, analysis_result_id, PatientID, StudyInstanceUID, SeriesInstanceUID, crdc_series_uuid."
                 )
     except IDCClientInsufficientDiskSpaceError as e:
         logger_cli.error(e.message)

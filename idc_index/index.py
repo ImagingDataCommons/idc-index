@@ -370,6 +370,52 @@ class IDCClient:
 
         return None
 
+    def _filter_by_analysis_results(self, df, analysis_result_id, analysis_results):
+        """Filter the selection by analysis results membership.
+
+        The membership of the series in the analysis results is established using the
+        main index, matching on SeriesInstanceUID, since not all of the indices
+        used for the download include the analysis_result_id column.
+        """
+        if analysis_result_id is not None:
+            if not isinstance(analysis_result_id, str) and not isinstance(
+                analysis_result_id, list
+            ):
+                raise TypeError(
+                    "analysis_result_id must be a string or list of strings"
+                )
+            if analysis_results == "exclude":
+                raise ValueError(
+                    "analysis_result_id cannot be used when analysis_results is 'exclude'"
+                )
+            analysis_series = IDCClient._filter_dataframe_by_id(
+                "analysis_result_id", self.index, analysis_result_id
+            )["SeriesInstanceUID"]
+            df = df[df["SeriesInstanceUID"].isin(analysis_series)]
+            if df.empty:
+                error_message = f"No series from analysis_result_id {analysis_result_id} found in the selection."
+                raise ValueError(error_message)
+
+        if analysis_results in ("exclude", "only"):
+            analysis_series = self.index.loc[
+                self.index["analysis_result_id"].notna(), "SeriesInstanceUID"
+            ]
+            is_analysis_series = df["SeriesInstanceUID"].isin(analysis_series)
+            if analysis_results == "exclude":
+                df = df[~is_analysis_series]
+                if df.empty:
+                    raise ValueError(
+                        "All series in the selection belong to analysis results, nothing left to download with analysis_results='exclude'."
+                    )
+            else:
+                df = df[is_analysis_series]
+                if df.empty:
+                    raise ValueError(
+                        "None of the series in the selection belong to analysis results, nothing left to download with analysis_results='only'."
+                    )
+
+        return df
+
     @staticmethod
     def _filter_by_collection_id(df_index, collection_id):
         return IDCClient._filter_dataframe_by_id(
@@ -1888,9 +1934,18 @@ Destination folder is not empty and sync size is less than total size.
         use_s5cmd_sync=False,
         dirTemplate=DOWNLOAD_HIERARCHY_DEFAULT,
         source_bucket_location="aws",
+        analysis_result_id=None,
+        analysis_results="include",
     ):
         """Download the files corresponding to the selection. The filtering will be applied in sequence (but does it matter?) by first selecting the collection(s), followed by
         patient(s), study(studies) and series. If no filtering is applied, all the files will be downloaded.
+
+        analysis_result_id and analysis_results are applied on top of the selection defined by the other
+        filters. As an example, collection_id="nlst" with analysis_results="exclude" will download only the
+        original images from the NLST collection, collection_id="nlst" with analysis_results="only" will download
+        only the series from all of the analysis results that belong to the NLST collection, and collection_id="nlst"
+        with analysis_result_id="nlst_sybil" will download only the series from the nlst_sybil analysis result
+        that belong to the NLST collection.
 
         Args:
             downloadDir: string containing the path to the directory to download the files to
@@ -1906,9 +1961,16 @@ Destination folder is not empty and sync size is less than total size.
             use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
             dirTemplate (str): Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
             source_bucket_location: string selecting the provider of the bucket from which the files will be downloaded, allowing to select between Google ('gcs') and AWS ('aws') storage. Defaults to 'aws'.
+            analysis_result_id: string or list of strings containing the values of analysis_result_id to filter by. Only the series that belong to the specified analysis result(s) will be downloaded. Cannot be used together with analysis_results="exclude".
+            analysis_results (str): Controls whether the series that belong to the analysis results are downloaded. Must be one of the following: "include" - download both the original data and the analysis results (default), "exclude" - download only the original data, "only" - download only the analysis results.
         """
         if source_bucket_location not in ["aws", "gcs"]:
             raise ValueError("source_bucket_location must be either 'aws' or 'gcs'")
+
+        if analysis_results not in ["include", "exclude", "only"]:
+            raise ValueError(
+                "analysis_results must be one of 'include', 'exclude' or 'only'"
+            )
 
         downloadDir = self._check_create_directory(downloadDir)
 
@@ -1973,6 +2035,15 @@ Destination folder is not empty and sync size is less than total size.
             sopInstanceUID=sopInstanceUID,
             crdc_series_uuid=crdc_series_uuid,
         )
+
+        if analysis_result_id is not None or analysis_results != "include":
+            if result_df is None:
+                result_df = download_df
+            result_df = self._filter_by_analysis_results(
+                result_df,
+                analysis_result_id=analysis_result_id,
+                analysis_results=analysis_results,
+            )
 
         if not sopInstanceUID:
             total_size = round(result_df["series_size_MB"].sum(), 2)
@@ -2280,6 +2351,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         use_s5cmd_sync=False,
         dirTemplate=DOWNLOAD_HIERARCHY_DEFAULT,
         source_bucket_location="aws",
+        analysis_results="include",
     ) -> None:
         """Download the files corresponding to the studyInstanceUID to the specified directory.
 
@@ -2292,6 +2364,7 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
             use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
             dirTemplate (str): Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
             source_bucket_location: string selecting the provider of the bucket from which the files will be downloaded, allowing to select between Google ('gcs') and AWS ('aws') storage. Defaults to 'aws'.
+            analysis_results (str): Controls whether the series that belong to the analysis results are downloaded. Must be one of the following: "include" - download both the original data and the analysis results (default), "exclude" - download only the original data, "only" - download only the analysis results.
 
         Returns: None
 
@@ -2302,6 +2375,47 @@ Temporary download manifest is generated and is passed to self._s5cmd_run
         self.download_from_selection(
             downloadDir,
             collection_id=collection_id,
+            dry_run=dry_run,
+            quiet=quiet,
+            show_progress_bar=show_progress_bar,
+            use_s5cmd_sync=use_s5cmd_sync,
+            dirTemplate=dirTemplate,
+            source_bucket_location=source_bucket_location,
+            analysis_results=analysis_results,
+        )
+
+    def download_analysis_result(
+        self,
+        analysis_result_id,
+        downloadDir,
+        dry_run=False,
+        quiet=True,
+        show_progress_bar=True,
+        use_s5cmd_sync=False,
+        dirTemplate=DOWNLOAD_HIERARCHY_DEFAULT,
+        source_bucket_location="aws",
+    ) -> None:
+        """Download the files corresponding to the analysis_result_id to the specified directory.
+
+        Args:
+            analysis_result_id: string or list of strings containing the values of analysis_result_id to filter by
+            downloadDir: string containing the path to the directory to download the files to
+            dry_run: calculates the size of the cohort but download does not start
+            quiet (bool): If True, suppresses the output of the subprocess. Defaults to True.
+            show_progress_bar (bool): If True, tracks the progress of download
+            use_s5cmd_sync (bool): If True, will use s5cmd sync operation instead of cp when downloadDirectory is not empty; this can significantly improve the download speed if the content is partially downloaded
+            dirTemplate (str): Download directory hierarchy template. This variable defines the folder hierarchy for the organizing the downloaded files in downloadDirectory. Defaults to index.DOWNLOAD_HIERARCHY_DEFAULT set to %collection_id/%PatientID/%StudyInstanceUID/%Modality_%SeriesInstanceUID. The template string can be built using a combination of selected metadata attributes (PatientID, collection_id, Modality, StudyInstanceUID, SeriesInstanceUID) that must be prefixed by '%'. The following special characters can be used as separators: '-' (hyphen), '/' (slash for subdirectories), '_' (underscore). When set to None all files will be downloaded to the download directory with no subdirectories.
+            source_bucket_location: string selecting the provider of the bucket from which the files will be downloaded, allowing to select between Google ('gcs') and AWS ('aws') storage. Defaults to 'aws'.
+
+        Returns: None
+
+        Raises:
+            TypeError: If analysis_result_id(s) passed is(are) not a string or list
+
+        """
+        self.download_from_selection(
+            downloadDir,
+            analysis_result_id=analysis_result_id,
             dry_run=dry_run,
             quiet=quiet,
             show_progress_bar=show_progress_bar,
