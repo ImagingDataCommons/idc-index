@@ -496,6 +496,177 @@ class TestIDCClient(unittest.TestCase):
             )
             assert len(os.listdir(temp_dir)) != 0
 
+    def _get_selection_manifest_urls(self, **kwargs):
+        # run download_from_selection without downloading, return the URLs
+        # from the generated s5cmd manifest
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            patch.object(IDCClient, "_s5cmd_run") as mock_s5cmd_run,
+        ):
+            self.client.download_from_selection(downloadDir=temp_dir, **kwargs)
+            manifest_file = mock_s5cmd_run.call_args.kwargs["manifest_file"]
+            lines = manifest_file.read_text().splitlines()
+            manifest_file.unlink()
+        return {line.split(" ")[1] for line in lines}
+
+    def _get_series_urls(self, sql_where):
+        df = self.client.sql_query(
+            f"SELECT series_aws_url FROM index WHERE {sql_where}"
+        )
+        return set(df["series_aws_url"])
+
+    def test_download_from_selection_analysis_results(self):
+        # rider_pilot contains both the original images and the qiba_volct_1b analysis result
+        urls = self._get_selection_manifest_urls(collection_id="rider_pilot")
+        assert urls == self._get_series_urls("collection_id = 'rider_pilot'")
+
+        urls = self._get_selection_manifest_urls(
+            collection_id="rider_pilot", analysis_results="exclude"
+        )
+        assert urls == self._get_series_urls(
+            "collection_id = 'rider_pilot' AND analysis_result_id IS NULL"
+        )
+
+        urls = self._get_selection_manifest_urls(
+            collection_id="rider_pilot", analysis_results="only"
+        )
+        assert urls == self._get_series_urls(
+            "collection_id = 'rider_pilot' AND analysis_result_id IS NOT NULL"
+        )
+
+        urls = self._get_selection_manifest_urls(analysis_result_id="qiba_volct_1b")
+        assert urls == self._get_series_urls("analysis_result_id = 'qiba_volct_1b'")
+
+        # analysis result spanning multiple collections, restricted to one collection
+        urls = self._get_selection_manifest_urls(
+            collection_id="breast_diagnosis",
+            analysis_result_id=["dicom_sr_breast_clinical"],
+        )
+        assert urls == self._get_series_urls(
+            "collection_id = 'breast_diagnosis' AND analysis_result_id = 'dicom_sr_breast_clinical'"
+        )
+
+    def test_download_from_selection_analysis_results_errors(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with pytest.raises(ValueError, match="analysis_results"):
+                self.client.download_from_selection(
+                    downloadDir=temp_dir,
+                    analysis_result_id="qiba_volct_1b",
+                    analysis_results="exclude",
+                )
+            with pytest.raises(ValueError, match="analysis_results must be one of"):
+                self.client.download_from_selection(
+                    downloadDir=temp_dir,
+                    collection_id="rider_pilot",
+                    analysis_results="bogus",
+                )
+            # qin_prostate_repeatability does not have any analysis results
+            with pytest.raises(ValueError, match="None of the series"):
+                self.client.download_from_selection(
+                    downloadDir=temp_dir,
+                    collection_id="qin_prostate_repeatability",
+                    analysis_results="only",
+                )
+            with pytest.raises(ValueError, match="No data found"):
+                self.client.download_from_selection(
+                    downloadDir=temp_dir, analysis_result_id="bogus_analysis_result"
+                )
+            # analysis result does not overlap with the selected collection
+            with pytest.raises(ValueError, match="No series from analysis_result_id"):
+                self.client.download_from_selection(
+                    downloadDir=temp_dir,
+                    collection_id="rider_pilot",
+                    analysis_result_id="prostatex_targets",
+                )
+            with pytest.raises(TypeError):
+                self.client.download_from_selection(
+                    downloadDir=temp_dir, analysis_result_id=123
+                )
+
+    def test_download_analysis_result(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            self.client.download_analysis_result(
+                analysis_result_id="prostatex_targets", downloadDir=temp_dir
+            )
+            expected_count = self.client.sql_query(
+                "SELECT SUM(instanceCount) AS n FROM index WHERE analysis_result_id = 'prostatex_targets'"
+            )["n"][0]
+            assert (
+                sum([len(files) for r, d, files in os.walk(temp_dir)]) == expected_count
+            )
+
+    def test_download_collection_without_analysis_results(self):
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            patch.object(IDCClient, "_s5cmd_run") as mock_s5cmd_run,
+        ):
+            self.client.download_collection(
+                "rider_pilot", temp_dir, analysis_results="exclude"
+            )
+            manifest_file = mock_s5cmd_run.call_args.kwargs["manifest_file"]
+            urls = {
+                line.split(" ")[1] for line in manifest_file.read_text().splitlines()
+            }
+            manifest_file.unlink()
+        assert urls == self._get_series_urls(
+            "collection_id = 'rider_pilot' AND analysis_result_id IS NULL"
+        )
+
+    def test_cli_download_from_selection_analysis_results(self):
+        runner = CliRunner()
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            patch.object(IDCClient, "download_from_selection") as mock_download,
+        ):
+            result = runner.invoke(
+                self.download_from_selection,
+                [
+                    "--download-dir",
+                    temp_dir,
+                    "--collection-id",
+                    "rider_pilot",
+                    "--analysis-results",
+                    "exclude",
+                ],
+            )
+            assert result.exit_code == 0
+            kwargs = mock_download.call_args.kwargs
+            assert kwargs["collection_id"] == ["rider_pilot"]
+            assert kwargs["analysis_results"] == "exclude"
+            assert kwargs["analysis_result_id"] is None
+
+            result = runner.invoke(
+                self.download_from_selection,
+                [
+                    "--download-dir",
+                    temp_dir,
+                    "--analysis-result-id",
+                    "qiba_volct_1b,prostatex_targets",
+                ],
+            )
+            assert result.exit_code == 0
+            kwargs = mock_download.call_args.kwargs
+            assert kwargs["analysis_result_id"] == [
+                "qiba_volct_1b",
+                "prostatex_targets",
+            ]
+            assert kwargs["analysis_results"] == "include"
+
+    def test_cli_download_analysis_result(self):
+        runner = CliRunner()
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            patch.object(IDCClient, "download_from_selection") as mock_download,
+        ):
+            result = runner.invoke(
+                self.download, ["prostatex_targets", "--download-dir", temp_dir]
+            )
+            assert result.exit_code == 0
+            assert mock_download.call_count == 1
+            assert mock_download.call_args.kwargs["analysis_result_id"] == [
+                "prostatex_targets"
+            ]
+
     def test_cli_download_from_manifest(self):
         runner = CliRunner()
         with tempfile.TemporaryDirectory() as temp_dir:
