@@ -2,7 +2,7 @@
 
 This page provides a comprehensive reference for all index tables available in
 `idc-index`. The documentation is automatically generated from the schemas
-provided by `idc-index-data` (version 25.0.2).
+provided by `idc-index-data` (version 25.0.3).
 
 > **Note:** Column descriptions are sourced directly from the `idc-index-data`
 > package schemas. If you notice any missing or incorrect descriptions, please
@@ -189,9 +189,12 @@ AWS S3 bucket and URL to download the series.
 
 - **`collection_id`** (`STRING`, NULLABLE): short string with the identifier of
   the collection the series belongs to
-- **`analysis_result_id`** (`STRING`, NULLABLE): this string is not empty if the
-  specific series is part of an analysis results collection; analysis results
-  can be added to a given collection over time
+- **`analysis_result_id`** (`STRING`, NULLABLE): identifier of the analysis
+  results collection the series belongs to (see analysis_results_index), or NULL
+  if the series is original data; select original data only with
+  analysis_result_id IS NULL. Analysis result series share the collection_id of
+  the collection they analyze, so a filter on collection_id alone returns both;
+  analysis results can be added to a given collection over time
 - **`PatientID`** (`STRING`, NULLABLE): identifier of the patient within the
   collection (DICOM attribute)
 - **`SeriesInstanceUID`** (`STRING`, NULLABLE):
@@ -641,7 +644,8 @@ a series and are aggregated with ANY_VALUE.
   defined in DICOM SeriesType attribute, encoded as a slash-separated string of
   the two type values (e.g., STATIC/IMAGE, DYNAMIC/IMAGE, GATED/IMAGE, WHOLE
   BODY/IMAGE); constant across instances — aggregated with
-  ANY_VALUE(ARRAY_TO_STRING(SeriesType, '/'))
+  ANY_VALUE(NULLIF(ARRAY_TO_STRING(SeriesType, '/'), '')); NULL when SeriesType
+  is absent or empty
 - **`Units`** (`STRING`, NULLABLE): pixel value units as defined in DICOM Units
   attribute (e.g., BQML = Bq/mL, CNTS = counts, CPS = counts/s, GML = g/mL);
   constant across instances — aggregated with ANY_VALUE
@@ -762,13 +766,17 @@ pair with the first value in AlgorithmName.
   in DICOM SegmentationType attribute
 - **`total_segments`** (`INTEGER`, NULLABLE): Number of segments in the
   segmentation series obtained by counting distinct DICOM SegmentNumber values
-  in the DICOM SegmentatationSequence
+  in the DICOM SegmentSequence
 - **`AlgorithmType`** (`STRING`, NULLABLE): Segmentation algorithm type as
   available in DICOM SegmentAlgorithmType
 - **`AlgorithmName`** (`STRING`, NULLABLE): Segmentation algorithm name as
   available in DICOM SegmentAlgorithmName
 - **`segmented_SeriesInstanceUID`** (`STRING`, NULLABLE): SeriesInstanceUID of
-  the referenced image series that the segmentation applies to
+  the referenced image series that the segmentation applies to, resolved from
+  the first instance referenced in ReferencedSeriesSequence,
+  ReferencedImageSequence or SourceImageSequence; NULL when that instance is not
+  in IDC or the segmentation references none, so exclude NULLs before NOT IN (or
+  use a LEFT JOIN ... IS NULL anti-join)
 - **`SegmentedPropertyCategory_CodeMeanings`** (`STRING`, REPEATED): Array of
   distinct CodeMeaning values from SegmentedPropertyCategoryCodeSequence across
   all segments in the series, representing the broad category of the segmented
