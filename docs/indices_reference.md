@@ -2,7 +2,7 @@
 
 This page provides a comprehensive reference for all index tables available in
 `idc-index`. The documentation is automatically generated from the schemas
-provided by `idc-index-data` (version 25.0.3).
+provided by `idc-index-data` (version 25.0.4).
 
 > **Note:** Column descriptions are sourced directly from the `idc-index-data`
 > package schemas. If you notice any missing or incorrect descriptions, please
@@ -197,7 +197,8 @@ AWS S3 bucket and URL to download the series.
   analysis results can be added to a given collection over time
 - **`PatientID`** (`STRING`, NULLABLE): identifier of the patient within the
   collection (DICOM attribute)
-- **`SeriesInstanceUID`** (`STRING`, NULLABLE):
+- **`SeriesInstanceUID`** (`STRING`, NULLABLE): unique identifier of the DICOM
+  series (DICOM attribute)
 - **`StudyInstanceUID`** (`STRING`, NULLABLE): unique identifier of the DICOM
   study (DICOM attribute)
 - **`source_DOI`** (`STRING`, NULLABLE): Digital Object Identifier of the
@@ -333,13 +334,23 @@ Note: ANN series are assumed to contain a single instance.
 
 ### Columns
 
-- **`SeriesInstanceUID`** (`STRING`, NULLABLE):
-- **`AnnotationGroupNumber`** (`INTEGER`, NULLABLE):
-- **`AnnotationGroupUID`** (`STRING`, NULLABLE):
-- **`AnnotationGroupLabel`** (`STRING`, NULLABLE):
-- **`AnnotationGroupGenerationType`** (`STRING`, NULLABLE):
-- **`NumberOfAnnotations`** (`INTEGER`, NULLABLE):
-- **`GraphicType`** (`STRING`, NULLABLE):
+- **`SeriesInstanceUID`** (`STRING`, NULLABLE): DICOM SeriesInstanceUID for
+  joining with ann_index and idc_index
+- **`AnnotationGroupNumber`** (`INTEGER`, NULLABLE): sequential number
+  identifying this annotation group as defined in DICOM AnnotationGroupNumber
+  attribute
+- **`AnnotationGroupUID`** (`STRING`, NULLABLE): unique identifier for this
+  annotation group as defined in DICOM AnnotationGroupUID attribute
+- **`AnnotationGroupLabel`** (`STRING`, NULLABLE): human-readable label as
+  defined in DICOM AnnotationGroupLabel attribute
+- **`AnnotationGroupGenerationType`** (`STRING`, NULLABLE): how the annotations
+  were generated (MANUAL or AUTOMATIC) as defined in DICOM
+  AnnotationGroupGenerationType attribute
+- **`NumberOfAnnotations`** (`INTEGER`, NULLABLE): total number of annotations
+  in this group as defined in DICOM NumberOfAnnotations attribute
+- **`GraphicType`** (`STRING`, NULLABLE): type of graphic used for annotations
+  (POINT, POLYLINE, POLYGON, ELLIPSE, RECTANGLE) as defined in DICOM GraphicType
+  attribute
 - **`AnnotationPropertyCategory_code`** (`STRING`, NULLABLE): annotation
   property category code tuple (CodingSchemeDesignator:CodeValue) from DICOM
   AnnotationPropertyCategoryCodeSequence
@@ -369,8 +380,10 @@ instance.
 
 ### Columns
 
-- **`SeriesInstanceUID`** (`STRING`, NULLABLE):
-- **`AnnotationCoordinateType`** (`STRING`, NULLABLE):
+- **`SeriesInstanceUID`** (`STRING`, NULLABLE): DICOM SeriesInstanceUID
+  identifier of the annotation series
+- **`AnnotationCoordinateType`** (`STRING`, NULLABLE): coordinate type of the
+  annotations (2D or 3D) as defined in DICOM AnnotationCoordinateType attribute
 - **`referenced_SeriesInstanceUID`** (`STRING`, NULLABLE): SeriesInstanceUID of
   the referenced image series that the annotations apply to
 
@@ -391,9 +404,10 @@ table can be retrieved using idc-index `get_clinical_table()` function.
   column is stored
 - **`short_table_name`** (`STRING`, NULLABLE): short name of the table in which
   the column is stored
-- **`column`** (`STRING`, NULLABLE):
+- **`column`** (`STRING`, NULLABLE): name of the column in which the value is
+  stored
 - **`column_label`** (`STRING`, NULLABLE): human readable name of the column
-- **`values`** (`RECORD`, REPEATED):
+- **`values`** (`RECORD`, REPEATED): values encountered in the column
 
 ## `collections_index`
 
@@ -475,8 +489,12 @@ aggregated with ANY_VALUE (one representative instance).
   the column direction in mm, derived from DICOM PixelSpacing[1]; a subset of CT
   series have anisotropic spacing where this differs from PixelSpacing_row_mm;
   aggregated with ANY_VALUE — constant across instances within a series
-- **`Rows`** (`INTEGER`, NULLABLE):
-- **`Columns`** (`INTEGER`, NULLABLE):
+- **`Rows`** (`INTEGER`, NULLABLE): number of pixel rows per image slice as
+  defined in DICOM Rows attribute; aggregated with ANY_VALUE — constant across
+  instances within a series
+- **`Columns`** (`INTEGER`, NULLABLE): number of pixel columns per image slice
+  as defined in DICOM Columns attribute; aggregated with ANY_VALUE — constant
+  across instances within a series
 - **`SliceThickness`** (`FLOAT`, NULLABLE): nominal reconstructed slice
   thickness in mm as defined in DICOM SliceThickness attribute; aggregated with
   ANY_VALUE — constant across instances within a series
@@ -598,8 +616,12 @@ representative instance).
   the column direction in mm, derived from DICOM PixelSpacing[1]; MR pixel
   spacing is isotropic in almost all series in IDC; aggregated with ANY_VALUE —
   constant across instances within a series
-- **`Rows`** (`INTEGER`, NULLABLE):
-- **`Columns`** (`INTEGER`, NULLABLE):
+- **`Rows`** (`INTEGER`, NULLABLE): number of pixel rows per image slice as
+  defined in DICOM Rows attribute; aggregated with ANY_VALUE — constant across
+  instances within a series
+- **`Columns`** (`INTEGER`, NULLABLE): number of pixel columns per image slice
+  as defined in DICOM Columns attribute; aggregated with ANY_VALUE — constant
+  across instances within a series
 - **`SliceThickness`** (`FLOAT`, NULLABLE): nominal slice thickness in mm as
   defined in DICOM SliceThickness attribute; aggregated with ANY_VALUE —
   constant across instances within a series
@@ -703,8 +725,12 @@ a series and are aggregated with ANY_VALUE.
   the column direction in mm, derived from DICOM PixelSpacing[1]; PET pixel
   spacing is isotropic in almost all series in IDC; aggregated with ANY_VALUE —
   constant across instances within a series
-- **`Rows`** (`INTEGER`, NULLABLE):
-- **`Columns`** (`INTEGER`, NULLABLE):
+- **`Rows`** (`INTEGER`, NULLABLE): number of pixel rows per image slice as
+  defined in DICOM Rows attribute; constant across instances — aggregated with
+  ANY_VALUE
+- **`Columns`** (`INTEGER`, NULLABLE): number of pixel columns per image slice
+  as defined in DICOM Columns attribute; constant across instances — aggregated
+  with ANY_VALUE
 - **`SliceThickness`** (`FLOAT`, NULLABLE): nominal slice thickness in mm as
   defined in DICOM SliceThickness attribute; constant across instances —
   aggregated with ANY_VALUE
@@ -803,7 +829,8 @@ index table using the `SeriesInstanceUID` column.
 
 ### Columns
 
-- **`SeriesInstanceUID`** (`STRING`, NULLABLE):
+- **`SeriesInstanceUID`** (`STRING`, NULLABLE): DICOM SeriesInstanceUID
+  identifier of the series
 - **`ContainerIdentifier`** (`STRING`, NULLABLE): identifier of the container
   (e.g., glass slide) holding the specimen from DICOM ContainerIdentifier
   attribute
