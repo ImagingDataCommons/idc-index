@@ -2,7 +2,7 @@
 
 This page provides a comprehensive reference for all index tables available in
 `idc-index`. The documentation is automatically generated from the schemas
-provided by `idc-index-data` (version 25.0.1).
+provided by `idc-index-data` (version 25.0.2).
 
 > **Note:** Column descriptions are sourced directly from the `idc-index-data`
 > package schemas. If you notice any missing or incorrect descriptions, please
@@ -906,13 +906,20 @@ columns) with the corresponding release timestamps.
 
 This table contains one row per DICOM series from IDC for single-frame CT, MR,
 and PT SOP classes, with boolean columns characterizing the geometric properties
-of each series. The checks determine whether the series forms a regularly-spaced
-rectilinear 3D volume (consistent orientation, spacing, dimensions, and slice
-positions). Series that do not pass all checks may still be usable with
-additional processing such as resampling or acquisition geometry correction
-(e.g., for variable-spacing or gantry-tilted acquisitions). Oblique-aware: uses
-projection-based slice position computation, which handles gantry-tilted CT,
-oblique MR, and axial PET uniformly.
+of each series, and — for the series that pass every check — the values needed
+to place that volume in the patient coordinate system that are not published
+elsewhere: the origin, the orientation, and the spacing between slice planes
+(which is not the same as SliceThickness). The in-plane spacing and the image
+dimensions come from ct_index, mr_index or pt_index, joined on
+SeriesInstanceUID. The number of slices is the number of in-scope image
+instances, which equals idc_index.instanceCount except for a few series that
+also carry instances of another SOP class. The checks determine whether the
+series forms a regularly-spaced rectilinear 3D volume (consistent orientation,
+spacing, dimensions, and slice positions). Series that do not pass all checks
+may still be usable with additional processing such as resampling or acquisition
+geometry correction (e.g., for variable-spacing or gantry-tilted acquisitions).
+Oblique-aware: uses projection-based slice position computation, which handles
+gantry-tilted CT, oblique MR, and axial PET uniformly.
 
 ### Columns
 
@@ -946,3 +953,16 @@ oblique MR, and axial PET uniformly.
 - **`regularly_spaced_3d_volume`** (`BOOLEAN`, NULLABLE): TRUE if all individual
   checks pass, indicating the series forms a regularly-spaced rectilinear 3D
   volume that can be loaded directly into a 3D array without resampling
+- **`origin_patient`** (`FLOAT`, REPEATED): ImagePositionPatient (x, y, z in mm)
+  of the slice at the minimum slice position: the origin of the volume, i.e. the
+  centre of voxel (0, 0, 0); NULL unless regularly_spaced_3d_volume
+- **`ImageOrientationPatient`** (`FLOAT`, REPEATED): ImageOrientationPatient of
+  that same slice: six direction cosines, the first triplet along increasing
+  column index and the second along increasing row index; NULL unless
+  regularly_spaced_3d_volume
+- **`slice_spacing_mm`** (`FLOAT`, NULLABLE): distance in mm between adjacent
+  slice planes along the slice normal, computed as the first-to-last slice
+  position divided by (number of slices - 1); this is the spacing of the
+  reconstructed volume and is NOT the SliceThickness attribute, which is the
+  slab thickness and differs whenever slices overlap or leave a gap; NULL unless
+  regularly_spaced_3d_volume
