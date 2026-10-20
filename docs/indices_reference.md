@@ -2,7 +2,7 @@
 
 This page provides a comprehensive reference for all index tables available in
 `idc-index`. The documentation is automatically generated from the schemas
-provided by `idc-index-data` (version 25.0.4).
+provided by `idc-index-data` (version 25.0.5).
 
 > **Note:** Column descriptions are sourced directly from the `idc-index-data`
 > package schemas. If you notice any missing or incorrect descriptions, please
@@ -267,20 +267,50 @@ AWS S3 bucket and URL to download the series.
 
 ## `prior_versions_index`
 
+Versions of IDC series that an earlier IDC release served and the current
+release no longer serves, each with the range of releases that served it. A
+version is identified by crdc_series_uuid. A SeriesInstanceUID that is also in
+the main index was revised (its current version is in the main index); one that
+is not was removed from IDC. A version can span more than one row, since a new
+row starts whenever its storage bucket changed between releases, even though its
+content did not. This table is not a record of what is new in a release: it
+never lists added series, and a row ending at a release does not mean that
+release changed the series. To find the series added or revised in a release,
+use series_init_idc_version and series_revised_idc_version in the main index.
+The main use of this table is to resolve and download series listed in manifests
+made from earlier releases.
+
 ### Columns
 
-- **`collection_id`** (`STRING`, NULLABLE):
-- **`PatientID`** (`STRING`, NULLABLE):
-- **`SeriesInstanceUID`** (`STRING`, NULLABLE):
-- **`StudyInstanceUID`** (`STRING`, NULLABLE):
-- **`Modality`** (`STRING`, NULLABLE):
-- **`gcs_bucket`** (`STRING`, NULLABLE):
-- **`crdc_series_uuid`** (`STRING`, NULLABLE):
-- **`series_size_MB`** (`FLOAT`, NULLABLE):
-- **`series_aws_url`** (`STRING`, NULLABLE):
-- **`aws_bucket`** (`STRING`, NULLABLE):
-- **`min_idc_version`** (`INTEGER`, NULLABLE):
-- **`max_idc_version`** (`INTEGER`, NULLABLE):
+- **`collection_id`** (`STRING`, NULLABLE): unique identifier of the collection
+  the series belonged to
+- **`PatientID`** (`STRING`, NULLABLE): identifier of the patient within the
+  collection (DICOM attribute PatientID)
+- **`SeriesInstanceUID`** (`STRING`, NULLABLE): DICOM SeriesInstanceUID of the
+  series; the same for every version of a series, so it also matches the current
+  version in the main index if the series was revised rather than removed
+- **`StudyInstanceUID`** (`STRING`, NULLABLE): DICOM StudyInstanceUID of the
+  study the series belongs to
+- **`Modality`** (`STRING`, NULLABLE): DICOM Modality of the series
+- **`gcs_bucket`** (`STRING`, NULLABLE): name of the Google Cloud Storage bucket
+  that held this version of the series in the releases min_idc_version through
+  max_idc_version
+- **`crdc_series_uuid`** (`STRING`, NULLABLE): unique identifier of this version
+  of the series within IDC; changes whenever the content of the series changes,
+  so it never matches a crdc_series_uuid in the main index. The same value on
+  several rows is one version that moved between storage buckets
+- **`series_size_MB`** (`FLOAT`, NULLABLE): total size of this version of the
+  series in megabytes
+- **`series_aws_url`** (`STRING`, NULLABLE): public AWS S3 URL to download this
+  version of the series in bulk (each instance is a separate file)
+- **`aws_bucket`** (`STRING`, NULLABLE): name of the AWS S3 bucket that contains
+  this version of the series
+- **`min_idc_version`** (`INTEGER`, NULLABLE): first IDC release (as an integer)
+  in this row's range: this version, in this storage bucket, was served from
+  this release on
+- **`max_idc_version`** (`INTEGER`, NULLABLE): last IDC release (as an integer)
+  in this row's range. The next release revised the series, removed it, or moved
+  this version to another storage bucket (which starts a new row)
 
 ## `analysis_results_index`
 
