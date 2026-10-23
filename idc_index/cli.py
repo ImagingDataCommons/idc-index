@@ -383,6 +383,16 @@ def download(generic_argument, download_dir, dir_template, log_level):
             )
         # this is not a file manifest
         else:
+            # Whitespace is not valid in any of the identifiers, and would otherwise
+            # cause the affected IDs to be silently skipped
+            if any(c.isspace() for c in generic_argument):
+                raise click.BadParameter(
+                    "Whitespace is not allowed in the list of identifiers. Separate "
+                    "multiple values with commas only (e.g., 'id1,id2,id3'). If you "
+                    "intended to pass a manifest file, check that the file exists.",
+                    param_hint="GENERIC_ARGUMENT",
+                )
+
             # Split the input string and filter out any empty values
             item_ids = [item for item in generic_argument.split(",") if item]
 

@@ -732,6 +732,22 @@ class TestIDCClient(unittest.TestCase):
                 assert result.exit_code == 0
                 assert len(os.listdir(temp_dir)) != 0
 
+    def test_cli_download_whitespace_in_ids(self):
+        runner = CliRunner()
+        for item_ids in [
+            "VS-MC-RC-054, VS-MC-RC-069",
+            "VS-MC-RC-054 VS-MC-RC-069",
+            "VS-MC-RC-054,\tVS-MC-RC-069",
+        ]:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                result = runner.invoke(
+                    self.download,
+                    [item_ids, "--download-dir", str(Path(temp_dir).resolve())],
+                )
+                assert result.exit_code != 0
+                assert "Whitespace is not allowed" in result.output
+                assert len(os.listdir(temp_dir)) == 0
+
     def test_prior_version_manifest(self):
         # Define the values for each optional parameter
         quiet_values = [True, False]
