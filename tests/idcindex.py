@@ -516,22 +516,24 @@ class TestIDCClient(unittest.TestCase):
         return set(df["series_aws_url"])
 
     def test_download_from_selection_analysis_results(self):
-        # rider_pilot contains both the original images and the qiba_volct_1b analysis result
-        urls = self._get_selection_manifest_urls(collection_id="rider_pilot")
-        assert urls == self._get_series_urls("collection_id = 'rider_pilot'")
+        # lung_phantom (~1 GB) contains both the original images and the qin_lungct_seg
+        # analysis result; keep the selection small, since download_from_selection checks
+        # that it fits on disk even though the download itself is mocked
+        urls = self._get_selection_manifest_urls(collection_id="lung_phantom")
+        assert urls == self._get_series_urls("collection_id = 'lung_phantom'")
 
         urls = self._get_selection_manifest_urls(
-            collection_id="rider_pilot", analysis_results="exclude"
+            collection_id="lung_phantom", analysis_results="exclude"
         )
         assert urls == self._get_series_urls(
-            "collection_id = 'rider_pilot' AND analysis_result_id IS NULL"
+            "collection_id = 'lung_phantom' AND analysis_result_id IS NULL"
         )
 
         urls = self._get_selection_manifest_urls(
-            collection_id="rider_pilot", analysis_results="only"
+            collection_id="lung_phantom", analysis_results="only"
         )
         assert urls == self._get_series_urls(
-            "collection_id = 'rider_pilot' AND analysis_result_id IS NOT NULL"
+            "collection_id = 'lung_phantom' AND analysis_result_id IS NOT NULL"
         )
 
         urls = self._get_selection_manifest_urls(analysis_result_id="qiba_volct_1b")
@@ -557,7 +559,7 @@ class TestIDCClient(unittest.TestCase):
             with pytest.raises(ValueError, match="analysis_results must be one of"):
                 self.client.download_from_selection(
                     downloadDir=temp_dir,
-                    collection_id="rider_pilot",
+                    collection_id="lung_phantom",
                     analysis_results="bogus",
                 )
             # qin_prostate_repeatability does not have any analysis results
@@ -575,7 +577,7 @@ class TestIDCClient(unittest.TestCase):
             with pytest.raises(ValueError, match="No series from analysis_result_id"):
                 self.client.download_from_selection(
                     downloadDir=temp_dir,
-                    collection_id="rider_pilot",
+                    collection_id="lung_phantom",
                     analysis_result_id="prostatex_targets",
                 )
             with pytest.raises(TypeError):
@@ -601,7 +603,7 @@ class TestIDCClient(unittest.TestCase):
             patch.object(IDCClient, "_s5cmd_run") as mock_s5cmd_run,
         ):
             self.client.download_collection(
-                "rider_pilot", temp_dir, analysis_results="exclude"
+                "lung_phantom", temp_dir, analysis_results="exclude"
             )
             manifest_file = mock_s5cmd_run.call_args.kwargs["manifest_file"]
             urls = {
@@ -609,7 +611,7 @@ class TestIDCClient(unittest.TestCase):
             }
             manifest_file.unlink()
         assert urls == self._get_series_urls(
-            "collection_id = 'rider_pilot' AND analysis_result_id IS NULL"
+            "collection_id = 'lung_phantom' AND analysis_result_id IS NULL"
         )
 
     def test_cli_download_from_selection_analysis_results(self):
@@ -624,14 +626,14 @@ class TestIDCClient(unittest.TestCase):
                     "--download-dir",
                     temp_dir,
                     "--collection-id",
-                    "rider_pilot",
+                    "lung_phantom",
                     "--analysis-results",
                     "exclude",
                 ],
             )
             assert result.exit_code == 0
             kwargs = mock_download.call_args.kwargs
-            assert kwargs["collection_id"] == ["rider_pilot"]
+            assert kwargs["collection_id"] == ["lung_phantom"]
             assert kwargs["analysis_results"] == "exclude"
             assert kwargs["analysis_result_id"] is None
 
