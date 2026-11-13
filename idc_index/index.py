@@ -1344,7 +1344,12 @@ class IDCClient:
             else:
                 operation = "cp"
             if dirTemplate is not None:
-                destination = merged_df["path"].map(self._s5cmd_quoted_path)
+                # Trailing slash: see download_from_selection. A manifest line
+                # for a single instance would otherwise be written under the
+                # folder's name.
+                destination = merged_df["path"].map(
+                    lambda p: self._s5cmd_quoted_path(p.rstrip("/") + "/")
+                )
             else:
                 destination = self._s5cmd_quoted_path(downloadDir)
             merged_df["s5cmd_cmd"] = (
@@ -2170,7 +2175,12 @@ Destination folder is not empty and sync size is less than total size.
             else:
                 operation = "cp"
             if dirTemplate is not None:
-                destination = result_df["path"].map(self._s5cmd_quoted_path)
+                # The trailing slash makes s5cmd treat the destination as a
+                # directory. Without it, copying a single instance (a source
+                # with no wildcard) writes the file under the folder's name.
+                destination = result_df["path"].map(
+                    lambda p: self._s5cmd_quoted_path(p.rstrip("/") + "/")
+                )
             else:
                 destination = self._s5cmd_quoted_path(downloadDir)
             result_df["s5cmd_cmd"] = (
