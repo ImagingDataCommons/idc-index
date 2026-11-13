@@ -567,11 +567,12 @@ class IDCClient:
         if index_name == "clinical_index":
             self._install_clinical_data()
 
-    def _missing_clinical_tables(self, clinical_data_dir) -> list[str]:
+    @staticmethod
+    def _missing_clinical_tables(clinical_index, clinical_data_dir) -> list[str]:
         """Return the tables listed in clinical_index that have no Parquet file on disk."""
         return [
             table_name
-            for table_name in self.clinical_index["short_table_name"].unique()
+            for table_name in clinical_index["short_table_name"].unique()
             if not any(Path(clinical_data_dir, table_name).glob("*.parquet"))
         ]
 
@@ -583,7 +584,7 @@ class IDCClient:
         """
         clinical_data_dir = os.path.join(self.idc_data_dir, "clinical_data")
         if self.clinical_index is not None and not self._missing_clinical_tables(
-            clinical_data_dir
+            self.clinical_index, clinical_data_dir
         ):
             logger.info("Using IDC clinical data from %s", clinical_data_dir)
             self.clinical_data_dir = clinical_data_dir
