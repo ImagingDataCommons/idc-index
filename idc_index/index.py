@@ -563,36 +563,65 @@ class IDCClient:
                     f"Failed to fetch index from URL {self.indices_overview[index_name]['url']}: {response.status_code}"
                 )
         # if clinical_index is requested, likely the user will need clinical data
-        # download it here, given that the size is small (<2MB as of IDC v19)
+        # download it here, given that the size is small (about 8 MB as of IDC v25)
         if index_name == "clinical_index":
+            self._install_clinical_data()
+
+    @staticmethod
+    def _missing_clinical_tables(clinical_index, clinical_data_dir) -> list[str]:
+        """Return the tables listed in clinical_index that have no Parquet file on disk."""
+        return [
+            table_name
+            for table_name in clinical_index["short_table_name"].unique()
+            if not any(Path(clinical_data_dir, table_name).glob("*.parquet"))
+        ]
+
+    def _install_clinical_data(self) -> None:
+        """Make the clinical tables for this IDC version available in clinical_data_dir.
+
+        The tables are downloaded only if one listed in clinical_index is missing
+        on disk, so once downloaded they can be used without network access.
+        """
+        clinical_data_dir = os.path.join(self.idc_data_dir, "clinical_data")
+        if self.clinical_index is not None and not self._missing_clinical_tables(
+            self.clinical_index, clinical_data_dir
+        ):
+            logger.info("Using IDC clinical data from %s", clinical_data_dir)
+            self.clinical_data_dir = clinical_data_dir
+            return
+
+        logger.info(
+            "Since clinical_index was fetched, also installing corresponding tables."
+        )
+        self.clinical_data_dir = clinical_data_dir
+        idc_clinical_data_release_url = (
+            f"s3://idc-open-metadata/bigquery_export/idc_{self.idc_version}_clinical/*"
+        )
+        result = subprocess.run(
+            [
+                self.s5cmdPath,
+                "--no-sign-request",
+                "cp",
+                idc_clinical_data_release_url,
+                self.clinical_data_dir,
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        if result.stderr and result.stdout.startswith("ERROR"):
+            logger.error("Failed to download IDC clinical data.")
+        else:
             logger.info(
-                "Since clinical_index was fetched, also installing corresponding tables."
+                "IDC clinical data downloaded successfully to %s",
+                self.clinical_data_dir,
             )
-            # create clinical_data folder under self.idc_data_dir, if it does not exist
-            self.clinical_data_dir = os.path.join(self.idc_data_dir, "clinical_data")
-            idc_clinical_data_release_url = f"s3://idc-open-metadata/bigquery_export/idc_{self.idc_version}_clinical/*"
-            result = subprocess.run(
-                [
-                    self.s5cmdPath,
-                    "--no-sign-request",
-                    "cp",
-                    idc_clinical_data_release_url,
-                    self.clinical_data_dir,
-                ],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            if result.stderr and result.stdout.startswith("ERROR"):
-                logger.error("Failed to download IDC clinical data.")
-            else:
-                logger.info(
-                    "IDC clinical data downloaded successfully to %s",
-                    self.clinical_data_dir,
-                )
 
     def get_clinical_table(self, table_name):
         """Returns the requested clinical table as a pandas DataFrame.
+
+        Fetches clinical_index and the clinical tables first if they are not yet
+        available, downloading only what is missing on disk.
 
         Args:
             table_name (str): Name of the clinical table to be loaded.
@@ -600,6 +629,11 @@ class IDCClient:
         Returns:
             pandas.DataFrame: The requested clinical table.
         """
+        if self.clinical_data_dir is None:
+            if self.clinical_index is None:
+                self.fetch_index("clinical_index")
+            else:
+                self._install_clinical_data()
         if self.clinical_data_dir is None:
             logger.error(
                 "Clinical data directory is not available. Please fetch clinical_index first."
