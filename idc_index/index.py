@@ -1310,7 +1310,12 @@ class IDCClient:
             else:
                 operation = "cp"
             if dirTemplate is not None:
-                destination = merged_df["path"].map(self._s5cmd_quoted_path)
+                # Trailing slash: see download_from_selection. A manifest line
+                # for a single instance would otherwise be written under the
+                # folder's name.
+                destination = merged_df["path"].map(
+                    lambda p: self._s5cmd_quoted_path(p.rstrip("/") + "/")
+                )
             else:
                 destination = self._s5cmd_quoted_path(downloadDir)
             merged_df["s5cmd_cmd"] = (

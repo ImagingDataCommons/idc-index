@@ -198,20 +198,14 @@ class TestIDCClient(unittest.TestCase):
                 downloadDir=temp_dir,
             )
 
-            self.assertEqual(sum([len(files) for r, d, files in os.walk(temp_dir)]), 1)
-
-    def test_download_dicom_instance_with_template(self):
-        self.client.fetch_index("sm_instance_index")
-        with tempfile.TemporaryDirectory() as temp_dir:
-            self.client.download_from_selection(
-                sopInstanceUID="1.3.6.1.4.1.5962.99.1.528744472.1087975700.1641206284312.14.0",
-                downloadDir=temp_dir,
-            )
-
             files = [os.path.join(r, f) for r, d, fs in os.walk(temp_dir) for f in fs]
             self.assertEqual(len(files), 1)
-            # the instance lands inside the series folder, not as a file named after it
+            # the instance is saved inside its series folder, not as a file
+            # named after that folder
             self.assertTrue(files[0].endswith(".dcm"))
+            self.assertTrue(
+                os.path.basename(os.path.dirname(files[0])).startswith("SM_")
+            )
 
     def test_download_dicom_series_gcs(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -231,7 +225,14 @@ class TestIDCClient(unittest.TestCase):
                 source_bucket_location="gcs",
             )
 
-            self.assertEqual(sum([len(files) for r, d, files in os.walk(temp_dir)]), 1)
+            files = [os.path.join(r, f) for r, d, fs in os.walk(temp_dir) for f in fs]
+            self.assertEqual(len(files), 1)
+            # the instance is saved inside its series folder, not as a file
+            # named after that folder
+            self.assertTrue(files[0].endswith(".dcm"))
+            self.assertTrue(
+                os.path.basename(os.path.dirname(files[0])).startswith("SM_")
+            )
 
     def test_download_with_template(self):
         dirTemplateValues = [
