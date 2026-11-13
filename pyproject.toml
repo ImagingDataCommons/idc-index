@@ -37,7 +37,7 @@ dependencies = [
   "pandas>=2.2.2,<4",
   "platformdirs",
   "psutil",
-  "pyarrow",
+  "pyarrow>=14.0.1",
   "requests",
   "s5cmd>=0.3.2",
   "tqdm"

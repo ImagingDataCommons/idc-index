@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import base64
+import contextlib
+import hashlib
 import logging
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import tempfile
@@ -26,8 +30,76 @@ from tqdm import tqdm
 aws_endpoint_url = "https://s3.amazonaws.com"
 gcp_endpoint_url = "https://storage.googleapis.com"
 
+# Bucket that idc-index-data releases upload their index files to, under
+# <version>/release_artifacts/
+INDEX_BUCKET_URL = f"{gcp_endpoint_url}/idc-index-data-artifacts"
+
 logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+class IDCClientIndexVerificationError(Exception):
+    """Exception raised when a downloaded index cannot be verified against its hash."""
+
+
+def _md5_from_goog_hash(header: str | None) -> str | None:
+    """Return the base64-encoded MD5 from an ``x-goog-hash`` header, or None.
+
+    GCS sends one ``x-goog-hash`` header per hash type, and requests joins them
+    with commas, e.g. ``crc32c=KnHoBA==, md5=lrIsHSsj96Kt05YNQqW3qA==``.
+    """
+    if not header:
+        return None
+    for part in header.split(","):
+        name, _, value = part.strip().partition("=")
+        if name == "md5":
+            return value
+    return None
+
+
+def _download_verified(url: str, dest: str, timeout: float = 30) -> None:
+    """Download ``url`` to ``dest`` and check it against the MD5 that GCS reports.
+
+    The response is streamed to a temporary file in the destination directory,
+    which is moved into place only after its MD5 matches. ``dest`` therefore
+    never holds a partial or unverified file.
+
+    Raises:
+        requests.HTTPError: if the server returns an error status.
+        IDCClientIndexVerificationError: if the server reports no MD5, or the
+            downloaded bytes do not match it.
+    """
+    dest_dir = os.path.dirname(dest)
+    os.makedirs(dest_dir, exist_ok=True)
+    with requests.get(url, stream=True, timeout=timeout) as response:
+        response.raise_for_status()
+        expected_md5 = _md5_from_goog_hash(response.headers.get("x-goog-hash"))
+        if expected_md5 is None:
+            msg = f"Server reported no MD5 hash for {url}, so the download cannot be verified."
+            raise IDCClientIndexVerificationError(msg)
+        # usedforsecurity=False lets this run where OpenSSL is in FIPS mode
+        md5 = hashlib.md5(usedforsecurity=False)
+        # Not tempfile.mkstemp: it creates files with mode 0600 regardless of umask
+        tmp_path = os.path.join(
+            dest_dir, f".{os.path.basename(dest)}.{secrets.token_hex(8)}.part"
+        )
+        try:
+            with open(tmp_path, "xb") as tmp_file:
+                for chunk in response.iter_content(chunk_size=1024 * 1024):
+                    md5.update(chunk)
+                    tmp_file.write(chunk)
+            actual_md5 = base64.b64encode(md5.digest()).decode("ascii")
+            if actual_md5 != expected_md5:
+                msg = (
+                    f"MD5 of the file downloaded from {url} is {actual_md5}, "
+                    f"but the server reported {expected_md5}."
+                )
+                raise IDCClientIndexVerificationError(msg)
+            Path(tmp_path).replace(dest)
+        except BaseException:
+            with contextlib.suppress(FileNotFoundError):
+                os.remove(tmp_path)
+            raise
 
 
 class IDCClientInsufficientDiskSpaceError(Exception):
@@ -181,8 +253,10 @@ class IDCClient:
             "prior_versions_index": "prior_versions_index",
         }
 
-        # GitHub release asset endpoint for downloading non-bundled indices
-        asset_endpoint_url = f"https://github.com/ImagingDataCommons/idc-index-data/releases/download/{idc_index_data.__version__}"
+        # Bucket location of the non-bundled indices for this idc-index-data version
+        asset_endpoint_url = (
+            f"{INDEX_BUCKET_URL}/{idc_index_data.__version__}/release_artifacts"
+        )
 
         for internal_name, metadata in INDEX_METADATA.items():
             # Determine canonical name
@@ -534,19 +608,18 @@ class IDCClient:
         # Download the index if not installed
         if not self.indices_overview[index_name]["installed"]:
             logger.info("Fetching index %s", index_name)
-            response = requests.get(
-                self.indices_overview[index_name]["url"], timeout=30
+            url = self.indices_overview[index_name]["url"]
+            filepath = os.path.join(
+                self.indices_data_dir,
+                f"{index_name}.parquet",
             )
-            if response.status_code == 200:
-                filepath = os.path.join(
-                    self.indices_data_dir,
-                    f"{index_name}.parquet",
+            try:
+                _download_verified(url, filepath)
+            except requests.HTTPError as e:
+                logger.error(
+                    f"Failed to fetch index from URL {url}: {e.response.status_code}"
                 )
-
-                os.makedirs(os.path.dirname(filepath), exist_ok=True)
-                with open(filepath, mode="wb") as file:
-                    file.write(response.content)
-
+            else:
                 index_table = pd.read_parquet(filepath)
                 # index_table = index_table.merge(
                 #    self.index[["series_aws_url", "SeriesInstanceUID"]],
@@ -557,11 +630,6 @@ class IDCClient:
                 setattr(self, index_name, index_table)
                 self.indices_overview[index_name]["installed"] = True
                 self.indices_overview[index_name]["file_path"] = filepath
-
-            else:
-                logger.error(
-                    f"Failed to fetch index from URL {self.indices_overview[index_name]['url']}: {response.status_code}"
-                )
         # if clinical_index is requested, likely the user will need clinical data
         # download it here, given that the size is small (<2MB as of IDC v19)
         if index_name == "clinical_index":

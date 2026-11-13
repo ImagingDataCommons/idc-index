@@ -62,7 +62,7 @@ Central registry of all available indices. Structure:
     "sm_index": {
         "description": "Slide microscopy...",
         "installed": True/False,     # True if downloaded
-        "url": "https://github.com/.../sm_index.parquet",
+        "url": "https://storage.googleapis.com/idc-index-data-artifacts/<version>/release_artifacts/sm_index.parquet",
         "file_path": "/path/or/None",
         "schema": {...}
     },
@@ -91,8 +91,9 @@ User calls fetch_index("sm_index")
     │       └─► setattr(self, "sm_index", dataframe)
     │
     └─► Index not installed?
-            └─► Download from URL
-            └─► Save to disk
+            └─► Stream from the idc-index-data-artifacts bucket to a temp file
+            └─► Check its MD5 against the x-goog-hash response header
+            └─► Move into place with os.replace (only if the MD5 matches)
             └─► Load into memory
             └─► Update indices_overview["sm_index"]["installed"] = True
 ```
