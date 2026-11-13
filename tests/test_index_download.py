@@ -6,6 +6,7 @@ import base64
 import hashlib
 import os
 import stat
+import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -93,6 +94,9 @@ def test_download_matching_md5(server_url, tmp_path):
     assert list(dest.parent.iterdir()) == [dest]
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="Windows has no POSIX permission bits"
+)
 def test_download_honors_umask(server_url, tmp_path):
     dest = tmp_path / "index.parquet"
     old_umask = os.umask(0o022)
